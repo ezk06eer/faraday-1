@@ -2293,7 +2293,6 @@ def _return_last_30_days() -> list:
 class Workspace(Metadata):
     __tablename__ = 'workspace'
 
-
     NONE = "none"
     NAME = "name"
     CVE = "cve"

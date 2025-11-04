@@ -2293,11 +2293,9 @@ def _return_last_30_days() -> list:
 class Workspace(Metadata):
     __tablename__ = 'workspace'
 
-    NONE = "none"
     NAME = "name"
     CVE = "cve"
-    EXTERNAL_ID = "external_id"
-    GROUP_BY = [NONE, NAME, CVE, EXTERNAL_ID]
+    GROUP_BY = [NAME, CVE]
 
     LEVENSHTEIN = "levenshtein"
     SENTENCE_TRANSFORMER = "sentence_transformer"
@@ -2320,7 +2318,7 @@ class Workspace(Metadata):
 
     force_lowercase_assets = Column(Boolean, nullable=False, default=False)
 
-    group_by = Column(Enum(*GROUP_BY, name='group_by'), nullable=False, default="none")
+    group_by = Column(Enum(*GROUP_BY, name='group_by'), nullable=True)
     group_algorithm = Column(Enum(*GROUP_ALGORITHM, name='group_algorithm'), nullable=True)
     group_threshold = Column(Integer, nullable=True)
 

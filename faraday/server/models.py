@@ -2292,6 +2292,15 @@ def _return_last_30_days() -> list:
 
 class Workspace(Metadata):
     __tablename__ = 'workspace'
+
+    NAME = "name"
+    CVE = "cve"
+    GROUP_BY = [NAME, CVE]
+
+    LEVENSHTEIN = "levenshtein"
+    SENTENCE_TRANSFORMER = "sentence_transformer"
+    GROUP_ALGORITHM = [LEVENSHTEIN, SENTENCE_TRANSFORMER]
+
     id = Column(Integer, primary_key=True)
     customer = BlankColumn(String(250))  # TBI
     description = BlankColumn(Text)
@@ -2308,6 +2317,10 @@ class Workspace(Metadata):
     last_run_agent_date = query_expression()
 
     force_lowercase_assets = Column(Boolean, nullable=False, default=False)
+
+    group_by = Column(Enum(*GROUP_BY, name='group_by'), nullable=True)
+    group_algorithm = Column(Enum(*GROUP_ALGORITHM, name='group_algorithm'), nullable=True)
+    group_threshold = Column(Integer, nullable=True)
 
     # Stats
 

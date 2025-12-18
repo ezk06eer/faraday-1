@@ -106,10 +106,13 @@ class CredentialView(ReadWriteWorkspacedView,
                 if credential.workspace_id != workspace.id:
                     continue
 
-                if vulns:
-                    credential.vulnerabilities = vulns
-                else:
-                    credential.vulnerabilities = []
+                if not vulns:
+                    continue
+
+                for vuln in vulns:
+                    if not vuln in credential.vulnerabilities:
+                        credential.vulnerabilities.append(vuln)
+
                 db.session.add(credential)
             db.session.commit()
 

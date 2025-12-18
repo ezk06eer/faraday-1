@@ -110,7 +110,7 @@ class CredentialView(ReadWriteWorkspacedView,
                     continue
 
                 for vuln in vulns:
-                    if not vuln in credential.vulnerabilities:
+                    if vuln not in credential.vulnerabilities:
                         credential.vulnerabilities.append(vuln)
 
                 db.session.add(credential)

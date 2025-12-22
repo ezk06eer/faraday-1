@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   db:
     image: postgres:12.7-alpine
@@ -17,13 +16,34 @@ services:
     container_name: faraday_redis
     ports:
       - '6379'
-  app:
+  change-password:
+    image: faraday-local
+    command: ["faraday-manage", "change-password"]
+  faraday-worker:
     image: index.docker.io/faradaysec/faraday
     restart: always
-    container_name: faraday_app
+    container_name: faraday_worker
+    command: [ "faraday-worker" ]
+    volumes:
+      - "faraday:/home/faraday/.faraday:rw"  # to save or use existent config
+      #  - "your_path_to/faraday:/src"  # to use code source with image created with DEV_ENV
+    environment:
+      - PGSQL_USER=postgres
+      - PGSQL_PASSWD=postgres
+      - PGSQL_HOST=db
+      - PGSQL_DBNAME=faraday
+      - REDIS_SERVER=redis
+    depends_on:
+      faraday-server:
+        condition: service_healthy
+  faraday-server:
+    image: index.docker.io/faradaysec/faraday
+    restart: always
+    container_name: faraday_server
     entrypoint: "/entrypoint.sh"
     volumes:
-     - "$HOME/.faraday:/home/faraday/.faraday:rw"
+      - "faraday:/home/faraday/.faraday:rw"  # to save or use existent config
+      #  - "your_path_to/faraday:/src"  # to use code source with image created with DEV_ENV
     environment:
       - PGSQL_USER=postgres
       - PGSQL_PASSWD=postgres
@@ -35,6 +55,10 @@ services:
      - redis
     ports:
      - "5985:5985"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5985/_api/config"]
+      interval: 60s
+      timeout: 30s
 volumes:
   db:
     driver: local

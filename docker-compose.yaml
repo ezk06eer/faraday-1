@@ -1,3 +1,5 @@
+x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # change to your own registry or custom build image name, for example: faraday-local
+
 services:
   db:
     image: postgres:12.7-alpine
@@ -17,13 +19,13 @@ services:
     ports:
       - '6379'
   change-password:
-    image: index.docker.io/faradaysec/faraday  # faraday-local if you build locally
+    image: *faraday-image
     profiles: ["manual"]
     command: ["faraday-manage", "change-password"]
     depends_on:
       - db
   faraday-default-worker:
-    image: index.docker.io/faradaysec/faraday   # faraday-local if you build locally
+    image: *faraday-image
     restart: always
     container_name: faraday_worker
     command: [ "faraday-worker" ]
@@ -42,9 +44,9 @@ services:
   faraday-server:
     build:
       context: .
-      args:
-        - DEV_ENV='false'  # true to use local code
-    image: index.docker.io/faradaysec/faraday # faraday-local if you build locally
+      # args:
+      #  - DEV_ENV= 1  # uncomment to use local code source
+    image: *faraday-image
     restart: always
     container_name: faraday_server
     entrypoint: "/entrypoint.sh"
@@ -64,8 +66,11 @@ services:
      - "5985:5985"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5985/_api/config"]
-      interval: 60s
-      timeout: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 20
 volumes:
   db:
+    driver: local
+  faraday:
     driver: local

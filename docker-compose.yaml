@@ -18,7 +18,10 @@ services:
       - '6379'
   change-password:
     image: index.docker.io/faradaysec/faraday  # faraday-local if you build locally
+    profiles: ["manual"]
     command: ["faraday-manage", "change-password"]
+    depends_on:
+      - db
   faraday-default-worker:
     image: index.docker.io/faradaysec/faraday   # faraday-local if you build locally
     restart: always

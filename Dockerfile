@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y curl --no-install-recommends python3-de
 # Otherwise for production:
 # - Install package normally
 # - Remove source code to reduce image size
-RUN if [ "$DEV_ENV" == "true" ]; then \
+RUN if [ ! -z "$DEV_ENV" ]; then \
     echo "Building dev environment ..." && \
     pip install -e . --no-cache-dir; \
     else \

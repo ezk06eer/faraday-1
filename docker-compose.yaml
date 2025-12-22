@@ -17,9 +17,9 @@ services:
     ports:
       - '6379'
   change-password:
-    image: faraday-local
+    image: index.docker.io/faradaysec/faraday
     command: ["faraday-manage", "change-password"]
-  faraday-worker:
+  faraday-default-worker:
     image: index.docker.io/faradaysec/faraday
     restart: always
     container_name: faraday_worker

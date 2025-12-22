@@ -17,10 +17,10 @@ services:
     ports:
       - '6379'
   change-password:
-    image: index.docker.io/faradaysec/faraday
+    image: index.docker.io/faradaysec/faraday  # faraday-local if you build locally
     command: ["faraday-manage", "change-password"]
   faraday-default-worker:
-    image: index.docker.io/faradaysec/faraday
+    image: index.docker.io/faradaysec/faraday   # faraday-local if you build locally
     restart: always
     container_name: faraday_worker
     command: [ "faraday-worker" ]
@@ -37,7 +37,11 @@ services:
       faraday-server:
         condition: service_healthy
   faraday-server:
-    image: index.docker.io/faradaysec/faraday
+    build:
+      context: .
+      args:
+        - DEV_ENV='false'  # true to use local code
+    image: index.docker.io/faradaysec/faraday # faraday-local if you build locally
     restart: always
     container_name: faraday_server
     entrypoint: "/entrypoint.sh"

@@ -28,6 +28,7 @@ services:
     image: *faraday-image
     profiles: ["manual"]
     command: ["faraday-manage", "change-password"]
+    volumes: *faraday-volumes
     depends_on:
       - db
   faraday-default-worker:

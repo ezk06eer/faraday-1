@@ -1,4 +1,8 @@
-x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # change to your own registry or custom build image name, for example: faraday-local
+x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # Use official image from Docker Hub registry or change to custom image name (e.g. faraday-local when building locally)
+x-faraday-volumes: &faraday-volumes
+  - "faraday:/home/faraday/.faraday:rw"
+  # Mount local source code directory to enable live code changes
+  # - "path_to/faraday:/src"  # Uncomment and adjust path to your local faraday source code directory
 
 services:
   db:
@@ -14,7 +18,7 @@ services:
     volumes:
       - "db:/var/lib/postgresql/data:rw"
   redis:
-    image: 'redis:6.2-alpine'
+    image: 'redis:8.4-alpine'
     container_name: faraday_redis
     ports:
       - '6379'
@@ -29,9 +33,7 @@ services:
     restart: always
     container_name: faraday_worker
     command: [ "faraday-worker" ]
-    volumes:
-      - "faraday:/home/faraday/.faraday:rw"  # to save or use existent config
-      #  - "your_path_to/faraday:/src"  # to use code source with image created with DEV_ENV
+    volumes: *faraday-volumes
     environment:
       - PGSQL_USER=postgres
       - PGSQL_PASSWD=postgres
@@ -50,9 +52,7 @@ services:
     restart: always
     container_name: faraday_server
     entrypoint: "/entrypoint.sh"
-    volumes:
-      - "faraday:/home/faraday/.faraday:rw"  # to save or use existent config
-      #  - "your_path_to/faraday:/src"  # to use code source with image created with DEV_ENV
+    volumes: *faraday-volumes
     environment:
       - PGSQL_USER=postgres
       - PGSQL_PASSWD=postgres
@@ -66,9 +66,9 @@ services:
      - "5985:5985"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5985/_api/config"]
-      interval: 10s
+      interval: 20s
       timeout: 5s
-      retries: 20
+      retries: 10
 volumes:
   db:
     driver: local

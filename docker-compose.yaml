@@ -1,4 +1,6 @@
-x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # Use official image from Docker Hub registry or change to custom image name (e.g. faraday-local when building locally)
+x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # Use official image from Docker Hub registry or, see below for local development
+# x-faraday-image: &faraday-image faraday-local  # For local development, use local image built with `docker-compose build faraday-server`
+
 x-faraday-volumes: &faraday-volumes
   - "faraday:/home/faraday/.faraday:rw"
   # Mount local source code directory to enable live code changes

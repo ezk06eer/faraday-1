@@ -3,9 +3,8 @@ x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # Use
 
 x-faraday-volumes: &faraday-volumes
   - "faraday:/home/faraday/.faraday:rw"  # by default, store data in a Docker volume.
-  # - "$HOME/.faraday/config:/home/faraday/.faraday/config:rw"  # Uncomment to use your existing local config directory. Verify that your Postgres server is not only listening on localhost
-  # - "$HOME/.faraday:/home/faraday/.faraday:rw"  # Uncomment to use your whole existing `.faraday` folder. Comment all the above volumes if you use this option and also verify that your Postgres server is not only listening on localhost
-  # - "path_to/faraday/cloned/repo:/src"  # Uncomment and adjust path to your local faraday source code directory if you want to use local development version.
+  # - "$HOME/.faraday:/home/faraday/.faraday:rw"  # Uncomment to use your whole existing `.faraday` folder. Remember to comment the volume above.
+  # - "path_to/faraday/cloned/repo:/src"  # Uncomment and adjust path to your local faraday source code directory if you want to use a local development version.
 
 services:
   db:

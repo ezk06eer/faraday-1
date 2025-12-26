@@ -31,6 +31,13 @@ services:
     volumes: *faraday-volumes
     depends_on:
       - db
+  faraday-manage:
+    image: *faraday-image
+    profiles: [ "manual" ]
+    command: [ "faraday-manage" ]
+    volumes: *faraday-volumes
+    depends_on:
+      - db
   faraday-default-worker:
     image: *faraday-image
     restart: always

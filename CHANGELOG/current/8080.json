@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Fixed Credentials Bulk Update overwriting linked vulns. #8080"
+}

@@ -6,11 +6,11 @@
 
 buildPythonPackage rec {
   pname = "billiard";
-  version = "4.2.1";
+  version = "4.2.4";
 
   src = fetchPypi {
     inherit pname version;
-    sha256 = "0vxk9xy6fzkasvyc3irk89f6cml9k6zbgf7msg43y1rrqnq43dhj";
+    sha256 = "0px8nrlv6xj2v4d63fjhhaxbqkrfwms9nab2b36h77i0f71l5xam";
   };
 
   # TODO FIXME

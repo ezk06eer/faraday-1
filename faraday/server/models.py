@@ -1171,6 +1171,8 @@ class Command(Metadata):
         back_populates="command"
     )
 
+    tasks = Column(JSONType, nullable=True, default=[])
+
     @property
     def parent(self):
         return
@@ -2256,7 +2258,8 @@ class Credential(Metadata):
                                    lazy='selectin')
 
     workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship('Workspace', backref='credentials', foreign_keys='Credential.workspace_id')
+    workspace = relationship('Workspace', backref=backref('credentials', passive_deletes=True),
+                            foreign_keys=[workspace_id], )
 
     __table_args__ = (
         UniqueConstraint('username', 'password', 'endpoint', 'workspace_id',
@@ -3003,6 +3006,7 @@ class ExecutiveReport(Metadata):
     border_size = Column(Integer, default=3, nullable=True)
     advanced_filter = Column(Boolean, default=False, nullable=False)
     advanced_filter_parsed = Column(Text, nullable=False, default="")
+    is_preview = Column(Boolean, default=False, nullable=False)
 
     workspaces = relationship(
         'Workspace',

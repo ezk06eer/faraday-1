@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-
-
 set -e
-
 
 if [ ! -f "$FARADAY_HOME/.faraday/config/server.ini" ]; then
     if [ -z "$PGSQL_USER" ] || [ -z "$PGSQL_PASSWD" ] || [ -z "$PGSQL_HOST" ] || [ -z "$PGSQL_DBNAME" ] ; then
@@ -54,5 +51,5 @@ faraday-manage openapi-swagger --server https://$FQDN
 echo "$(date) Running migrations ..."
 faraday-manage migrate
 
-echo "$(date) Starting Faraday server with workers..."
-faraday-server --with-workers --bind 0.0.0.0
+echo "$(date) Starting Faraday server ..."
+faraday-server --bind 0.0.0.0

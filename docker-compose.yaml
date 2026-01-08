@@ -1,4 +1,11 @@
-version: '3.8'
+x-faraday-image: &faraday-image index.docker.io/faradaysec/faraday:latest  # Use official image from Docker Hub registry or, see below for local development
+# x-faraday-image: &faraday-image faraday-local  # For local development, use local image built with `docker-compose build faraday-server`
+
+x-faraday-volumes: &faraday-volumes
+  - "faraday:/home/faraday/.faraday:rw"  # by default, store data in a Docker volume.
+  # - "$HOME/.faraday:/home/faraday/.faraday:rw"  # Uncomment to use your whole existing `.faraday` folder. Remember to comment the volume above.
+  # - "path_to/faraday/cloned/repo:/src"  # Uncomment and adjust path to your local faraday source code directory if you want to use a local development version.
+
 services:
   db:
     image: postgres:12.7-alpine
@@ -13,17 +20,49 @@ services:
     volumes:
       - "db:/var/lib/postgresql/data:rw"
   redis:
-    image: 'redis:6.2-alpine'
+    image: 'redis:8.4-alpine'
     container_name: faraday_redis
     ports:
       - '6379'
-  app:
-    image: index.docker.io/faradaysec/faraday
+  change-password:
+    image: *faraday-image
+    profiles: ["manual"]
+    command: ["faraday-manage", "change-password"]
+    volumes: *faraday-volumes
+    depends_on:
+      - db
+  faraday-manage:
+    image: *faraday-image
+    profiles: [ "manual" ]
+    command: [ "faraday-manage" ]
+    volumes: *faraday-volumes
+    depends_on:
+      - db
+  faraday-default-worker:
+    image: *faraday-image
     restart: always
-    container_name: faraday_app
+    container_name: faraday_worker
+    command: [ "faraday-worker" ]
+    volumes: *faraday-volumes
+    environment:
+      - PGSQL_USER=postgres
+      - PGSQL_PASSWD=postgres
+      - PGSQL_HOST=db
+      - PGSQL_DBNAME=faraday
+      - REDIS_SERVER=redis
+    depends_on:
+      faraday-server:
+        condition: service_healthy
+  faraday-server:
+    build:
+      context: .
+      # args:
+      #  - DEV_ENV= 1  # uncomment to use local code source
+    image: *faraday-image
+    restart: always
+    container_name: faraday_server
     entrypoint: "/entrypoint.sh"
-    volumes:
-     - "$HOME/.faraday:/home/faraday/.faraday:rw"
+    volumes: *faraday-volumes
     environment:
       - PGSQL_USER=postgres
       - PGSQL_PASSWD=postgres
@@ -35,6 +74,13 @@ services:
      - redis
     ports:
      - "5985:5985"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5985/_api/config"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
 volumes:
   db:
+    driver: local
+  faraday:
     driver: local

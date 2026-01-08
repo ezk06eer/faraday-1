@@ -84,7 +84,7 @@ audit_logger = logging.getLogger('audit')
 FARADAY_APP = None
 DEBOUNCER = None
 
-PASSWORD_REGEX = re.compile(r'^(?=.*[A-Z])(?=.*([0-9]|[~!@#$%^&*_\-+=|(){}\[\]:";\'<>,.?/])).{8,}$')
+PASSWORD_REGEX = re.compile(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[~!@#$%^&*_\-+=|(){}\[\]:";\'<>,.?/]).{8,}$')
 
 
 def setup_storage_path():

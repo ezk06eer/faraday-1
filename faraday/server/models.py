@@ -1279,11 +1279,13 @@ class Host(Metadata):
                                     child_field='name')
 
 
-cve_vulnerability_association = db.Table('cve_association',
-                                         Column('vulnerability_id', Integer,
-                                                db.ForeignKey('vulnerability.id', ondelete='CASCADE'), nullable=False),
-                                         Column('cve_id', Integer, db.ForeignKey('cve.id'), nullable=False)
-                                         )
+cve_vulnerability_association = db.Table(
+    'cve_association',
+    Column('vulnerability_id', Integer,
+           db.ForeignKey('vulnerability.id', ondelete='CASCADE'), nullable=False),
+    Column('cve_id', Integer, db.ForeignKey('cve.id'), nullable=False),
+    Index('ix_cve_association_vulnerability_id', 'vulnerability_id'),
+)
 
 
 class CVE(db.Model):
@@ -1376,20 +1378,21 @@ class Service(Metadata):
         return f"({self.port}/{self.protocol}) {self.name}{version or ''}"
 
 
-cwe_vulnerability_association = Table('cwe_vulnerability_association',
-                                      db.Model.metadata,
-                                      Column('cwe_id', Integer, ForeignKey('cwe.id', ondelete='CASCADE')),
-                                      Column('vulnerability_id', Integer, ForeignKey('vulnerability.id',
-                                                                                     ondelete='CASCADE'))
-                                      )
+cwe_vulnerability_association = Table(
+    'cwe_vulnerability_association',
+    db.Model.metadata,
+    Column('cwe_id', Integer, ForeignKey('cwe.id', ondelete='CASCADE')),
+    Column('vulnerability_id', Integer, ForeignKey('vulnerability.id', ondelete='CASCADE')),
+    Index('ix_cwe_vulnerability_association_vulnerability_id', 'vulnerability_id'),
+)
 
-
-owasp_vulnerability_association = Table('owasp_vulnerability_association',
-                                        db.Model.metadata,
-                                        Column('owasp_id', Integer, ForeignKey('owasp.id', ondelete='CASCADE')),
-                                        Column('vulnerability_id', Integer, ForeignKey('vulnerability.id',
-                                                                                       ondelete='CASCADE'))
-                                        )
+owasp_vulnerability_association = Table(
+    'owasp_vulnerability_association',
+    db.Model.metadata,
+    Column('owasp_id', Integer, ForeignKey('owasp.id', ondelete='CASCADE')),
+    Column('vulnerability_id', Integer, ForeignKey('vulnerability.id', ondelete='CASCADE')),
+    Index('ix_owasp_vulnerability_association_vulnerability_id', 'vulnerability_id'),
+)
 
 association_table_vulnerabilities_credentials = Table(
     'association_table_vulnerabilities_credentials',
@@ -2109,7 +2112,10 @@ class Reference(Metadata):
 class VulnerabilityReference(Metadata):
     __tablename__ = 'vulnerability_reference'
     __table_args__ = (
-        UniqueConstraint('name', 'type', 'vulnerability_id', name='uix_vulnerability_reference_table_vuln_id_name_type'),
+        UniqueConstraint(
+            'name', 'type', 'vulnerability_id',
+            name='uix_vulnerability_reference_table_vuln_id_name_type'),
+        Index('ix_vulnerability_reference_vulnerability_id', 'vulnerability_id'),
     )
     id = Column(Integer, primary_key=True)
     name = NonBlankColumn(Text)
@@ -2136,6 +2142,9 @@ class OWASP(Metadata):
 
 class ReferenceVulnerabilityAssociation(db.Model):
     __tablename__ = 'reference_vulnerability_association'
+    __table_args__ = (
+        Index('ix_reference_vulnerability_association_vulnerability_id', 'vulnerability_id'),
+    )
 
     vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), primary_key=True)
     reference_id = Column(Integer, ForeignKey('reference.id', ondelete="CASCADE"), primary_key=True)
@@ -2797,13 +2806,16 @@ task_dependencies_association = db.Table('task_dependencies_association',
                                                    db.ForeignKey('project_task.id', ondelete='CASCADE'))
                                          )
 
-vulnerabilities_related_association = db.Table('vulnerabilities_related_association',
-                                               db.Column('task_id', db.Integer(),
-                                                         db.ForeignKey('project_task.id'),
-                                                         primary_key=True),
-                                               db.Column('vulnerability_id', db.Integer(),
-                                                         db.ForeignKey('vulnerability.id', ondelete='CASCADE'),
-                                                         primary_key=True))
+vulnerabilities_related_association = db.Table(
+    'vulnerabilities_related_association',
+    db.Column('task_id', db.Integer(),
+              db.ForeignKey('project_task.id'),
+              primary_key=True),
+    db.Column('vulnerability_id', db.Integer(),
+              db.ForeignKey('vulnerability.id', ondelete='CASCADE'),
+              primary_key=True),
+    Index('ix_vulnerabilities_related_association_vulnerability_id', 'vulnerability_id'),
+)
 
 
 class PlannerProject(Metadata):

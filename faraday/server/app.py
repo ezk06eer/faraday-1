@@ -731,4 +731,5 @@ class CustomChangePasswordForm(ChangePasswordForm):
         password = field.data or ""
         if not PASSWORD_REGEX.match(password):
             raise ValidationError("Password must be at least 8 characters long and contain at "
-                                  "least one uppercase letter and one number or special character.")
+                                  "least one uppercase letter, one lowercase letter, one number,"
+                                  "and one special character.")

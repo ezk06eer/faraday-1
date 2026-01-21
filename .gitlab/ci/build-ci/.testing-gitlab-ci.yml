@@ -19,8 +19,9 @@ smoke_test_deb:
         - faraday-manage show-urls
         - export FARADAY_HOME=/home/faraday
         - /opt/faraday/bin/faraday-server || true  # create .faraday
-        - sed -i 's|connection_string = .*|connection_string = postgresql+psycopg2://'$POSTGRES_USER':'$POSTGRES_PASSWORD'@postgres/'$POSTGRES_DB'|' ~faraday/.faraday/config/server.ini
-        - sed -i '/connection_string = /a celery_enabled = false' ~faraday/.faraday/config/server.ini
+        - "echo '[database]' >>~faraday/.faraday/config/server.ini"
+        - echo "connection_string = postgresql+psycopg2://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres/$POSTGRES_DB" >>~faraday/.faraday/config/server.ini
+        - sed -i '/^\[faraday_server\]/a celery_enabled = false' ~faraday/.faraday/config/server.ini
         - cat ~faraday/.faraday/config/server.ini
         - faraday-manage create-tables
         - /opt/faraday/bin/faraday-server &

@@ -5,14 +5,14 @@ smoke_test_deb:
         - digitalocean-dev
     image: ubuntu:18.04
     needs:
-      - job: generate_deb_dev
+      - job: generate_deb_ubuntu20_dev
         artifacts: true
     extends:
       - .get-secrets
     script:
         - apt-get update -y
         - apt install -y sudo curl
-        - apt-get install -y ./faraday-server_amd64.deb
+        - apt-get install -y ./faraday-server_ubuntu20_amd64.deb
         - which faraday-manage
         - faraday-manage show-urls
         - export FARADAY_HOME=/home/faraday

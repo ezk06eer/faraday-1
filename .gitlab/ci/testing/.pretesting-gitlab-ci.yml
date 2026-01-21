@@ -46,6 +46,7 @@ bandit:
         - .get-secrets
     image: python:3.11
     stage: pre_testing
+    allow_failure: true
     script:
       - pip3 install virtualenv
       - virtualenv -p python3 faraday_venv

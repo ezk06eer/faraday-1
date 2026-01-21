@@ -1,0 +1,183 @@
+#
+# UV-based package building for DEB packages (Ubuntu 20.04 only for white)
+#
+
+.get_from_tar_and_replace_www:
+  script:
+    - rm faraday/server/www
+    - tar xfvz faraday-frontend.tar.gz
+    - rm faraday-frontend.tar.gz
+    - mv build/ faraday/server/www/
+
+# ============================================================================
+# Build File Generation (Pre-Packaging)
+# ============================================================================
+
+generate_build_file_dev:
+    image: registry.gitlab.com/faradaysec/devops
+    stage: pre_build
+    script:
+        - "/bin/mkdir faraday_copy"
+        - !reference [ .get_from_tar_and_replace_www, script ]
+        - "/usr/bin/rsync -aq --exclude 'faraday_copy' --exclude '.cache' --exclude 'result' --exclude 'result-*' . faraday_copy"
+        - "/bin/tar -zcf faraday.tar.gz faraday_copy"
+    rules:
+        - !reference [ .be-built, rules ]
+        - !reference [ .ignore-on-staging, rules ]
+        - !reference [ .ignore-on-master, rules ]
+        - when: never
+    artifacts:
+        name: 'faraday'
+        paths:
+            - "faraday.tar.gz"
+        expire_in: 15 days
+    needs:
+      - project: faradaysec/faraday-react
+        job: npm_build
+        ref: community/dev
+        artifacts: true
+
+generate_build_file_staging:
+    image: registry.gitlab.com/faradaysec/devops
+    stage: pre_build
+    script:
+        - "/bin/mkdir faraday_copy"
+        - !reference [ .get_from_tar_and_replace_www, script ]
+        - "/usr/bin/rsync -aq --exclude 'faraday_copy' --exclude '.cache' --exclude 'result' --exclude 'result-*' . faraday_copy"
+        - "/bin/tar -zcf faraday.tar.gz faraday_copy"
+    rules:
+      - !reference [ .on-staging, rules ]
+      - when: never
+    artifacts:
+        name: 'faraday'
+        paths:
+            - "faraday.tar.gz"
+        expire_in: 15 days
+    needs:
+      - project: faradaysec/faraday-react
+        job: npm_build
+        ref: community/staging
+        artifacts: true
+
+generate_build_file_master:
+    image: registry.gitlab.com/faradaysec/devops
+    stage: pre_build
+    script:
+        - "/bin/mkdir faraday_copy"
+        - !reference [ .get_from_tar_and_replace_www, script ]
+        - "/usr/bin/rsync -aq --exclude 'faraday_copy' --exclude '.cache' --exclude 'result' --exclude 'result-*' . faraday_copy"
+        - "/bin/tar -zcf faraday.tar.gz faraday_copy"
+    rules:
+        - !reference [ .on-master, rules ]
+        - !reference [ .on-community-tag, rules ]
+        - when: never
+    artifacts:
+        name: 'faraday'
+        paths:
+            - "faraday.tar.gz"
+        expire_in: 15 days
+    needs:
+      - project: faradaysec/faraday-react
+        job: npm_build
+        ref: community/master
+        artifacts: true
+
+# ============================================================================
+# UV Venv Build Jobs (Ubuntu 20.04 only for white)
+# ============================================================================
+
+.build_uv_venv_deb_base_ubuntu20_dev:
+  image: ubuntu:20.04
+  stage: pre_build
+  tags:
+    - digitalocean-dev
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+    UV_PROJECT_ENVIRONMENT: /opt/faraday/venv
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv-ubuntu20"
+  before_script:
+    - apt-get update -qq
+    - |
+      apt-get install -y --no-install-recommends \
+        build-essential dpkg \
+        wget curl ca-certificates git rsync \
+        libpq-dev libsasl2-dev libldap2-dev libssl-dev libmagic-dev
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+  script:
+    - export PATH="$HOME/.local/bin:$PATH"
+    # Install Python 3.11 with UV
+    - uv python install 3.11
+    - export UV_PYTHON=$(uv python find 3.11)
+    - mkdir -p /opt/faraday/python
+    - PYTHON_ROOT=$(dirname $(dirname $UV_PYTHON))
+    - cp -rL "$PYTHON_ROOT"/* /opt/faraday/python/
+    - /opt/faraday/python/bin/python3.11 --version
+    # Prepare frontend
+    - !reference [ .get_from_tar_and_replace_www, script ]
+    - mkdir -p /opt/faraday/share
+    - mv faraday/server/www /opt/faraday/share/www
+    - ln -s /opt/faraday/share/www faraday/server/www
+    # Create venv and install dependencies
+    - export UV_PYTHON=/opt/faraday/python/bin/python3.11
+    - uv venv /opt/faraday/venv --python /opt/faraday/python/bin/python3.11
+    - source /opt/faraday/venv/bin/activate
+    - uv sync --frozen --no-dev --no-editable
+    # Create wrapper scripts
+    - bash scripts/create-wrapper-scripts.sh /opt/faraday
+    # Create bundle tarball
+    - tar czf $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz -C /opt faraday
+    - ls -lh $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz
+  artifacts:
+    name: faraday-bundle-deb-ubuntu20
+    paths:
+      - faraday-bundle-ubuntu20.tar.gz
+    expire_in: 15 days
+  rules:
+    - !reference [ .be-uploaded, rules ]
+    - !reference [ .ignore-on-staging, rules ]
+    - !reference [ .ignore-on-master, rules ]
+    - when: never
+
+.build_uv_venv_deb_base_ubuntu20_staging:
+  extends: .build_uv_venv_deb_base_ubuntu20_dev
+  rules:
+    - !reference [ .on-staging, rules ]
+    - when: never
+
+.build_uv_venv_deb_base_ubuntu20_master:
+  extends: .build_uv_venv_deb_base_ubuntu20_dev
+  rules:
+    - !reference [ .on-master, rules ]
+    - !reference [ .on-community-tag, rules ]
+    - when: never
+
+build_uv_venv_deb_ubuntu20_dev:
+  extends: .build_uv_venv_deb_base_ubuntu20_dev
+  needs:
+    - job: generate_build_file_dev
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/dev
+      artifacts: true
+
+build_uv_venv_deb_ubuntu20_staging:
+  extends: .build_uv_venv_deb_base_ubuntu20_staging
+  needs:
+    - job: generate_build_file_staging
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/staging
+      artifacts: true
+
+build_uv_venv_deb_ubuntu20_master:
+  extends: .build_uv_venv_deb_base_ubuntu20_master
+  needs:
+    - job: generate_build_file_master
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/master
+      artifacts: true

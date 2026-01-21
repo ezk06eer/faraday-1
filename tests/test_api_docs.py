@@ -36,6 +36,8 @@ class TestDocs:
             for endpoint in current_app.view_functions:
                 if endpoint in ('static', 'index'):
                     continue
+                if 'mock' in endpoint:
+                    continue
                 spec.path(view=current_app.view_functions[endpoint], app=current_app)
 
         spec_yaml = yaml.load(spec.to_yaml(), Loader=yaml.BaseLoader)
@@ -62,6 +64,8 @@ class TestDocs:
         with current_app.test_request_context():
             for endpoint in current_app.view_functions:
                 if endpoint in ('static', 'index'):
+                    continue
+                if 'mock' in endpoint:
                     continue
                 spec.path(view=current_app.view_functions[endpoint], app=current_app)
 

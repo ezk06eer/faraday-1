@@ -1,5 +1,5 @@
 #
-# UV-based package building for DEB packages (Ubuntu 20.04 only for white)
+# UV-based package building for DEB packages
 #
 
 .get_from_tar_and_replace_www:
@@ -83,7 +83,7 @@ generate_build_file_master:
         artifacts: true
 
 # ============================================================================
-# UV Venv Build Jobs (Ubuntu 20.04 only for white)
+# UV Venv Build Jobs
 # ============================================================================
 
 .build_uv_venv_deb_base_ubuntu20_dev:

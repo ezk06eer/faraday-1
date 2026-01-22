@@ -1,5 +1,3 @@
-# UV-based testing for white (community)
-
 .setup_test_environment: &setup_test_environment
   - .gitlab/ci/scripts/install-system-deps.sh
   - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates || true

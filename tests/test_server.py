@@ -91,6 +91,7 @@ class TestAuthentication(BaseAPITestCase, unittest.TestCase):
 
 
 class TestAuthenticationPytest(BaseAPITestCase):
+    ENDPOINT_ROUTE = '/'
 
     @pytest.mark.usefixtures('logged_user')
     def test_200_when_logged_in(self, test_client):

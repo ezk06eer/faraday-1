@@ -1,4 +1,0 @@
-{
-  "level": "community",
-  "md": "[FIX] Resolved a date inconsistency that could trigger continuous scheduler runs or runs at incorrect times. #8071"
-}

@@ -63,7 +63,7 @@ upload_assets_to_github_tag:
     script:
       - export FARADAY_VERSION=$(eval $IMAGE_TAG)
       - pip3 install requests click
-      - scripts/github_release.py --deb-file ./faraday-server_ubuntu20_amd64.deb --rpm-file ./faraday-server_ubuntu20_amd64.rpm
+      - scripts/github_release.py --deb-file ./faraday-server_ubuntu20_amd64.deb --rpm-file ./faraday-server_rockylinux8_amd64.rpm
     rules:
       - !reference [ .on-community-tag, rules ]
     tags:
@@ -72,5 +72,5 @@ upload_assets_to_github_tag:
       - job: tag_on_github
       - job: generate_deb_ubuntu20_master
         artifacts: true
-      - job: generate_rpm_ubuntu20_master
+      - job: generate_rpm_rockylinux8_master
         artifacts: true

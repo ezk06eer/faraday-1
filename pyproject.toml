@@ -155,7 +155,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "UP031", "UP032"]
 
 ignore = [
     # Spacing (E203, E211, E221, E271 not in ruff)

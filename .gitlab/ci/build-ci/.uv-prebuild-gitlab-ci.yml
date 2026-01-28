@@ -1,6 +1,16 @@
 #
 # UV-based package building for DEB packages
 #
+# These jobs create faraday-bundle.tar.gz containing:
+# - Bundled Python 3.11 in /opt/faraday/python/
+# - UV-created venv in /opt/faraday/venv/
+# - Wrapper scripts in /opt/faraday/bin/
+# - Frontend in /opt/faraday/share/
+#
+
+# ============================================================================
+# Helper Scripts (Shared References)
+# ============================================================================
 
 .get_from_tar_and_replace_www:
   script:
@@ -83,7 +93,7 @@ generate_build_file_master:
         artifacts: true
 
 # ============================================================================
-# UV Venv Build Jobs
+# DEB Build Jobs (Ubuntu 20.04)
 # ============================================================================
 
 .build_uv_venv_deb_base_ubuntu20_dev:
@@ -96,35 +106,47 @@ generate_build_file_master:
     UV_PROJECT_ENVIRONMENT: /opt/faraday/venv
     UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv-ubuntu20"
   before_script:
+    # Update package lists
     - apt-get update -qq
+
+    # Install build tools and development libraries
     - |
       apt-get install -y --no-install-recommends \
         build-essential dpkg \
         wget curl ca-certificates git rsync \
         libpq-dev libsasl2-dev libldap2-dev libssl-dev libmagic-dev
+
+    # Install UV
     - curl -LsSf https://astral.sh/uv/install.sh | sh
     - export PATH="$HOME/.local/bin:$PATH"
+
   script:
+    # Ensure UV is in PATH
     - export PATH="$HOME/.local/bin:$PATH"
-    # Install Python 3.11 with UV
+
+    # Install Python 3.11 directly with UV
     - uv python install 3.11
     - export UV_PYTHON=$(uv python find 3.11)
     - mkdir -p /opt/faraday/python
     - PYTHON_ROOT=$(dirname $(dirname $UV_PYTHON))
     - cp -rL "$PYTHON_ROOT"/* /opt/faraday/python/
     - /opt/faraday/python/bin/python3.11 --version
+
     # Prepare frontend
     - !reference [ .get_from_tar_and_replace_www, script ]
     - mkdir -p /opt/faraday/share
     - mv faraday/server/www /opt/faraday/share/www
     - ln -s /opt/faraday/share/www faraday/server/www
-    # Create venv and install dependencies
+
+    # Create venv with bundled Python and install dependencies
     - export UV_PYTHON=/opt/faraday/python/bin/python3.11
     - uv venv /opt/faraday/venv --python /opt/faraday/python/bin/python3.11
     - source /opt/faraday/venv/bin/activate
     - uv sync --frozen --no-dev --no-editable
+
     # Create wrapper scripts
     - bash scripts/create-wrapper-scripts.sh /opt/faraday
+
     # Create bundle tarball
     - tar czf $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz -C /opt faraday
     - ls -lh $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz
@@ -151,6 +173,10 @@ generate_build_file_master:
     - !reference [ .on-master, rules ]
     - !reference [ .on-community-tag, rules ]
     - when: never
+
+# ============================================================================
+# Concrete Jobs - Community Edition
+# ============================================================================
 
 build_uv_venv_deb_ubuntu20_dev:
   extends: .build_uv_venv_deb_base_ubuntu20_dev

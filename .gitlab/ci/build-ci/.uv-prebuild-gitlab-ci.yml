@@ -207,3 +207,122 @@ build_uv_venv_deb_ubuntu20_master:
       job: npm_build
       ref: community/master
       artifacts: true
+
+# ============================================================================
+# RPM Build Jobs (Rocky Linux 8)
+# ============================================================================
+
+.build_uv_venv_rpm_rockylinux8_base_dev:
+  image: rockylinux:8
+  stage: pre_build
+  tags:
+    - digitalocean-dev
+  variables:
+    UV_PROJECT_ENVIRONMENT: /opt/faraday/venv
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv-rockylinux8"
+  before_script:
+    # Enable PowerTools repository for development packages
+    - dnf install -y dnf-plugins-core
+    - dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled crb || true
+
+    # Install build tools and development libraries
+    - |
+      dnf install -y \
+        gcc gcc-c++ make binutils \
+        wget curl ca-certificates git rsync \
+        postgresql-devel cyrus-sasl-devel openldap-devel openssl-devel \
+        file-devel
+
+    # Install UV
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.local/bin:$PATH"
+
+  script:
+    # Ensure UV is in PATH
+    - export PATH="$HOME/.local/bin:$PATH"
+
+    # Install Python 3.11 directly with UV
+    - uv python install 3.11
+    - export UV_PYTHON=$(uv python find 3.11)
+    - mkdir -p /opt/faraday/python
+    - PYTHON_ROOT=$(dirname $(dirname $UV_PYTHON))
+    - cp -rL "$PYTHON_ROOT"/* /opt/faraday/python/
+    - /opt/faraday/python/bin/python3.11 --version
+
+    # Prepare frontend
+    - !reference [ .get_from_tar_and_replace_www, script ]
+    - mkdir -p /opt/faraday/share
+    - mv faraday/server/www /opt/faraday/share/www
+    - ln -s /opt/faraday/share/www faraday/server/www
+
+    # Create venv with bundled Python and install dependencies
+    - export UV_PYTHON=/opt/faraday/python/bin/python3.11
+    - uv venv /opt/faraday/venv --python /opt/faraday/python/bin/python3.11
+    - source /opt/faraday/venv/bin/activate
+    - uv sync --frozen --no-dev --no-editable
+
+    # Create wrapper scripts
+    - bash scripts/create-wrapper-scripts.sh /opt/faraday
+
+    # Create bundle tarball
+    - tar czf $CI_PROJECT_DIR/faraday-bundle-rockylinux8.tar.gz -C /opt faraday
+
+    # Verify bundle
+    - set +o pipefail && tar tzf $CI_PROJECT_DIR/faraday-bundle-rockylinux8.tar.gz | head -20 && set -o pipefail
+    - ls -lh $CI_PROJECT_DIR/faraday-bundle-rockylinux8.tar.gz
+
+  artifacts:
+    name: faraday-bundle-rpm-rockylinux8
+    paths:
+      - faraday-bundle-rockylinux8.tar.gz
+    expire_in: 15 days
+  rules:
+    - !reference [ .be-uploaded, rules ]
+    - !reference [ .ignore-on-staging, rules ]
+    - !reference [ .ignore-on-master, rules ]
+    - when: never
+
+.build_uv_venv_rpm_rockylinux8_base_staging:
+  extends: .build_uv_venv_rpm_rockylinux8_base_dev
+  rules:
+    - !reference [ .on-staging, rules ]
+    - when: never
+
+.build_uv_venv_rpm_rockylinux8_base_master:
+  extends: .build_uv_venv_rpm_rockylinux8_base_dev
+  rules:
+    - !reference [ .on-master, rules ]
+    - !reference [ .on-community-tag, rules ]
+    - when: never
+
+# Concrete Jobs - Community Edition (Rocky Linux 8 RPM)
+
+build_uv_venv_rpm_rockylinux8_dev:
+  extends: .build_uv_venv_rpm_rockylinux8_base_dev
+  needs:
+    - job: generate_build_file_dev
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/dev
+      artifacts: true
+
+build_uv_venv_rpm_rockylinux8_staging:
+  extends: .build_uv_venv_rpm_rockylinux8_base_staging
+  needs:
+    - job: generate_build_file_staging
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/staging
+      artifacts: true
+
+build_uv_venv_rpm_rockylinux8_master:
+  extends: .build_uv_venv_rpm_rockylinux8_base_master
+  needs:
+    - job: generate_build_file_master
+      artifacts: true
+    - project: faradaysec/faraday-react
+      job: npm_build
+      ref: community/master
+      artifacts: true

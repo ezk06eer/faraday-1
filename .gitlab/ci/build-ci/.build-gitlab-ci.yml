@@ -167,7 +167,7 @@ generate_deb_ubuntu20_master:
         - !reference [.on-community-tag, rules]
         - when: never
 
-generate_rpm_ubuntu20_dev:
+generate_rpm_rockylinux8_dev:
     stage: build
     image: registry.gitlab.com/faradaysec/devops/docker-rpm-builder
     before_script:
@@ -175,15 +175,15 @@ generate_rpm_ubuntu20_dev:
       - cd faraday-linux-installers-builder
       - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
       - cd ..
-      # Extract UV bundle for Ubuntu 20.04
-      - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+      # Extract UV bundle for Rocky Linux 8
+      - tar xzf faraday-bundle-rockylinux8.tar.gz -C /opt
     script:
         - mkdir build_installer
         - cp -a faraday.tar.gz build_installer/.
         - cd build_installer
         - /bin/tar zxf faraday.tar.gz
         - cd faraday_copy
-        # /opt/faraday already extracted from faraday-bundle.tar.gz
+        # /opt/faraday already extracted from faraday-bundle-rockylinux8.tar.gz
         - mv ../../faraday-linux-installers-builder .
         - cd faraday-linux-installers-builder
         - git rev-parse HEAD
@@ -196,17 +196,17 @@ generate_rpm_ubuntu20_dev:
         - gem install --no-document fpm-1.11.0.gem
         - gem install --no-document rexml
         - cd ../../
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.rpm ../../faraday-server_ubuntu20_amd64.rpm
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white rockylinux8
+        - mv faraday-server_rockylinux8_amd64.rpm ../../faraday-server_rockylinux8_amd64.rpm
     needs:
       - job: generate_build_file_dev
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_dev
+      - job: build_uv_venv_rpm_rockylinux8_dev
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.rpm'
+        name: 'faraday_rockylinux8_$CI_COMMIT_REF_NAME.rpm'
         paths:
-            - "faraday-server_ubuntu20_amd64.rpm"
+            - "faraday-server_rockylinux8_amd64.rpm"
         expire_in: 15 days
     rules:
         - !reference [.be-uploaded, rules]
@@ -215,7 +215,7 @@ generate_rpm_ubuntu20_dev:
         - !reference [.ignore-on-master, rules]
         - when: never
 
-generate_rpm_ubuntu20_staging:
+generate_rpm_rockylinux8_staging:
     stage: build
     image: registry.gitlab.com/faradaysec/devops/docker-rpm-builder
     before_script:
@@ -223,15 +223,15 @@ generate_rpm_ubuntu20_staging:
       - cd faraday-linux-installers-builder
       - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
       - cd ..
-      # Extract UV bundle for Ubuntu 20.04
-      - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+      # Extract UV bundle for Rocky Linux 8
+      - tar xzf faraday-bundle-rockylinux8.tar.gz -C /opt
     script:
         - mkdir build_installer
         - cp -a faraday.tar.gz build_installer/.
         - cd build_installer
         - /bin/tar zxf faraday.tar.gz
         - cd faraday_copy
-        # /opt/faraday already extracted from faraday-bundle.tar.gz
+        # /opt/faraday already extracted from faraday-bundle-rockylinux8.tar.gz
         - mv ../../faraday-linux-installers-builder .
         - cd faraday-linux-installers-builder
         - git rev-parse HEAD
@@ -244,23 +244,23 @@ generate_rpm_ubuntu20_staging:
         - gem install --no-document fpm-1.11.0.gem
         - gem install --no-document rexml
         - cd ../../
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.rpm ../../faraday-server_ubuntu20_amd64.rpm
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white rockylinux8
+        - mv faraday-server_rockylinux8_amd64.rpm ../../faraday-server_rockylinux8_amd64.rpm
     needs:
       - job: generate_build_file_staging
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_staging
+      - job: build_uv_venv_rpm_rockylinux8_staging
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.rpm'
+        name: 'faraday_rockylinux8_$CI_COMMIT_REF_NAME.rpm'
         paths:
-            - "faraday-server_ubuntu20_amd64.rpm"
+            - "faraday-server_rockylinux8_amd64.rpm"
         expire_in: 15 days
     rules:
         - !reference [.on-staging, rules]
         - when: never
 
-generate_rpm_ubuntu20_master:
+generate_rpm_rockylinux8_master:
     stage: build
     image: registry.gitlab.com/faradaysec/devops/docker-rpm-builder
     before_script:
@@ -268,15 +268,15 @@ generate_rpm_ubuntu20_master:
       - cd faraday-linux-installers-builder
       - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
       - cd ..
-      # Extract UV bundle for Ubuntu 20.04
-      - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+      # Extract UV bundle for Rocky Linux 8
+      - tar xzf faraday-bundle-rockylinux8.tar.gz -C /opt
     script:
         - mkdir build_installer
         - cp -a faraday.tar.gz build_installer/.
         - cd build_installer
         - /bin/tar zxf faraday.tar.gz
         - cd faraday_copy
-        # /opt/faraday already extracted from faraday-bundle.tar.gz
+        # /opt/faraday already extracted from faraday-bundle-rockylinux8.tar.gz
         - mv ../../faraday-linux-installers-builder .
         - cd faraday-linux-installers-builder
         - git rev-parse HEAD
@@ -289,17 +289,17 @@ generate_rpm_ubuntu20_master:
         - gem install --no-document fpm-1.11.0.gem
         - gem install --no-document rexml
         - cd ../../
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.rpm ../../faraday-server_ubuntu20_amd64.rpm
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG) server rpm white rockylinux8
+        - mv faraday-server_rockylinux8_amd64.rpm ../../faraday-server_rockylinux8_amd64.rpm
     needs:
       - job: generate_build_file_master
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_master
+      - job: build_uv_venv_rpm_rockylinux8_master
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.rpm'
+        name: 'faraday_rockylinux8_$CI_COMMIT_REF_NAME.rpm'
         paths:
-            - "faraday-server_ubuntu20_amd64.rpm"
+            - "faraday-server_rockylinux8_amd64.rpm"
         expire_in: 15 days
     rules:
         - !reference [.on-master, rules]

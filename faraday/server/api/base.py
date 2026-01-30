@@ -473,7 +473,7 @@ class GenericWorkspacedView(GenericView):
     route_prefix = '/v3/ws/<workspace_name>/'
     base_args = ['workspace_name']  # Required to prevent double usage of <workspace_name>
 
-    def _get_base_query(self, workspace_name):
+    def _get_base_query(self, workspace_name, **kwargs):
         base = super()._get_base_query()
         return base.join(Workspace).filter(
             Workspace.id == get_workspace(workspace_name).id)
@@ -516,7 +516,7 @@ class GenericMultiWorkspacedView(GenericWorkspacedView):
 
     """
 
-    def _get_base_query(self, workspace_name):
+    def _get_base_query(self, workspace_name, **kwargs):
         base = super(GenericWorkspacedView, self)._get_base_query()
         return base.filter(
             self.model_class.workspaces.any(
@@ -1498,7 +1498,9 @@ class BulkUpdateMixin(FilterObjects):
                     queryset = self._bulk_update_query(ids, workspace_name=workspace_name, **kwargs)
                     updated = queryset.update(data, synchronize_session='fetch')
                 logger.debug(f"Updated {updated} {self.model_class.__name__} in {time() - _time} seconds")
-                self._post_bulk_update(ids, post_bulk_update_data, workspace_name=workspace_name, data=data, returning=returns)
+                self._post_bulk_update(
+                    ids, post_bulk_update_data, workspace_name=workspace_name, data=data, returning=returns
+                )
             else:
                 updated = 0
             db.session.commit()
@@ -1876,17 +1878,6 @@ class CountMultiWorkspacedMixin:
             400:
               description: No workspace passed or group_by is not specified
         """
-        # """head:
-        #  tags: [{tag_name}]
-        #   responses:
-        #     200:
-        #       description: Ok
-        # options:
-        #   tags: [{tag_name}]
-        #   responses:
-        #     200:
-        #       description: Ok
-        # """
         res = {
             'groups': defaultdict(dict),
             'total_count': 0
@@ -2172,3 +2163,61 @@ class ContextMixin(GenericView):
             )
             res['total_count'] += query_count
         return res
+
+    def _perform_bulk_update(self, ids, data, workspace_name=None, **kwargs):
+        try:
+            post_bulk_update_data = self._pre_bulk_update(data, workspace_name=workspace_name, **kwargs)
+            if (len(data) > 0 or len(post_bulk_update_data) > 0) and len(ids) > 0:
+                returns = None
+                _time = time()
+                if 'returning' in kwargs:
+                    smt = (sqlalchemy_update(self.model_class)
+                           .where(self.model_class.id.in_(ids))
+                           .values(data).returning(*kwargs['returning']))
+                    returns = db.session.execute(smt)
+                    returns = returns.fetchall()
+                    updated = len(returns)
+                else:
+                    queryset = self._bulk_update_query(ids, workspace_name=workspace_name, **kwargs)
+                    updated = queryset.update(data, synchronize_session='fetch')
+                logger.debug(f"Updated {updated} {self.model_class.__name__} in {time() - _time} seconds")
+                self._post_bulk_update(
+                    ids, post_bulk_update_data, workspace_name=workspace_name, data=data, returning=returns
+                )
+            else:
+                updated = 0
+            db.session.commit()
+            response = {'updated': updated}
+            return jsonify(response)
+        except ValueError as e:
+            db.session.rollback()
+            abort(HTTP_BAD_REQUEST, ValidationError(
+               {
+                   'message': str(e),
+               }
+            ))
+        except IntegrityError as ex:
+            if not is_unique_constraint_violation(ex):
+                raise
+            db.session.rollback()
+            workspace = None
+            if workspace_name:
+                workspace = db.session.query(Workspace).filter_by(name=workspace_name).first()
+            conflict_obj = get_conflict_object(db.session, self.model_class(), data, workspace, ids)
+            if conflict_obj is not None:
+                abort(HTTP_CONFLICT, ValidationError(
+                    {
+                        'message': 'Existing value',
+                        'object': self._get_schema_class()().dump(
+                            conflict_obj),
+                    }
+                ))
+            elif len(ids) >= 2:
+                abort(HTTP_CONFLICT, ValidationError(
+                    {
+                        'message': 'Updating more than one object with unique data',
+                        'data': data
+                    }
+                ))
+            else:
+                raise

@@ -1449,6 +1449,7 @@ class VulnerabilityGeneric(VulnerabilityABC):
     )
     is_automatic = Column(Boolean, nullable=True, default=None)
     group_title = BlankColumn(Text, nullable=True)
+    group_count = Column(Integer, nullable=True, default=None)
 
     group_members = relationship("VulnerabilityGeneric", cascade="all, delete-orphan",
                                          backref=backref('group_header', remote_side=[id])

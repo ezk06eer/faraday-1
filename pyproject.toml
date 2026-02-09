@@ -1,6 +1,6 @@
 [project]
-name = "faraday"
-version = "0.1.0"
+name = "faradaysec"
+dynamic = ["version"]
 description = "Open Source Collaborative Penetration Test and Vulnerability Management Platform https://www.faradaysec.com"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -124,6 +124,9 @@ dev = [
     "sphinx>=1.7.6",
     "twine>=6.2.0",
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "faraday.__version__"}
 
 [tool.setuptools]
 # Automatically discover all packages and subpackages (excluding tests)

@@ -1,4 +1,6 @@
 .git
+.gitlab
+.github
 .venv
 __pycache__
 *.py[cod]
@@ -8,8 +10,10 @@ dist
 build
 .tox
 .pytest_cache
-tests/
-docs/
+tests
+doc
+scripts
+pynixify
 CHANGELOG
 *.md
 .idea

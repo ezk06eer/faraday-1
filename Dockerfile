@@ -1,7 +1,8 @@
 FROM python:3.11-slim-bookworm
 
 # Set DEV_ENV=1 to build with development dependencies and editable install
-ARG DEV_ENV
+# Comment for prod
+# ARG DEV_ENV
 
 WORKDIR /src
 

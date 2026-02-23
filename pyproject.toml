@@ -59,6 +59,8 @@ dependencies = [
     "kombu==5.4.2",
     "marshmallow>=3.19.0,<4.0.0",
     "marshmallow-sqlalchemy>=0.26.1,<0.28.1",
+    "matplotlib>=3.1.1",
+    "networkx>=3.4.2",
     "nplusone>=0.8.1",
     "pgcli<=4.3.0",
     "pillow>=10.2.0",

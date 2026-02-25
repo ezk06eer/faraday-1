@@ -29,7 +29,7 @@ class TestDocs:
 
     def test_yaml_docs_with_no_doc(self):
 
-        exc = {'/login', '/logout', '/change', '/reset', '/reset/{token}', '/verify', '/', '/_api/v3/ws/'}
+        exc = {'/login', '/logout', '/change', '/reset', '/reset/{token}', '/verify', '/'}
         failing = []
 
         with current_app.test_request_context():

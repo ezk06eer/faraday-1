@@ -76,7 +76,7 @@ pylint_uv:
     - cd run_from
     - uv run pytest ../tests -n auto --dist loadscope -sv
         --capture=sys --cov=../faraday/server --color=yes
-        --disable-warnings
+        --disable-warnings --exitfirst
   artifacts:
     when: on_failure
     paths:

@@ -1404,6 +1404,17 @@ association_table_vulnerabilities_credentials = Table(
 )
 
 
+class VulnerabilityGroup(db.Model):
+    __tablename__ = 'vulnerability_group'
+    id = Column(Integer, primary_key=True)
+    title = NonBlankColumn(Text)
+    is_automatic = Column(Boolean, nullable=True)
+
+    @property
+    def parent(self):
+        return
+
+
 class VulnerabilityGeneric(VulnerabilityABC):
     STATUS_OPEN = 'open'
     STATUS_RE_OPENED = 're-opened'
@@ -1443,20 +1454,39 @@ class VulnerabilityGeneric(VulnerabilityABC):
     status_code = Column(Integer, nullable=True)
     epss = Column(Float, nullable=True)  # Exploit Prediction Scoring System (EPSS)
     is_main = Column(Boolean, nullable=True, default=None)
-    group_vuln_id = Column(
+    group_id = Column(
         Integer,
-        ForeignKey('vulnerability.id', ondelete='SET NULL'),
+        ForeignKey('vulnerability_group.id', ondelete='SET NULL'),
         index=True,
         nullable=True,
         default=None,
     )
     is_automatic = Column(Boolean, nullable=True, default=None)
     group_title = BlankColumn(Text, nullable=True)
-    group_count = Column(Integer, nullable=True, default=None)
 
-    group_members = relationship("VulnerabilityGeneric", cascade="all, delete-orphan",
-                                         backref=backref('group_header', remote_side=[id])
-                                         )
+    @hybrid_property
+    def group_count(self):
+        if not self.is_main or self.group_id is None:
+            return None
+        return self.__class__.query.filter(
+            self.__class__.group_id == self.group_id
+        ).count()
+
+    @group_count.expression
+    def group_count(cls):
+        inner = (
+            select([func.count(text('v.id'))])
+            .select_from(text('vulnerability as v'))
+            .where(text('v.group_id = vulnerability.group_id'))
+            .where(cls.group_id.isnot(None))
+            .as_scalar()
+        )
+        return case(
+            [(cls.is_main.is_(True), inner)],
+            else_=None
+        )
+
+    group = relationship("VulnerabilityGroup", backref=backref('vulnerabilities', passive_deletes=True))
     vulnerability_template_id = Column(
         Integer,
         ForeignKey('vulnerability_template.id', ondelete='SET NULL'),

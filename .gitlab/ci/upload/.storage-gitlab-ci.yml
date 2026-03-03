@@ -1,11 +1,11 @@
 .google_storage_deb_rpm_base: &google_storage_deb_rpm_base
 - check_not_skipped(){ grep -v 'Skipping'; }
 - gcloud auth activate-service-account --key-file auth_file.json
-- "gsutil cp faraday-server_ubuntu20_amd64.deb ${GCLOUD_FILE_PATH}_amd64.deb 2>&1 | check_not_skipped"
+- "gsutil cp faraday-server_ubuntu24_amd64.deb ${GCLOUD_FILE_PATH}_amd64.deb 2>&1 | check_not_skipped"
 - "gsutil cp faraday-server_rockylinux8_amd64.rpm ${GCLOUD_FILE_PATH}_amd64.rpm 2>&1 | check_not_skipped"
 - "gsutil cp faraday-server-docker.tar.gz ${GCLOUD_FILE_PATH}-docker.tar.gz 2>&1 | check_not_skipped"
 - "gsutil setmeta -h x-goog-meta-commit:${CI_COMMIT_SHA} ${GCLOUD_FILE_PATH}*.*"
-- export DEB_HASH=$(sha256sum faraday-server_ubuntu20_amd64.deb | awk '{print $1}')
+- export DEB_HASH=$(sha256sum faraday-server_ubuntu24_amd64.deb | awk '{print $1}')
 - export RPM_HASH=$(sha256sum faraday-server_rockylinux8_amd64.rpm | awk '{print $1}')
 - export DOCKER_HASH=$(sha256sum faraday-server-docker.tar.gz| awk '{print $1}')
 - "gsutil setmeta -h x-goog-meta-sha256_hash:${DEB_HASH} ${GCLOUD_FILE_PATH}_amd64.deb 2>&1 | check_not_skipped"
@@ -43,7 +43,7 @@ google_storage_deb_rpm_dev_dev:
     - !reference [ .ignore-on-master, rules ]
     - when: never
   needs:
-    - job: generate_deb_ubuntu20_dev
+    - job: generate_deb_ubuntu24_dev
       artifacts: true
     - job: generate_rpm_rockylinux8_dev
       artifacts: true
@@ -70,7 +70,7 @@ google_storage_deb_rpm_dev_staging:
     - !reference [ .on-staging, rules ]
     - when: never
   needs:
-    - job: generate_deb_ubuntu20_staging
+    - job: generate_deb_ubuntu24_staging
       artifacts: true
     - job: generate_rpm_rockylinux8_staging
       artifacts: true
@@ -97,7 +97,7 @@ google_storage_deb_rpm_dev_master:
     - !reference [ .on-master, rules ]
     - when: never
   needs:
-    - job: generate_deb_ubuntu20_master
+    - job: generate_deb_ubuntu24_master
       artifacts: true
     - job: generate_rpm_rockylinux8_master
       artifacts: true

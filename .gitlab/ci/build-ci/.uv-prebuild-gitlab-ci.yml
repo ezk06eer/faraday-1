@@ -93,18 +93,18 @@ generate_build_file_master:
         artifacts: true
 
 # ============================================================================
-# DEB Build Jobs (Ubuntu 20.04)
+# DEB Build Jobs (Ubuntu 24.04)
 # ============================================================================
 
-.build_uv_venv_deb_base_ubuntu20_dev:
-  image: ubuntu:20.04
+.build_uv_venv_deb_base_ubuntu24_dev:
+  image: ubuntu:24.04
   stage: pre_build
   tags:
     - digitalocean-dev
   variables:
     DEBIAN_FRONTEND: noninteractive
     UV_PROJECT_ENVIRONMENT: /opt/faraday/venv
-    UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv-ubuntu20"
+    UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv-ubuntu24"
   before_script:
     # Update package lists
     - apt-get update -qq
@@ -114,7 +114,9 @@ generate_build_file_master:
       apt-get install -y --no-install-recommends \
         build-essential dpkg \
         wget curl ca-certificates git rsync \
-        libpq-dev libsasl2-dev libldap2-dev libssl-dev libmagic-dev
+        libpq-dev libsasl2-dev libldap2-dev libssl-dev libmagic-dev \
+        libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev libharfbuzz-dev \
+        libfontconfig1-dev libglib2.0-dev
 
     # Install UV
     - curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -148,12 +150,12 @@ generate_build_file_master:
     - bash scripts/create-wrapper-scripts.sh /opt/faraday
 
     # Create bundle tarball
-    - tar czf $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz -C /opt faraday
-    - ls -lh $CI_PROJECT_DIR/faraday-bundle-ubuntu20.tar.gz
+    - tar czf $CI_PROJECT_DIR/faraday-bundle-ubuntu24.tar.gz -C /opt faraday
+    - ls -lh $CI_PROJECT_DIR/faraday-bundle-ubuntu24.tar.gz
   artifacts:
-    name: faraday-bundle-deb-ubuntu20
+    name: faraday-bundle-deb-ubuntu24
     paths:
-      - faraday-bundle-ubuntu20.tar.gz
+      - faraday-bundle-ubuntu24.tar.gz
     expire_in: 15 days
   rules:
     - !reference [ .be-uploaded, rules ]
@@ -161,14 +163,14 @@ generate_build_file_master:
     - !reference [ .ignore-on-master, rules ]
     - when: never
 
-.build_uv_venv_deb_base_ubuntu20_staging:
-  extends: .build_uv_venv_deb_base_ubuntu20_dev
+.build_uv_venv_deb_base_ubuntu24_staging:
+  extends: .build_uv_venv_deb_base_ubuntu24_dev
   rules:
     - !reference [ .on-staging, rules ]
     - when: never
 
-.build_uv_venv_deb_base_ubuntu20_master:
-  extends: .build_uv_venv_deb_base_ubuntu20_dev
+.build_uv_venv_deb_base_ubuntu24_master:
+  extends: .build_uv_venv_deb_base_ubuntu24_dev
   rules:
     - !reference [ .on-master, rules ]
     - !reference [ .on-community-tag, rules ]
@@ -178,8 +180,8 @@ generate_build_file_master:
 # Concrete Jobs - Community Edition
 # ============================================================================
 
-build_uv_venv_deb_ubuntu20_dev:
-  extends: .build_uv_venv_deb_base_ubuntu20_dev
+build_uv_venv_deb_ubuntu24_dev:
+  extends: .build_uv_venv_deb_base_ubuntu24_dev
   needs:
     - job: generate_build_file_dev
       artifacts: true
@@ -188,8 +190,8 @@ build_uv_venv_deb_ubuntu20_dev:
       ref: community/dev
       artifacts: true
 
-build_uv_venv_deb_ubuntu20_staging:
-  extends: .build_uv_venv_deb_base_ubuntu20_staging
+build_uv_venv_deb_ubuntu24_staging:
+  extends: .build_uv_venv_deb_base_ubuntu24_staging
   needs:
     - job: generate_build_file_staging
       artifacts: true
@@ -198,8 +200,8 @@ build_uv_venv_deb_ubuntu20_staging:
       ref: community/staging
       artifacts: true
 
-build_uv_venv_deb_ubuntu20_master:
-  extends: .build_uv_venv_deb_base_ubuntu20_master
+build_uv_venv_deb_ubuntu24_master:
+  extends: .build_uv_venv_deb_base_ubuntu24_master
   needs:
     - job: generate_build_file_master
       artifacts: true

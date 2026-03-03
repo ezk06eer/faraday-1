@@ -1,4 +1,4 @@
-generate_deb_ubuntu20_dev:
+generate_deb_ubuntu24_dev:
     image: registry.gitlab.com/faradaysec/devops
     stage: build
     before_script:
@@ -14,8 +14,8 @@ generate_deb_ubuntu20_dev:
         - cd faraday-linux-installers-builder
         - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
         - cd ..
-        # Extract UV bundle for Ubuntu 20.04
-        - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+        # Extract UV bundle for Ubuntu 24.04
+        - tar xzf faraday-bundle-ubuntu24.tar.gz -C /opt
 
     script:
         - mkdir build_installer
@@ -37,17 +37,17 @@ generate_deb_ubuntu20_dev:
         - gem install --no-document rexml
         - cd ../../
         - POSTFIX=$(echo "$CI_COMMIT_BRANCH" | awk '{split($1,a,"_");split($1,b,"/"); if (a[3]!="y2k") if (b[2]=="dev"||b[2]=="master") print ""; else print "~"a[3]; else exit 1;}')
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.deb ../../faraday-server_ubuntu20_amd64.deb
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu24
+        - mv faraday-server_ubuntu24_amd64.deb ../../faraday-server_ubuntu24_amd64.deb
     needs:
       - job: generate_build_file_dev
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_dev
+      - job: build_uv_venv_deb_ubuntu24_dev
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.deb'
+        name: 'faraday_ubuntu24_$CI_COMMIT_REF_NAME.deb'
         paths:
-            - "faraday-server_ubuntu20_amd64.deb"
+            - "faraday-server_ubuntu24_amd64.deb"
         expire_in: 15 days
     rules:
         - !reference [ .be-uploaded, rules ]
@@ -56,7 +56,7 @@ generate_deb_ubuntu20_dev:
         - !reference [ .ignore-on-master, rules ]
         - when: never
 
-generate_deb_ubuntu20_staging:
+generate_deb_ubuntu24_staging:
     image: registry.gitlab.com/faradaysec/devops
     stage: build
     before_script:
@@ -72,8 +72,8 @@ generate_deb_ubuntu20_staging:
         - cd faraday-linux-installers-builder
         - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
         - cd ..
-        # Extract UV bundle for Ubuntu 20.04
-        - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+        # Extract UV bundle for Ubuntu 24.04
+        - tar xzf faraday-bundle-ubuntu24.tar.gz -C /opt
 
     script:
         - mkdir build_installer
@@ -95,23 +95,23 @@ generate_deb_ubuntu20_staging:
         - gem install --no-document rexml
         - cd ../../
         - POSTFIX=$(echo "$CI_COMMIT_BRANCH" | awk '{split($1,a,"_");split($1,b,"/"); if (a[3]!="y2k") if (b[2]=="dev"||b[2]=="master") print ""; else print "~"a[3]; else exit 1;}')
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.deb ../../faraday-server_ubuntu20_amd64.deb
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu24
+        - mv faraday-server_ubuntu24_amd64.deb ../../faraday-server_ubuntu24_amd64.deb
     needs:
       - job: generate_build_file_staging
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_staging
+      - job: build_uv_venv_deb_ubuntu24_staging
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.deb'
+        name: 'faraday_ubuntu24_$CI_COMMIT_REF_NAME.deb'
         paths:
-            - "faraday-server_ubuntu20_amd64.deb"
+            - "faraday-server_ubuntu24_amd64.deb"
         expire_in: 15 days
     rules:
         - !reference [ .on-staging, rules ]
         - when: never
 
-generate_deb_ubuntu20_master:
+generate_deb_ubuntu24_master:
     image: registry.gitlab.com/faradaysec/devops
     stage: build
     before_script:
@@ -127,8 +127,8 @@ generate_deb_ubuntu20_master:
         - cd faraday-linux-installers-builder
         - "if ! [ -z $INSTALLER_BRANCH ]; then git checkout $INSTALLER_BRANCH; fi"
         - cd ..
-        # Extract UV bundle for Ubuntu 20.04
-        - tar xzf faraday-bundle-ubuntu20.tar.gz -C /opt
+        # Extract UV bundle for Ubuntu 24.04
+        - tar xzf faraday-bundle-ubuntu24.tar.gz -C /opt
 
     script:
         - mkdir build_installer
@@ -150,17 +150,17 @@ generate_deb_ubuntu20_master:
         - gem install --no-document rexml
         - cd ../../
         - POSTFIX=$(echo "$CI_COMMIT_BRANCH" | awk '{split($1,a,"_");split($1,b,"/"); if (a[3]!="y2k") if (b[2]=="dev"||b[2]=="master") print ""; else print "~"a[3]; else exit 1;}')
-        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu20
-        - mv faraday-server_ubuntu20_amd64.deb ../../faraday-server_ubuntu20_amd64.deb
+        - sh faraday-linux-installers-builder/build.sh $(eval $IMAGE_TAG)~$((`date '+%s%N'`/1000))$POSTFIX server deb white ubuntu24
+        - mv faraday-server_ubuntu24_amd64.deb ../../faraday-server_ubuntu24_amd64.deb
     needs:
       - job: generate_build_file_master
         artifacts: true
-      - job: build_uv_venv_deb_ubuntu20_master
+      - job: build_uv_venv_deb_ubuntu24_master
         artifacts: true
     artifacts:
-        name: 'faraday_ubuntu20_$CI_COMMIT_REF_NAME.deb'
+        name: 'faraday_ubuntu24_$CI_COMMIT_REF_NAME.deb'
         paths:
-            - "faraday-server_ubuntu20_amd64.deb"
+            - "faraday-server_ubuntu24_amd64.deb"
         expire_in: 15 days
     rules:
         - !reference [.on-master, rules]

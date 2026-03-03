@@ -3,9 +3,9 @@ smoke_test_deb:
     stage: build_testing  # TODO improve
     tags:
         - digitalocean-dev
-    image: ubuntu:20.04
+    image: ubuntu:24.04
     needs:
-      - job: generate_deb_ubuntu20_dev
+      - job: generate_deb_ubuntu24_dev
         artifacts: true
     extends:
       - .get-secrets
@@ -14,7 +14,7 @@ smoke_test_deb:
     script:
         - apt-get update -y
         - apt install -y sudo curl
-        - apt-get install -y ./faraday-server_ubuntu20_amd64.deb
+        - apt-get install -y ./faraday-server_ubuntu24_amd64.deb
         - which faraday-manage
         - faraday-manage show-urls
         - export FARADAY_HOME=/home/faraday

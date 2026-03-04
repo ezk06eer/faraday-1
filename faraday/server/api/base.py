@@ -1456,7 +1456,7 @@ class BulkUpdateMixin(FilterObjects):
             abort(HTTP_BAD_REQUEST)
 
         _time = time()
-        objects = self._get_objects(ids, **kwargs)
+        objects = self._get_bulk_update_objects(ids, **kwargs)
         if objects and isinstance(objects[0], Workspace):
             ids = [obj.name for obj in objects]  # had to do this because lookup field is name in workspaces.
         else:
@@ -1471,6 +1471,14 @@ class BulkUpdateMixin(FilterObjects):
         data.pop('ids', None)
 
         return self._perform_bulk_update(ids, data, **kwargs), HTTP_OK
+
+    def _get_bulk_update_objects(self, ids, **kwargs):
+        """Load objects needed for bulk_update context and id extraction.
+
+        Override this to avoid loading full ORM instances when the schema
+        does not use context['objects'] (e.g. vulns).
+        """
+        return self._get_objects(ids, **kwargs)
 
     def _bulk_update_query(self, ids, **kwargs):
         # It IS better to as is but warn of ON CASCADE
@@ -1496,7 +1504,7 @@ class BulkUpdateMixin(FilterObjects):
                     updated = len(returns)
                 else:
                     queryset = self._bulk_update_query(ids, workspace_name=workspace_name, **kwargs)
-                    updated = queryset.update(data, synchronize_session='fetch')
+                    updated = queryset.update(data, synchronize_session=False)
                 logger.debug(f"Updated {updated} {self.model_class.__name__} in {time() - _time} seconds")
                 self._post_bulk_update(
                     ids, post_bulk_update_data, workspace_name=workspace_name, data=data, returning=returns
@@ -2179,7 +2187,7 @@ class ContextMixin(GenericView):
                     updated = len(returns)
                 else:
                     queryset = self._bulk_update_query(ids, workspace_name=workspace_name, **kwargs)
-                    updated = queryset.update(data, synchronize_session='fetch')
+                    updated = queryset.update(data, synchronize_session=False)
                 logger.debug(f"Updated {updated} {self.model_class.__name__} in {time() - _time} seconds")
                 self._post_bulk_update(
                     ids, post_bulk_update_data, workspace_name=workspace_name, data=data, returning=returns

@@ -28,7 +28,7 @@ from flask_classful import route
 from flask_login import current_user
 from marshmallow import Schema, ValidationError, fields, post_load
 from marshmallow.validate import OneOf
-from sqlalchemy import desc, func, insert as sqlalchemy_insert, literal
+from sqlalchemy import desc, func
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import (
@@ -63,8 +63,6 @@ from faraday.server.config import faraday_server
 from faraday.server.debouncer import debounce_workspace_update
 from faraday.server.fields import FaradayUploadedFile
 from faraday.server.models import (
-    Command,
-    CommandObject,
     CustomFieldsSchema,
     File,
     Host,
@@ -1518,38 +1516,22 @@ class VulnerabilityView(
                     db.session.expire(obj)
 
         if workspaces:
-            now = datetime.utcnow()
-            for ws in workspaces:
-                command = Command()
-                command.workspace_id = ws.id
-                command.user_id = current_user.id
-                command.start_date = now
-                command.tool = 'web_ui'
-                command.command = 'bulk_update'
-                db.session.add(command)
-                db.session.flush()  # get command.id without committing
-
-                # INSERT ... SELECT: DB resolves the set — no Python-side list building
-                select_stmt = (
-                    db.session.query(
-                        VulnerabilityGeneric.id,
-                        literal('vulnerability'),
-                        literal(command.id),
-                        literal(ws.id),
-                        literal(now),
-                        literal(False),
-                    ).filter(
-                        VulnerabilityGeneric.workspace_id == ws.id,
-                        VulnerabilityGeneric.id.in_(ids),
-                    )
-                )
-                db.session.execute(
-                    sqlalchemy_insert(CommandObject).from_select(
-                        ['object_id', 'object_type', 'command_id', 'workspace_id', 'create_date', 'created_persistent'],
-                        select_stmt,
-                    )
-                )
+            # Commit UPDATE + extracted_data changes before dispatching the async task.
+            # Values are captured now to preserve request context (current_user, timestamp).
             db.session.commit()
+            user_id = None
+            try:
+                if hasattr(current_user, 'id'):
+                    user_id = current_user.id
+            except AttributeError as e:
+                logger.debug("Current user not found", exc_info=e)
+            from faraday.server.tasks import create_bulk_update_commands_task  # pylint: disable=import-outside-toplevel
+            create_bulk_update_commands_task.delay(
+                list(ids),
+                [ws.id for ws in workspaces],
+                user_id,
+                datetime.utcnow(),
+            )
 
         if 'returning' in kwargs and kwargs['returning']:
             # update host stats

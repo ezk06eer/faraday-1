@@ -1526,12 +1526,11 @@ class VulnerabilityView(
             except AttributeError as e:
                 logger.debug("Current user not found", exc_info=e)
             from faraday.server.tasks import create_bulk_update_commands_task  # pylint: disable=import-outside-toplevel
-            create_bulk_update_commands_task.delay(
-                list(ids),
-                [ws.id for ws in workspaces],
-                user_id,
-                datetime.utcnow(),
-            )
+            args = (list(ids), [ws.id for ws in workspaces], user_id, datetime.utcnow())
+            if faraday_server.celery_enabled:
+                create_bulk_update_commands_task.delay(*args)
+            else:
+                create_bulk_update_commands_task(*args)
 
         if 'returning' in kwargs and kwargs['returning']:
             # update host stats

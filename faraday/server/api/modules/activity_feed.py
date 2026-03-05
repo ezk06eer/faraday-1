@@ -81,6 +81,15 @@ class ActivityFeedView(PaginatedMixin, ReadWriteWorkspacedView):
     def _envelope_list(self, objects, pagination_metadata=None):
         commands = []
         for command in objects:
+            if (
+                    command.get('command', 'error') == 'error'
+                    or (
+                        command.get('sum_created_vulnerabilities', 0) == 0
+                        and command.get('sum_crated_hosts', 0) == 0
+                        and command.get('sum_crated_services', 0) == 0
+                    )
+            ):
+                continue
             commands.append({
                 '_id': command['_id'],
                 'user': command['user'],

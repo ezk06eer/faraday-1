@@ -1,7 +1,9 @@
+import json
 import time
 from datetime import datetime, timedelta
 from typing import Optional, List
 
+import redis
 from celery import group, chord
 from celery.utils.log import get_task_logger
 from sqlalchemy import (
@@ -25,13 +27,27 @@ from faraday.server.models import (
     Vulnerability,
 )
 from faraday.server.utils.workflows import _process_entry
-from faraday.server.debouncer import (debounce_workspace_update,
-                                      debounce_workspace_vulns_count_update,
-                                      debounce_workspace_host_count,
-                                      debounce_workspace_service_count, update_workspace_vulns_count,
-                                      update_workspace_host_count, update_workspace_service_count)
+from faraday.server.debouncer import (
+    debounce_workspace_update,
+    debounce_workspace_vulns_count_update,
+    debounce_workspace_host_count,
+    debounce_workspace_service_count,
+    update_workspace_vulns_count,
+    update_workspace_host_count,
+    update_workspace_service_count,
+    update_workspace_update_date,
+)
 
 logger = get_task_logger(__name__)
+
+
+def _redis_url_from_config() -> str:
+    raw = (getattr(faraday_server, "celery_backend_url", None) or "").strip()
+    if not raw:
+        return "redis://127.0.0.1:6379/0"
+    if raw.startswith("redis://") or raw.startswith("rediss://"):
+        return raw
+    return f"redis://{raw}"
 
 
 @celery.task
@@ -336,3 +352,104 @@ def update_failed_command_stats(debouncer=None):
         logger.error(f"Failed to update command stats: {e}")
     else:
         logger.info("Stats update complete")
+
+
+@celery.task(name="faraday.debouncer.execute_debounced_action", ignore_result=True)
+def execute_debounced_action(debounce_key: str, expected_token: int) -> None:
+    """
+    Executes a debounced action ONLY if it is still the latest for debounce_key.
+    Uses Redis WATCH/MULTI/EXEC to atomically claim execution rights BEFORE running
+    the action, preventing duplicate execution when parallel Celery workers race.
+    """
+    _redis = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
+
+    token_key = f"{debounce_key}:token"
+    meta_key = f"{debounce_key}:meta"
+    payload_key = f"{debounce_key}:payload"
+    burst_start_key = f"{debounce_key}:burst_start"
+
+    current_token_raw = _redis.get(token_key)
+    if not current_token_raw:
+        return
+
+    try:
+        current_token = int(current_token_raw)
+    except ValueError:
+        return
+
+    if current_token != expected_token:
+        # A newer event arrived for the same workspace + action; this task is obsolete.
+        logger.debug(
+            f"Debouncer(redis): skip stale token (key={debounce_key} expected={expected_token} current={current_token})"
+        )
+        return
+
+    meta = _redis.hgetall(meta_key) or {}
+    action_name = meta.get("action")
+    if not action_name:
+        return
+
+    payload_raw = _redis.get(payload_key)
+    if not payload_raw:
+        return
+
+    try:
+        payload = json.loads(payload_raw)
+    except json.JSONDecodeError:
+        return
+
+    parameters = payload.get("parameters") or {}
+
+    # Explicit allowlist (prevents executing arbitrary things)
+    action_map = {
+        "update_workspace_host_count": update_workspace_host_count,
+        "update_workspace_service_count": update_workspace_service_count,
+        "update_workspace_vulns_count": update_workspace_vulns_count,
+        "update_workspace_update_date": None,  # handled separately below
+    }
+
+    if action_name not in action_map:
+        logger.warning(f"Debouncer: unsupported action (action={action_name} key={debounce_key})")
+        return
+
+    # Atomically claim execution rights BEFORE running the action.
+    # WATCH token_key so that if another worker already claimed or a newer debounce
+    # arrived between our initial read and now, we get a WatchError and skip.
+    pipe = _redis.pipeline()
+    try:
+        pipe.watch(token_key)
+        token_now = pipe.get(token_key)  # immediate execution in WATCH mode
+        if not token_now or int(token_now) != expected_token:
+            pipe.unwatch()
+            logger.debug(f"Debouncer(redis): skip, token changed before claim (key={debounce_key})")
+            return
+        pipe.multi()
+        pipe.delete(token_key)
+        pipe.delete(meta_key)
+        pipe.delete(payload_key)
+        pipe.delete(burst_start_key)
+        pipe.execute()  # raises WatchError if token_key was modified between WATCH and EXEC
+    except redis.WatchError:
+        logger.info(f"Debouncer(redis): skip, lost race to another worker (key={debounce_key})")
+        return
+    finally:
+        pipe.reset()
+
+    # We hold exclusive execution rights — run the action exactly once.
+    logger.info(
+        f"Debouncer(redis): executing (action={action_name} key={debounce_key} token={expected_token} "
+        f"params={list(parameters.keys())})"
+    )
+    if action_name == "update_workspace_update_date":
+        workspace_id = parameters.get("workspace_id")
+        update_date = parameters.get("update_date") or datetime.utcnow().isoformat()
+        if workspace_id is None:
+            return
+        update_workspace_update_date({int(workspace_id): update_date})
+    else:
+        action = action_map[action_name]
+        action(**parameters)
+
+    logger.info(
+        f"Debouncer(redis): completed (action={action_name} key={debounce_key} token={expected_token})"
+    )

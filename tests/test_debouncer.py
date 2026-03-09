@@ -164,7 +164,7 @@ class TestExecuteDebouncedAction:
         mock_redis = MagicMock()
         mock_redis.get.return_value = None
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_vulns_count") as mock_action:
             execute_debounced_action("faraday:debounce:update_workspace_vulns_count:ws_id:1", 1)
 
@@ -177,7 +177,7 @@ class TestExecuteDebouncedAction:
         mock_redis = MagicMock()
         mock_redis.get.return_value = "10"  # current=10, expected=5 → stale
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_vulns_count") as mock_action:
             execute_debounced_action("faraday:debounce:update_workspace_vulns_count:ws_id:1", 5)
 
@@ -191,7 +191,7 @@ class TestExecuteDebouncedAction:
         token = 3
         mock_redis, _ = _make_task_redis_mock(token, "update_workspace_vulns_count", {"workspace_id": 42})
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_vulns_count") as mock_action:
             execute_debounced_action(debounce_key, token)
 
@@ -204,7 +204,7 @@ class TestExecuteDebouncedAction:
         token = 2
         mock_redis, _ = _make_task_redis_mock(token, "update_workspace_host_count", {"workspace_id": 5})
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_host_count") as mock_action:
             execute_debounced_action(debounce_key, token)
 
@@ -217,7 +217,7 @@ class TestExecuteDebouncedAction:
         token = 1
         mock_redis, _ = _make_task_redis_mock(token, "update_workspace_service_count", {"workspace_id": 8})
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_service_count") as mock_action:
             execute_debounced_action(debounce_key, token)
 
@@ -233,7 +233,7 @@ class TestExecuteDebouncedAction:
             token, "update_workspace_update_date", {"workspace_id": 9, "update_date": update_date}
         )
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_update_date") as mock_action:
             execute_debounced_action(debounce_key, token)
 
@@ -247,7 +247,7 @@ class TestExecuteDebouncedAction:
         mock_redis, mock_pipe = _make_task_redis_mock(token, "update_workspace_vulns_count", {"workspace_id": 1})
         mock_pipe.execute.side_effect = redis_lib.WatchError()
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_vulns_count") as mock_action:
             execute_debounced_action(debounce_key, token)
 
@@ -264,7 +264,7 @@ class TestExecuteDebouncedAction:
         # Token changed between outer get() and pipe.get() inside WATCH
         mock_pipe.get.return_value = "99"
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis), \
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
              patch("faraday.server.tasks.update_workspace_vulns_count") as mock_action:
             execute_debounced_action(debounce_key, expected_token)
 
@@ -287,7 +287,7 @@ class TestExecuteDebouncedAction:
         mock_redis.get.side_effect = _get
         mock_redis.hgetall.return_value = {"action": "some_unknown_action"}
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis):
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis):
             execute_debounced_action(debounce_key, token)
 
         mock_redis.pipeline.assert_not_called()
@@ -300,7 +300,7 @@ class TestExecuteDebouncedAction:
         mock_redis, mock_pipe = _make_task_redis_mock(token, "update_workspace_vulns_count", {"workspace_id": 1})
         mock_pipe.execute.side_effect = redis_lib.WatchError()
 
-        with patch("faraday.server.tasks.redis.Redis.from_url", return_value=mock_redis):
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis):
             execute_debounced_action(debounce_key, token)
 
         mock_pipe.reset.assert_called_once()

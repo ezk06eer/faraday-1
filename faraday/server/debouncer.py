@@ -27,6 +27,16 @@ def _redis_url_from_config() -> str:
     return f"redis://{raw}"
 
 
+_redis_client = None
+
+
+def get_redis_client() -> redis.Redis:
+    global _redis_client  # pylint: disable=W0603
+    if _redis_client is None:
+        _redis_client = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
+    return _redis_client
+
+
 def _json_default(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
@@ -420,23 +430,11 @@ def update_workspace_update_date(workspace_dates_dict):
         db.session.commit()
 
 
-def update_workspace_update_date_with_name(workspace_dates_dict):
-    from faraday.server.app import get_app, logger  # pylint:disable=import-outside-toplevel
-    app = get_app()
-    with _app_ctx(app):
-        sorted_workspaces = sorted(workspace_dates_dict.items(), key=lambda item: item[1])  # Preserve execution order
-        for workspace_name, update_date in sorted_workspaces:
-            logger.debug(f"Updating workspace: {workspace_name}")
-            db.session.query(Workspace).filter(Workspace.name == workspace_name).update(
-                {Workspace.update_date: update_date},
-                synchronize_session=False
-                )
-            db.session.commit()
 
 #  Debounce functions
 
 
-def debounce_workspace_update(workspace_name, debouncer=None, update_date=None):
+def debounce_workspace_update(workspace_name, debouncer=None, update_date=None, workspace_id=None):
     """
     Debounce workspace update_date by workspace_id.
     """
@@ -446,7 +444,8 @@ def debounce_workspace_update(workspace_name, debouncer=None, update_date=None):
     if not update_date:
         update_date = datetime.utcnow()
 
-    workspace_id = db.session.query(Workspace.id).filter(Workspace.name == workspace_name).scalar()
+    if workspace_id is None:
+        workspace_id = db.session.query(Workspace.id).filter(Workspace.name == workspace_name).scalar()
     if workspace_id is None:
         logger.warning(f"Debounce: workspace not found while resolving id (workspace_name={workspace_name})")
         return debouncer
@@ -499,7 +498,7 @@ class Debouncer:
 
     def __init__(self, wait=10):
         self.wait = wait
-        self._redis = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
+        self._redis = get_redis_client()
 
     def debounce(self, action, parameters):
         from faraday.server.app import logger  # pylint:disable=import-outside-toplevel
@@ -559,14 +558,3 @@ class Debouncer:
             )
         execute_debounced_action.apply_async(args=[debounce_key, token], countdown=self.wait)
 
-    def _debounced_actions(self):
-        for item in self.actions:
-            item = dict(item)
-            action = item['action']
-            if action == update_workspace_update_date_with_name:
-                action(self.update_dates['workspaces'])
-            else:
-                parameters = dict(item['parameters'])
-                action(**parameters)
-        self.actions = set()
-        self.update_dates = {"workspaces": {}}

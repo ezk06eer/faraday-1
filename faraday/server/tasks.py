@@ -32,6 +32,7 @@ from faraday.server.debouncer import (
     debounce_workspace_vulns_count_update,
     debounce_workspace_host_count,
     debounce_workspace_service_count,
+    get_redis_client,
     update_workspace_vulns_count,
     update_workspace_host_count,
     update_workspace_service_count,
@@ -361,12 +362,11 @@ def execute_debounced_action(debounce_key: str, expected_token: int) -> None:
     Uses Redis WATCH/MULTI/EXEC to atomically claim execution rights BEFORE running
     the action, preventing duplicate execution when parallel Celery workers race.
     """
-    _redis = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
+    _redis = get_redis_client()
 
     token_key = f"{debounce_key}:token"
     meta_key = f"{debounce_key}:meta"
     payload_key = f"{debounce_key}:payload"
-    burst_start_key = f"{debounce_key}:burst_start"
 
     current_token_raw = _redis.get(token_key)
     if not current_token_raw:
@@ -427,7 +427,6 @@ def execute_debounced_action(debounce_key: str, expected_token: int) -> None:
         pipe.delete(token_key)
         pipe.delete(meta_key)
         pipe.delete(payload_key)
-        pipe.delete(burst_start_key)
         pipe.execute()  # raises WatchError if token_key was modified between WATCH and EXEC
     except redis.WatchError:
         logger.info(f"Debouncer(redis): skip, lost race to another worker (key={debounce_key})")

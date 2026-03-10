@@ -76,13 +76,9 @@ def get_current_branch():
 
 def branch_exists(branch_name):
     exit_code = subprocess.call(
-        ['git', 'rev-parse', '--verify', branch_name])
-    if exit_code == 0:
-        return True
-    elif exit_code == 1:
-        return False
-    else:
-        raise ValueError('Error when checking for branch existence')
+        ['git', 'rev-parse', '--verify', branch_name],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return exit_code == 0
 
 
 def version_of_branch(branch_name):

@@ -114,18 +114,19 @@ def main(branch):
     branches_to_test = []
     logger.info(f'versions to test: {versions_to_test}')
     for target_version in versions_to_test:
-        logger.info(f'Target version: {target_version}')
-        logger.info(f'Version: {version}')
-        overriden_branch = branch.replace(f"{version}/dev", f"{target_version}/dev")
-        overriden_branch = overriden_branch.replace(f"tkt_{version}", f"tkt_{target_version}")
-        logger.info(f'Overriden branch: {overriden_branch}')
-        if target_version != version and \
-                branch_exists(overriden_branch):
-            branches_to_test.append(overriden_branch)
-            # break  # Uncomment if want to cut the checker on merging to black if has overridden pink branch
-        else:
-            logger.info("Entro por else")
+        if target_version == version:
             branches_to_test.append(BRANCH_FORMAT.format(target_version))
+            continue
+
+        counterpart_branch = branch.replace(f"tkt_{version}", f"tkt_{target_version}")
+        logger.info(f'Looking for counterpart branch: {counterpart_branch}')
+        if branch_exists(counterpart_branch):
+            logger.info(f'Found counterpart branch {counterpart_branch}')
+            branches_to_test.append(counterpart_branch)
+        else:
+            fallback = BRANCH_FORMAT.format(target_version)
+            logger.info(f'Branch {counterpart_branch} not found, falling back to {fallback}')
+            branches_to_test.append(fallback)
     logger.info(f'BRANCHES TO TEST: {branches_to_test}')
 
     logger.info(f'Testing merges in branches {branches_to_test}')

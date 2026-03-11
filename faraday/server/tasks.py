@@ -44,15 +44,6 @@ from faraday.server.debouncer import (
 logger = get_task_logger(__name__)
 
 
-def _redis_url_from_config() -> str:
-    raw = (getattr(faraday_server, "celery_backend_url", None) or "").strip()
-    if not raw:
-        return "redis://127.0.0.1:6379/0"
-    if raw.startswith("redis://") or raw.startswith("rediss://"):
-        return raw
-    return f"redis://{raw}"
-
-
 @celery.task
 def on_success_process_report_task(results, command_id=None):
     command = db.session.query(Command).filter(Command.id == command_id).first()
@@ -62,7 +53,7 @@ def on_success_process_report_task(results, command_id=None):
     else:
         workspace = db.session.query(Workspace).filter(Workspace.id == command.workspace_id).first()
         if workspace.name:
-            debounce_workspace_update(workspace.name)
+            debounce_workspace_update(workspace.name, workspace_id=workspace.id)
     db.session.commit()
     host_ids = []
     for result in results:
@@ -183,7 +174,7 @@ def pre_process_report_task(workspace_name: str, command_id: int, file_path: str
 
         if not plugin:
             from faraday.server.utils.reports_processor import command_status_error  # pylint: disable=import-outside-toplevel
-            logger.info("Could not get plugin for file")
+            logger.error("Could not get plugin for file")
             logger.info("Plugin analyzer took %s", time.time() - start_time)
             command_status_error(command_id)
             return
@@ -211,7 +202,16 @@ def pre_process_report_task(workspace_name: str, command_id: int, file_path: str
 
 
 @celery.task()
-def update_host_stats(hosts: List, services: List, workspace_name: str = None, workspace_id: int = None, workspace_ids: List = None, debouncer=None, sync=False, no_debounce: bool = None, command_id: int = None) -> None:
+def update_host_stats(
+        hosts: List,
+        services: List,
+        workspace_name: str = None,
+        workspace_id: int = None,
+        workspace_ids: List = None,
+        debouncer=None, sync=False,
+        no_debounce: bool = None,
+        command_id: int = None,
+) -> None:
     start_time = datetime.utcnow()
     if no_debounce:  # For reports, we don't need to calculate host stats because they are already calculated.
         update_workspace_vulns_count(workspace_id=workspace_id)
@@ -410,7 +410,7 @@ def create_bulk_update_commands_task(
     )
 
 
-@celery.task(name="faraday.debouncer.execute_debounced_action", ignore_result=True)
+@celery.task(ignore_result=True)
 def execute_debounced_action(debounce_key: str, expected_token: int) -> None:
     """
     Executes a debounced action ONLY if it is still the latest for debounce_key.

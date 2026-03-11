@@ -631,7 +631,7 @@ def test_bulk_create_endpoint_with_vuln_run_date(session, workspace):
     assert count(Host, workspace) == 1
     assert count(VulnerabilityGeneric, workspace) == 1
     vuln = Vulnerability.query.filter(Vulnerability.workspace == workspace).one()
-    assert vuln.create_date.date() == run_date.date()
+    assert vuln.create_date.replace(microsecond=0) == run_date.replace(microsecond=0)
 
 
 def test_bulk_create_endpoint_with_future_vuln_run_date(session, workspace):

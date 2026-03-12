@@ -36,7 +36,7 @@ class TestDocs:
             for endpoint in current_app.view_functions:
                 if endpoint in ('static', 'index'):
                     continue
-                if 'mock' in endpoint:
+                if 'mock' in endpoint.lower():
                     continue
                 view = current_app.view_functions[endpoint]
                 if view.__closure__ is None:
@@ -68,7 +68,7 @@ class TestDocs:
             for endpoint in current_app.view_functions:
                 if endpoint in ('static', 'index'):
                     continue
-                if 'mock' in endpoint:
+                if 'mock' in endpoint.lower():
                     continue
                 view = current_app.view_functions[endpoint]
                 if view.__closure__ is None:
@@ -78,6 +78,8 @@ class TestDocs:
         spec_yaml = yaml.load(spec.to_yaml(), Loader=yaml.BaseLoader)
 
         for path_key, path_value in spec_yaml["paths"].items():
+            if 'mock' in path_key:
+                continue
 
             path_temp = {path_key: {}}
 

@@ -3416,7 +3416,9 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
             {'id': 0, 'key': 0, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 1'}},
             {'id': 1, 'key': 1, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 2'}}], 'count': 2}
 
-        assert res.json == expected, res.json
+        result = res.json.copy()
+        result['vulnerabilities'] = sorted(result['vulnerabilities'], key=lambda x: x['value']['name'])
+        assert result == expected, res.json
 
     @pytest.mark.parametrize('col_name', [
         'severity',

@@ -84,9 +84,9 @@ class ActivityFeedView(PaginatedMixin, ReadWriteWorkspacedView):
             if (
                     command.get('command', 'error') == 'error'
                     or (
-                        command.get('sum_created_vulnerabilities', 0) == 0
-                        and command.get('sum_created_hosts', 0) == 0
-                        and command.get('sum_created_services', 0) == 0
+                        not command.get('sum_created_vulnerabilities')
+                        and not command.get('sum_created_hosts')
+                        and not command.get('sum_created_services')
                     )
             ):
                 continue

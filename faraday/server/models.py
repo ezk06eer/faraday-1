@@ -1409,6 +1409,8 @@ class VulnerabilityGroup(db.Model):
     id = Column(Integer, primary_key=True)
     title = NonBlankColumn(Text)
     is_automatic = Column(Boolean, nullable=True)
+    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+    workspace = relationship('Workspace', backref=backref('vulnerability_groups', passive_deletes=True))
 
     @property
     def parent(self):

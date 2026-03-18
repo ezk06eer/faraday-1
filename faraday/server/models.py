@@ -1409,6 +1409,7 @@ class VulnerabilityGroup(db.Model):
     id = Column(Integer, primary_key=True)
     title = NonBlankColumn(Text)
     is_automatic = Column(Boolean, nullable=True)
+    count = Column(Integer, nullable=False, default=0)
     workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
     workspace = relationship('Workspace', backref=backref('vulnerability_groups', passive_deletes=True))
 
@@ -1470,9 +1471,9 @@ class VulnerabilityGeneric(VulnerabilityABC):
     def group_count(self):
         if not self.is_main or self.group_id is None:
             return None
-        return self.__class__.query.filter(
-            self.__class__.group_id == self.group_id
-        ).count()
+        if self.group:
+            return self.group.count
+        return None
 
     @group_count.expression
     def group_count(cls):

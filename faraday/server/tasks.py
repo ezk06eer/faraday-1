@@ -214,7 +214,7 @@ def update_host_stats(
 ) -> None:
     start_time = datetime.utcnow()
     if no_debounce:  # For reports, we don't need to calculate host stats because they are already calculated.
-        update_workspace_vulns_count(workspace_id=workspace_id)
+        debounce_workspace_vulns_count_update(workspace_id=workspace_id)
         update_workspace_host_count(workspace_id=workspace_id)
         update_workspace_service_count(workspace_id=workspace_id)
         end_time = datetime.utcnow()

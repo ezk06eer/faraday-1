@@ -1094,8 +1094,8 @@ class VulnerabilityView(
                 selectinload('owasp'),
                 selectinload('cwe'),
                 selectinload(VulnerabilityGeneric.tags),
-                joinedload('host'),
-                joinedload('service'),
+                joinedload('host').joinedload(Host.hostnames),
+                joinedload('service').joinedload(Service.host).joinedload(Host.hostnames),
                 joinedload('creator'),
                 joinedload('update_user'),
                 undefer('target'),
@@ -1178,15 +1178,14 @@ class VulnerabilityView(
             except AttributeError as e:
                 abort(HTTP_BAD_REQUEST, e)
 
-            # In vulns count we do not need order
-            total_vulns = vulns.order_by(None)
+            total_count = vulns.order_by(None).with_entities(func.count(VulnerabilityGeneric.id)).scalar()
             if limit:
                 vulns = vulns.limit(limit)
             if offset:
                 vulns = vulns.offset(offset)
 
             vulns = self.schema_class_dict['VulnerabilityWeb'](**marshmallow_params).dump(vulns)
-            return vulns, total_vulns.count()
+            return vulns, total_count
 
         else:
             try:

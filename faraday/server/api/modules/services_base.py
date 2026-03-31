@@ -202,7 +202,6 @@ class ServiceView(
                         filter(Service.workspace.has(active=True)))  # only services from active workspaces
         if 'group_by' not in filters:
             filter_query = filter_query.options(
-                joinedload(Service.tag_instances),
                 joinedload(Service.update_user),
                 undefer(Service.vulnerability_count),
             )

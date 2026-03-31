@@ -29,6 +29,7 @@ from flask_login import current_user
 from marshmallow import Schema, ValidationError, fields, post_load
 from marshmallow.validate import OneOf
 from sqlalchemy import desc, func
+from sqlalchemy.exc import DataError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import (
@@ -1178,7 +1179,10 @@ class VulnerabilityView(
             except AttributeError as e:
                 abort(HTTP_BAD_REQUEST, e)
 
-            total_count = vulns.order_by(None).with_entities(func.count(VulnerabilityGeneric.id)).scalar()
+            try:
+                total_count = vulns.order_by(None).with_entities(func.count(VulnerabilityGeneric.id)).scalar()
+            except DataError:
+                abort(400, "Invalid filters")
             if limit:
                 vulns = vulns.limit(limit)
             if offset:

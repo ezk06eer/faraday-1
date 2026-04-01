@@ -1457,6 +1457,7 @@ class VulnerabilityGeneric(VulnerabilityABC):
     status_code = Column(Integer, nullable=True)
     epss = Column(Float, nullable=True)  # Exploit Prediction Scoring System (EPSS)
     is_main = Column(Boolean, nullable=True, default=None)
+    vulnerability_duplicate_id = Column(Integer, nullable=True)
     group_id = Column(
         Integer,
         ForeignKey('vulnerability_group.id', ondelete='SET NULL'),

@@ -1169,44 +1169,35 @@ class Command(Metadata):
 
     @classmethod
     def with_severity_counts(cls, query):
-        command_object = CommandObject
-        vuln = VulnerabilityGeneric
+        """Augment a Command ORM query with per-severity vulnerability creation counts.
 
-        # Base join (LEFT OUTER para no perder commands sin vulns)
-        query = query.outerjoin(
-            command_object,
-            and_(
-                command_object.command_id == cls.id,
-                command_object.object_type == 'vulnerability',
+        Uses correlated scalar subqueries so the main query structure (joins, eager
+        loads, GROUP BY) is not altered. The attributes default to 0 when this method
+        is not called, avoiding overhead on Command queries that don't need counts.
+        """
+        def _sev_expr(severity):
+            where_conditions = [
+                "command_object.object_type = 'vulnerability'",
+                "command_object.command_id = command.id",
+                "vulnerability.id = command_object.object_id",
+                "command_object.workspace_id = vulnerability.workspace_id",
+                f"vulnerability.severity = '{severity}'",
+            ]
+            return (
+                select([func.sum(CommandObject.created)])
+                .select_from(table('command_object'))
+                .select_from(table('vulnerability'))
+                .where(text(' and '.join(where_conditions)))
+                .as_scalar()
             )
-        ).outerjoin(
-            vuln,
-            and_(
-                vuln.id == command_object.object_id,
-                vuln.workspace_id == command_object.workspace_id,
-            )
-        )
-
-        def sev_sum(severity):
-            return func.coalesce(
-                func.sum(
-                    alchemy_case(
-                        [(vuln.severity == severity, command_object.created)],
-                        else_=0
-                    )
-                ),
-                0
-            )
-
-        query = query.group_by(cls.id)
 
         return query.options(
-            with_expression(cls.sum_created_vulnerability_critical, sev_sum('critical')),
-            with_expression(cls.sum_created_vulnerability_high, sev_sum('high')),
-            with_expression(cls.sum_created_vulnerability_medium, sev_sum('medium')),
-            with_expression(cls.sum_created_vulnerability_low, sev_sum('low')),
-            with_expression(cls.sum_created_vulnerability_info, sev_sum('informational')),
-            with_expression(cls.sum_created_vulnerability_unclassified, sev_sum('unclassified')),
+            with_expression(cls.sum_created_vulnerability_critical, _sev_expr('critical')),
+            with_expression(cls.sum_created_vulnerability_high, _sev_expr('high')),
+            with_expression(cls.sum_created_vulnerability_medium, _sev_expr('medium')),
+            with_expression(cls.sum_created_vulnerability_low, _sev_expr('low')),
+            with_expression(cls.sum_created_vulnerability_info, _sev_expr('informational')),
+            with_expression(cls.sum_created_vulnerability_unclassified, _sev_expr('unclassified')),
         )
 
     agent_execution = relationship(

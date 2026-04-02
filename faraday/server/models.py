@@ -40,6 +40,7 @@ from sqlalchemy import (
     and_,
     case as alchemy_case,
     event,
+    literal,
     func,
     Index,
 )

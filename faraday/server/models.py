@@ -37,6 +37,8 @@ from sqlalchemy import (
     UniqueConstraint,
     Table,
     Date,
+    and_,
+    case as alchemy_case,
     event,
     func,
     Index,
@@ -1061,6 +1063,7 @@ class CommandObject(db.Model):
     created_persistent = Column(Boolean, nullable=False)
 
     __table_args__ = (
+        Index('ix_command_object_command_id_type', 'command_id', 'object_type'),
         UniqueConstraint('object_id', 'object_type', 'command_id', 'workspace_id',
                          name='uix_command_object_objid_objtype_command_id_ws'),
     )
@@ -1156,14 +1159,54 @@ class Command(Metadata):
                                                                        {'type': '\'vulnerability_web\''})
     sum_created_hosts = _make_created_objects_sum('host')
     sum_created_services = _make_created_objects_sum('service')
-    sum_created_vulnerability_critical = _make_created_objects_sum_joined('vulnerability', {'severity': '\'critical\''})
-    sum_created_vulnerability_high = _make_created_objects_sum_joined('vulnerability', {'severity': '\'high\''})
-    sum_created_vulnerability_medium = _make_created_objects_sum_joined('vulnerability', {'severity': '\'medium\''})
-    sum_created_vulnerability_low = _make_created_objects_sum_joined('vulnerability', {'severity': '\'low\''})
-    sum_created_vulnerability_info = _make_created_objects_sum_joined('vulnerability',
-                                                                      {'severity': '\'informational\''})
-    sum_created_vulnerability_unclassified = _make_created_objects_sum_joined('vulnerability',
-                                                                              {'severity': '\'unclassified\''})
+    sum_created_vulnerability_critical = query_expression(literal(0))
+    sum_created_vulnerability_high = query_expression(literal(0))
+    sum_created_vulnerability_medium = query_expression(literal(0))
+    sum_created_vulnerability_low = query_expression(literal(0))
+    sum_created_vulnerability_info = query_expression(literal(0))
+    sum_created_vulnerability_unclassified = query_expression(literal(0))
+
+    @classmethod
+    def with_severity_counts(cls, query):
+        command_object = CommandObject
+        vuln = VulnerabilityGeneric
+
+        # Base join (LEFT OUTER para no perder commands sin vulns)
+        query = query.outerjoin(
+            command_object,
+            and_(
+                command_object.command_id == cls.id,
+                command_object.object_type == 'vulnerability',
+            )
+        ).outerjoin(
+            vuln,
+            and_(
+                vuln.id == command_object.object_id,
+                vuln.workspace_id == command_object.workspace_id,
+            )
+        )
+
+        def sev_sum(severity):
+            return func.coalesce(
+                func.sum(
+                    alchemy_case(
+                        [(vuln.severity == severity, command_object.created)],
+                        else_=0
+                    )
+                ),
+                0
+            )
+
+        query = query.group_by(cls.id)
+
+        return query.options(
+            with_expression(cls.sum_created_vulnerability_critical, sev_sum('critical')),
+            with_expression(cls.sum_created_vulnerability_high, sev_sum('high')),
+            with_expression(cls.sum_created_vulnerability_medium, sev_sum('medium')),
+            with_expression(cls.sum_created_vulnerability_low, sev_sum('low')),
+            with_expression(cls.sum_created_vulnerability_info, sev_sum('informational')),
+            with_expression(cls.sum_created_vulnerability_unclassified, sev_sum('unclassified')),
+        )
 
     agent_execution = relationship(
         'AgentExecution',
@@ -2936,6 +2979,11 @@ class TagObject(db.Model):
 
     tag = relationship('Tag', backref='tagged_objects')
     tag_id = Column(Integer, ForeignKey('tag.id'), index=True)
+
+    __table_args__ = (
+        # Enables fast lookup: "all tags for objects of type X with id IN (...)"
+        Index('ix_tag_object_type_object_id', 'object_type', 'object_id'),
+    )
 
 
 class CWE(Metadata):

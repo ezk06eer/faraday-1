@@ -735,15 +735,15 @@ class VulnerabilityView(
         options = [
             joinedload(Vulnerability.host).
             load_only(Host.id).  # Only hostnames are needed
-            joinedload(Host.hostnames),
+            selectinload(Host.hostnames),
 
             joinedload(Vulnerability.service).
             joinedload(Service.host).
-            joinedload(Host.hostnames),
+            selectinload(Host.hostnames),
 
             joinedload(VulnerabilityWeb.service).
             joinedload(Service.host).
-            joinedload(Host.hostnames),
+            selectinload(Host.hostnames),
 
             joinedload(VulnerabilityGeneric.update_user),
             undefer(VulnerabilityGeneric.creator_command_id),
@@ -1095,8 +1095,8 @@ class VulnerabilityView(
                 selectinload('owasp'),
                 selectinload('cwe'),
                 selectinload(VulnerabilityGeneric.tags),
-                joinedload('host').joinedload(Host.hostnames),
-                joinedload('service').joinedload(Service.host).joinedload(Host.hostnames),
+                joinedload('host').selectinload(Host.hostnames),
+                joinedload('service').joinedload(Service.host).selectinload(Host.hostnames),
                 joinedload('creator'),
                 joinedload('update_user'),
                 undefer('target'),
@@ -1181,8 +1181,9 @@ class VulnerabilityView(
 
             try:
                 total_count = vulns.order_by(None).with_entities(func.count(VulnerabilityGeneric.id)).scalar()
-            except DataError:
-                abort(400, "Invalid filters")
+            except DataError as e:
+                logger.warning("DataError on vuln count query: %s", e)
+                abort(HTTP_BAD_REQUEST, "Invalid filters")
             if limit:
                 vulns = vulns.limit(limit)
             if offset:

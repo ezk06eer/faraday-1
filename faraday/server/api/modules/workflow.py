@@ -235,7 +235,7 @@ def _get_rules_attributes():
 
         c_operators = []
 
-        if c_type in ["int", "datetime"]:
+        if c_type in ["int", "float", "datetime"]:
             c_operators = numeric_operators
         elif c_type == "string":
             c_operators = string_operators

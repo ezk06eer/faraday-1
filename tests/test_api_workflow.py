@@ -644,7 +644,8 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         "cf_type", [
             ("test", "int", "4", 4),
             ("test2", "string", "TESTING", "TESTING"),
-            ("test3", "list", "TESTING", ["TESTING"])
+            ("test3", "list", "TESTING", ["TESTING"]),
+            ("test4", "float", "4.75", 4.75)
         ]
     )
     def test_action_execute_cf(self, test_client, cf_type):

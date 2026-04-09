@@ -1472,6 +1472,10 @@ class VulnerabilityGeneric(VulnerabilityABC):
     ]
 
     __tablename__ = 'vulnerability'
+    __table_args__ = (
+        Index('ix_vulnerability_workspace_id_risk', 'workspace_id'),
+    )
+
     id = Column(Integer, primary_key=True)
     _tmp_id = Column(Integer)
     confirmed = Column(Boolean, nullable=False, default=False)

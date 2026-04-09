@@ -1,7 +1,7 @@
 """add risk index
 
 Revision ID: a9b75b0ddc01
-Revises: 6d0972a186c8
+Revises: 6bbf0b0120cf
 Create Date: 2026-04-09 12:57:42.408870+00:00
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'a9b75b0ddc01'
-down_revision = '6d0972a186c8'
+down_revision = '6bbf0b0120cf'
 branch_labels = None
 depends_on = None
 

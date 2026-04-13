@@ -35,7 +35,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import user_logged_out, user_logged_in
 from flask_security import Security, SQLAlchemyUserDatastore
-from flask_security.forms import LoginForm
+from flask_security.forms import LoginForm, ChangePasswordForm
 from flask_security.utils import (
     _datastore,
     get_message,
@@ -46,6 +46,7 @@ from flask_sqlalchemy import get_debug_queries
 from simplekv.decorator import PrefixDecorator
 from simplekv.fs import FilesystemStore
 from sqlalchemy.pool import QueuePool
+from wtforms import ValidationError
 
 # Local application imports
 import faraday.server.config
@@ -77,10 +78,17 @@ from faraday.server.debouncer import Debouncer
 from nplusone.ext.flask_sqlalchemy import NPlusOne
 
 logger = logging.getLogger(__name__)
+
+# gevent logging is very verbose, so we mute it
+logging.getLogger('geventwebsocket').setLevel(logging.WARNING)
+logging.getLogger('geventwebsocket.handler').setLevel(logging.WARNING)
+
 audit_logger = logging.getLogger('audit')
 
 FARADAY_APP = None
 DEBOUNCER = None
+
+PASSWORD_REGEX = re.compile(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[~!@#$%^&*_\-+=|(){}\[\]:";\'<>,.?/]).{8,}$')
 
 
 def setup_storage_path():
@@ -572,7 +580,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
 
     app.register_blueprint(agent_creation_api)
 
-    Security(app, app.user_datastore, login_form=CustomLoginForm)
+    Security(app, app.user_datastore, login_form=CustomLoginForm, change_password_form=CustomChangePasswordForm)
     # Make API endpoints require a login user by default. Based on
     # https://stackoverflow.com/questions/13428708/best-way-to-make-flask-logins-login-required-the-default
 
@@ -720,3 +728,12 @@ class CustomLoginForm(LoginForm):
             self.email.errors.append(get_message('DISABLED_ACCOUNT')[0])
             return False
         return True
+
+
+class CustomChangePasswordForm(ChangePasswordForm):
+    def validate_new_password(self, field):
+        password = field.data or ""
+        if not PASSWORD_REGEX.match(password):
+            raise ValidationError("Password must be at least 8 characters long and contain at "
+                                  "least one uppercase letter, one lowercase letter, one number,"
+                                  "and one special character.")

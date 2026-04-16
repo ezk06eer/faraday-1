@@ -3804,6 +3804,14 @@ class UserNotification(Metadata):
     links_to = Column(JSONType, nullable=True)
     event_date = Column(DateTime, default=datetime.utcnow(), nullable=False)
 
+    __table_args__ = (
+        Index(
+            'ix_user_notification_user_id_unread',
+            'user_id',
+            postgresql_where=text('read = false'),
+        ),
+    )
+
     def mark_as_read(self):
         self.read = True
 

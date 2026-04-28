@@ -3799,7 +3799,7 @@ class UserNotification(Metadata):
     triggered_by = Column(JSONType)
     user_id = Column(Integer, ForeignKey('faraday_user.id'), index=True, nullable=False)
     user = relationship('User',
-                        backref=backref('user_notifications', cascade="all, delete-orphan", order_by='UserNotification.id'),
+                        backref=backref('user_notifications', cascade="all, delete-orphan"),
                         foreign_keys=[user_id])
     links_to = Column(JSONType, nullable=True)
     event_date = Column(DateTime, default=datetime.utcnow(), nullable=False)

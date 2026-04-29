@@ -75,7 +75,7 @@ def validate_executor_args(parameters_metadata, args):
     return errors
 
 
-class AgentsScheduleSchema(AutoSchema):
+class ExecutorScheduleStubSchema(AutoSchema):
     id = fields.Integer(dump_only=True)
     description = fields.String(required=True)
 
@@ -92,7 +92,7 @@ class ExecutorSchema(AutoSchema):
     name = fields.String(dump_only=True)
     agent_id = fields.Integer(dump_only=True, attribute='agent_id')
     last_run = fields.DateTime(dump_only=True)
-    schedules = fields.Nested(AgentsScheduleSchema(), dump_only=True, many=True)
+    schedules = fields.Nested(ExecutorScheduleStubSchema(), dump_only=True, many=True)
     tool = fields.String(dump_only=True)
     category = fields.List(fields.String(), dump_only=True)
 
@@ -211,6 +211,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         ---
           tags: ["Agent"]
           description: Runs an agent
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: AgentRunSchema
           responses:
             400:
               description: Bad request
@@ -326,9 +331,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
           tags: ["Agent"]
           summary: Get all manifests, Optionally choose latest version with parameter
           parameters:
-          - in: version
+          - in: query
             name: agent_version
             description: latest version to request
+            schema:
+              type: string
 
           responses:
             200:
@@ -348,9 +355,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
           tags: ["Agent"]
           summary: Get all manifests, Optionally choose latest version with parameter
           parameters:
-          - in: version
+          - in: query
             name: agent_version
             description: latest version to request
+            schema:
+              type: string
 
           responses:
             200:
@@ -441,6 +450,8 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         - in: query
           name: q
           description: Recursive json with filters that supports operators. The json could also contain sort and group.
+          schema:
+            type: string
         responses:
           200:
             description: Returns filtered, sorted and grouped results

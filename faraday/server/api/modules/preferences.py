@@ -22,9 +22,14 @@ class PreferencesView(GenericView):
     def post(self):
         """
         ---
-        set:
+        post:
           tags: ["User"]
           description: Set the user preferences
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: PreferenceSchema
           responses:
             200:
               description: Ok

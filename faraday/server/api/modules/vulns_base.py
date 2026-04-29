@@ -975,6 +975,8 @@ class VulnerabilityView(
           - in: query
             name: q
             description: Recursive json with filters that supports operators. The json could also contain sort and group.
+            schema:
+              type: string
           responses:
             200:
               description: Returns filtered, sorted and grouped results
@@ -1334,6 +1336,17 @@ class VulnerabilityView(
         get:
           tags: ["Vulnerability", "File"]
           description: Get a CSV file with all vulns from a workspace
+          parameters:
+          - in: query
+            name: confirmed
+            description: "If truthy, only export confirmed vulnerabilities."
+            schema:
+              type: boolean
+          - in: query
+            name: q
+            description: "JSON-encoded flask-restless filter object."
+            schema:
+              type: string
           responses:
             200:
               description: Ok
@@ -1382,8 +1395,14 @@ class VulnerabilityView(
         ---
         get:
           tags: ["Vulnerability"]
-          params: limit
           description: Gets a list of top users having account its uploaded vulns
+          parameters:
+          - in: query
+            name: limit
+            description: "Maximum number of users to return (default 1)."
+            schema:
+              type: integer
+              default: 1
           responses:
             200:
               description: List of top users

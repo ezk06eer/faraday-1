@@ -744,6 +744,8 @@ class FilterWorkspacedMixin(ListMixin):
         - in: query
           name: q
           description: recursive json with filters that supports operators. The json could also contain sort and group.
+          schema:
+            type: string
         responses:
           200:
             description: returns filtered, sorted and grouped results
@@ -952,6 +954,8 @@ class FilterMixin(ListMixin):
         - in: query
           name: q
           description: Recursive json with filters that supports operators. The json could also contain sort and group.
+          schema:
+            type: string
         responses:
           200:
             description: Returns filtered, sorted and grouped results

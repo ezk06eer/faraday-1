@@ -1096,17 +1096,17 @@ class BulkCreateView(GenericWorkspacedView):
                 application/json:
                     schema: BulkCreateSchema
           responses:
-            201:tags:
+            201:
               description: Created
               content:
                 application/json:
                   schema: BulkCreateSchema
             401:
-               $ref: "#/components/responses/UnauthorizedError"
+              $ref: "#/components/responses/UnauthorizedError"
             403:
-               description: Disabled workspace
+              description: Disabled workspace
             404:
-               description: Workspace not found
+              description: Workspace not found
         """
         agent = None
 

@@ -335,6 +335,57 @@ class TestHostAPI:
         assert res.json['count'] == 30
 
     @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_order_by_creator_username_keeps_null_creators(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='owner_alice')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+        expected_total = HOSTS_COUNT + 5
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"order_by":[{"field":"creator__username","direction":"desc"}]}',
+        ))
+        assert res.status_code == 200
+        assert res.json['count'] == expected_total
+        assert len(res.json['rows']) == expected_total
+
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_filter_and_order_by_creator_username(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='owner_bob')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"filters":[{"name":"creator","op":"eq","val":"owner_bob"}],'
+            '"order_by":[{"field":"creator__username","direction":"desc"}]}',
+        ))
+        assert res.status_code == 200
+        assert res.json['count'] == 3
+        assert len(res.json['rows']) == 3
+
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_group_by_creator_username(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='owner_carol')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"group_by":[{"field":"creator__username"}]}',
+        ))
+        assert res.status_code == 200
+        usernames = [row['value']['creator__username'] for row in res.json['rows']]
+        assert 'owner_carol' in usernames
+        assert None in usernames
+
+    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_filter_and_group_by_os(self, test_client, session, workspace, host_factory):
         host_factory.create_batch(10, workspace=workspace, os='Unix')
         host_factory.create_batch(1, workspace=workspace, os='unix')

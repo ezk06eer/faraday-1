@@ -1317,3 +1317,45 @@ class TestWorkspaceAPI(ReadWriteAPITests, BulkDeleteTestsMixin):
         session.refresh(workspace)
         final_scope = {s.name for s in workspace.scope}
         assert final_scope == set(new_scope)
+
+    def test_last_run_agent_date_from_cloud_agent(self, session, test_client, workspace_factory):
+        from tests.factories import CloudAgentExecutionFactory
+        ws = workspace_factory.create()
+        session.add(ws)
+        session.commit()
+
+        cloud_exec = CloudAgentExecutionFactory.create(workspace=ws)
+        session.add(cloud_exec)
+        session.commit()
+
+        res = test_client.get(self.url(ws))
+        assert res.status_code == 200
+        assert res.json['last_run_agent_date'] is not None
+
+    def test_last_run_agent_date_takes_greatest_of_local_and_cloud(
+            self, session, test_client, workspace_factory):
+        from tests.factories import CloudAgentExecutionFactory, AgentExecutionFactory, ExecutorFactory, AgentFactory
+        ws = workspace_factory.create()
+        session.add(ws)
+        session.commit()
+
+        old_date = datetime(2020, 1, 1, 0, 0, 0)
+        recent_date = datetime(2024, 6, 15, 12, 0, 0)
+
+        agent = AgentFactory.create()
+        executor = ExecutorFactory.create(agent=agent, last_run=old_date)
+        session.add(executor)
+        session.commit()
+        AgentExecutionFactory.create(executor=executor, workspace=ws)
+        session.commit()
+
+        CloudAgentExecutionFactory.create(workspace=ws, last_run=recent_date)
+        session.commit()
+
+        res = test_client.get(self.url(ws))
+        assert res.status_code == 200
+        assert res.json['last_run_agent_date'] is not None
+        returned_date = datetime.fromisoformat(res.json['last_run_agent_date'].replace('Z', '+00:00'))
+        assert returned_date.year == recent_date.year
+        assert returned_date.month == recent_date.month
+        assert returned_date.day == recent_date.day

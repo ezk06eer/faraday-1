@@ -9,6 +9,7 @@ import flask
 from flask import Blueprint
 from flask_classful import route
 from marshmallow import fields, post_load, ValidationError
+from marshmallow.validate import OneOf
 
 from faraday.server.api.base import (
     AutoSchema,
@@ -49,6 +50,7 @@ class CommandSchema(AutoSchema):
     creator = PrimaryKeyRelatedField('username', dump_only=True)
     metadata = SelfNestedField(MetadataSchema())
     tasks = fields.List(fields.String(), attribute='tasks')
+    import_source = fields.String(validate=OneOf(Command.IMPORT_SOURCE), allow_none=True)
 
     @staticmethod
     def load_itime(value):

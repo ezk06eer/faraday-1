@@ -68,6 +68,7 @@ from faraday.server.models import (
     File,
     Host,
     Hostname,
+    REFERENCE_TYPES,
     Service,
     User,
     Vulnerability,
@@ -282,7 +283,7 @@ class OWASPSchema(AutoSchema):
 
 class ReferenceSchema(AutoSchema):
     name = fields.String()
-    type = fields.String()
+    type = fields.String(validate=OneOf(REFERENCE_TYPES))
 
 
 class VulnerabilitySchema(AutoSchema):

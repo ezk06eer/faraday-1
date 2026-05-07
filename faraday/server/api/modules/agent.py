@@ -14,6 +14,7 @@ from flask import Blueprint, abort, request, jsonify
 import flask_login
 from flask_classful import route
 from marshmallow import fields, Schema, EXCLUDE
+from marshmallow.validate import OneOf
 from sqlalchemy.orm.exc import NoResultFound
 from faraday_agent_parameters_types.utils import type_validate, get_manifests
 
@@ -28,6 +29,7 @@ from faraday.server.extensions import socketio
 from faraday.server.models import (
     Agent,
     Executor,
+    SchedulerGeneric,
     db,
 )
 from faraday.server.schemas import PrimaryKeyRelatedField
@@ -172,9 +174,10 @@ class AgentRunSchema(Schema):
     vuln_tag = fields.List(fields.String, required=False)
     service_tag = fields.List(fields.String, required=False)
     host_tag = fields.List(fields.String, required=False)
-    # TODO: add validation for severity fields
-    min_severity = fields.String(required=False, allow_none=True)
-    max_severity = fields.String(required=False, allow_none=True)
+    min_severity = fields.String(required=False, allow_none=True,
+                                 validate=OneOf(SchedulerGeneric.SEVERITIES))
+    max_severity = fields.String(required=False, allow_none=True,
+                                 validate=OneOf(SchedulerGeneric.SEVERITIES))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

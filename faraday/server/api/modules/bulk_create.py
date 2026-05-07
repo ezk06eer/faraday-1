@@ -23,7 +23,7 @@ from marshmallow import (
     utils,
     validates_schema,
 )
-from marshmallow.validate import Range
+from marshmallow.validate import OneOf, Range
 from sqlalchemy import (
     and_,
     case,
@@ -194,6 +194,7 @@ class BulkCommandSchema(AutoSchema):
     I don't need that here, so I'll write a schema from scratch."""
 
     duration = fields.TimeDelta('microseconds', required=False)
+    import_source = fields.String(validate=OneOf(Command.IMPORT_SOURCE), allow_none=True)
 
     class Meta:
         model = Command

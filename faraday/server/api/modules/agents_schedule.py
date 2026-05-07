@@ -51,6 +51,7 @@ from faraday.server.models import (
     AgentsSchedule,
     db,
     Executor,
+    SchedulerGeneric,
 )
 agents_schedule_api = Blueprint('agents_schedule_api', __name__)
 logger = logging.getLogger(__name__)
@@ -94,8 +95,10 @@ class AgentsScheduleSchema(AutoSchema):
     vuln_tag = fields.List(fields.String, required=False)
     service_tag = fields.List(fields.String, required=False)
     host_tag = fields.List(fields.String, required=False)
-    min_severity = fields.String(required=False, allow_none=True)
-    max_severity = fields.String(required=False, allow_none=True)
+    min_severity = fields.String(required=False, allow_none=True,
+                                 validate=validate.OneOf(SchedulerGeneric.SEVERITIES))
+    max_severity = fields.String(required=False, allow_none=True,
+                                 validate=validate.OneOf(SchedulerGeneric.SEVERITIES))
 
     class Meta:
         model = AgentsSchedule

@@ -1,4 +1,4 @@
 {
   "level": "community",
-  "md": "[FIX] Fix several OpenAPI/Swagger generation bugs: missing query parameters (group_by on vulns/count, stats on hosts, format on export_data, histogram on workspaces, etc.), broken VulnerabilityWeb schema reference on PUT vulnerability, and missing requestBody for multipart and JSON endpoints. #8181"
+  "md": "[FIX] Fix several OpenAPI/Swagger generation bugs and document enum constraints on schema fields. #8181"
 }

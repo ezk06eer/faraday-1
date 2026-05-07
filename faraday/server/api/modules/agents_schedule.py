@@ -68,6 +68,7 @@ class AgentsScheduleSchema(AutoSchema):
     id = fields.Integer(dump_only=True)
     description = fields.String(required=True)
     crontab = fields.String(required=True,
+                            metadata={"example": "10 * 10 * *"},
                             validate=validate
                             .Regexp
                             (r"^(((([1-5]?\d(-([1-5]?\d))?|\*)(\/(\d+))?),?)+)\ (((((2[0-3]|1?\d)(-(2["

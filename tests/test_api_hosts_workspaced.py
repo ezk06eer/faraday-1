@@ -334,7 +334,6 @@ class TestHostAPI:
         assert res.status_code == 200
         assert res.json['count'] == 30
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_order_by_creator_username_keeps_null_creators(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='owner_alice')
@@ -351,7 +350,6 @@ class TestHostAPI:
         assert res.json['count'] == expected_total
         assert len(res.json['rows']) == expected_total
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_filter_and_order_by_creator_username(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='owner_bob')
@@ -368,7 +366,6 @@ class TestHostAPI:
         assert res.json['count'] == 3
         assert len(res.json['rows']) == 3
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_group_by_creator_username(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='owner_carol')

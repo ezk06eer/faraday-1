@@ -306,6 +306,10 @@ generate_rpm_rockylinux8_master:
         - !reference [.on-community-tag, rules]
         - when: never
 
+.refresh_qemu_binfmt:
+    script:
+        - docker run --privileged --rm tonistiigi/binfmt:qemu-v8.1.5 --install all
+
 generate_docker_tar_gz_dev:
     stage: build
     tags:
@@ -313,6 +317,7 @@ generate_docker_tar_gz_dev:
     extends:
       - .get-secrets
     script:
+        - !reference [ .refresh_qemu_binfmt, script ]
         - !reference [ .get_from_tar_and_replace_www, script ]
         - docker build . -t faraday-community
         - docker save faraday-community:latest | gzip > faraday-server-docker.tar.gz
@@ -339,6 +344,7 @@ generate_docker_tar_gz_staging:
     extends:
       - .get-secrets
     script:
+        - !reference [ .refresh_qemu_binfmt, script ]
         - !reference [ .get_from_tar_and_replace_www, script ]
         - docker build . -t faraday-community
         - docker save faraday-community:latest | gzip > faraday-server-docker.tar.gz
@@ -362,6 +368,7 @@ generate_docker_tar_gz_master:
     extends:
       - .get-secrets
     script:
+        - !reference [ .refresh_qemu_binfmt, script ]
         - !reference [ .get_from_tar_and_replace_www, script ]
         - docker build . -t $CI_REGISTRY_IMAGE
         - docker save $CI_REGISTRY_IMAGE:latest | gzip > faraday-server-docker.tar.gz

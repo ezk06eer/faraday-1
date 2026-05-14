@@ -275,6 +275,8 @@ def _perform_leaf_check(obj, condition, field):
     elif data_type == "datetime":
         # convert data formatted as YYYY-MM-DD to datetime date object
         data = datetime.strptime(data, "%Y-%m-%d").date()
+        if model_data is None:
+            return False
         return operator(model_data.date(), data)
     elif data_type == "cwe":
         model_data = [x.name for x in model_data]

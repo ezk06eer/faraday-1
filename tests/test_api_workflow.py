@@ -740,7 +740,11 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         host.importance = 1
         db.session.add(host)
         db.session.commit()
-        _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+        with mock.patch("faraday.server.utils.workflows.logger") as mock_logger:
+            _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+            cond_errors = [c for c in mock_logger.error.call_args_list
+                           if "Error while checking condition" in str(c)]
+            assert not cond_errors, f"Condition raised instead of evaluating: {cond_errors}"
         assert host.description == "testing"
 
     def test_conditions_on_host_datetime_field_gt(self, test_client):
@@ -772,7 +776,11 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         host = HostFactory.create(description="testing", workspace=ws)
         db.session.add(host)
         db.session.commit()
-        _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+        with mock.patch("faraday.server.utils.workflows.logger") as mock_logger:
+            _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+            cond_errors = [c for c in mock_logger.error.call_args_list
+                           if "Error while checking condition" in str(c)]
+            assert not cond_errors, f"Condition raised instead of evaluating: {cond_errors}"
         assert host.description == "testing"
 
     def test_object_does_not_exist(self, test_client):

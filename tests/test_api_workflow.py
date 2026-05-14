@@ -709,6 +709,39 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
         assert host.description == "ActionExecuted"
 
+    def test_conditions_on_host_int_field_gte(self, test_client):
+        cond = [
+            {
+                "type": "leaf",
+                "field": "importance",
+                "operator": ">=",
+                "data": "2"
+            }
+        ]
+        ws, action, workflow, pipeline = create_pipeline(test_client, cond=cond)
+        host = HostFactory.create(description="testing", workspace=ws)
+        host.importance = 5
+        db.session.add(host)
+        db.session.commit()
+        _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+        assert host.description == "ActionExecuted"
+
+    def test_conditions_on_host_datetime_field_gt(self, test_client):
+        cond = [
+            {
+                "type": "leaf",
+                "field": "create_date",
+                "operator": ">",
+                "data": "2020-01-01"
+            }
+        ]
+        ws, action, workflow, pipeline = create_pipeline(test_client, cond=cond)
+        host = HostFactory.create(description="testing", workspace=ws)
+        db.session.add(host)
+        db.session.commit()
+        _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+        assert host.description == "ActionExecuted"
+
     def test_object_does_not_exist(self, test_client):
         action = ActionFactory.create()
         db.session.commit()

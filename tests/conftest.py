@@ -63,10 +63,6 @@ class CustomClient(FlaskClient):
                 ('Content-Type', 'application/json'),
             ]
 
-        # Reset queries to make the log_queries_count
-        from flask import _app_ctx_stack
-        _app_ctx_stack.top.sqlalchemy_queries = []
-
         ret = super().open(*args, **kwargs)
         # Now set in flask 1.0
         # if ret.headers.get('content-type') == 'application/json':
@@ -78,7 +74,7 @@ class CustomClient(FlaskClient):
 
     @property
     def cookies(self):
-        return self.cookie_jar
+        return self._cookies.values()
 
 
 def pytest_addoption(parser):
@@ -299,6 +295,11 @@ def login_as(test_client, user):
         sess['_user_id'] = user.fs_uniquifier  # TODO use public flask_login functions
         identity_changed.send(test_client.application,
                               identity=Identity(user.id))
+    # Flask-Login 0.6.x stores current_user in g._login_user (app-context scoped, not
+    # request-scoped like 0.5.x). Updating it explicitly ensures subsequent requests
+    # use the correct user even when login_as() is called mid-test after logout().
+    from flask import g
+    g._login_user = user
 
 
 @pytest.fixture
@@ -316,6 +317,19 @@ def ignore_nplusone(app):
 
 
 @pytest.fixture(autouse=True)
+def clear_flask_login_state():
+    """Flask-Login 0.6.x caches the current user in g._login_user (app-context scope).
+    The conftest's app context is session-scoped, so this cache leaks between tests.
+    After each test's session teardown, the cached user becomes detached, causing
+    DetachedInstanceError in the next test's login_as() → identity_changed signal.
+    Clearing it before each test prevents the leak."""
+    from flask import g
+    if hasattr(g, '_login_user'):
+        del g._login_user
+    yield
+
+
+@pytest.fixture(autouse=True)
 def skip_by_sql_dialect(app, request):
     dialect = db.session.bind.dialect.name
     if request.node.get_closest_marker('skip_sql_dialect'):
@@ -329,15 +343,39 @@ def csrf_token(logged_user, test_client):
     return session_response.json.get('csrf_token')
 
 
+def _parse_pg_host(db_host: str) -> tuple[str, int | None]:
+    """
+    Accepts either "hostname" or "hostname:port" and returns (host, port).
+
+    This is useful when Postgres is exposed from docker with a random host port.
+    """
+    if not db_host:
+        return db_host, None
+    host = db_host
+    port = None
+    if ':' in db_host:
+        maybe_host, maybe_port = db_host.rsplit(':', 1)
+        try:
+            port = int(maybe_port)
+            host = maybe_host
+        except ValueError:
+            # Keep original db_host if it doesn't look like host:port
+            host = db_host
+            port = None
+    return host, port
+
+
 def get_cursor(db_user: str, db_password: str, db_host: str):
     """
     Gets a psycopg2 cursor for the parent Database
     """
+    host, port = _parse_pg_host(db_host)
     conn = psycopg2.connect(
         dbname="postgres",
         user=db_user,
         password=db_password,
-        host=db_host
+        host=host,
+        port=port,
     )
 
     conn.set_isolation_level(0)

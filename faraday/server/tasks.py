@@ -24,6 +24,7 @@ from faraday.server.models import (
     CommandObject,
     Service,
     Host,
+    Pipeline,
     VulnerabilityGeneric,
     VulnerabilityWeb,
     Vulnerability,
@@ -100,7 +101,8 @@ def on_chord_error(request, exc, *args, **kwargs):
 
 @celery.task(acks_late=True)
 def process_report_task(workspace_id: int, command: dict, hosts):
-    callback = on_success_process_report_task.subtask(kwargs={'command_id': command['id']}).on_error(on_chord_error.subtask(kwargs={'command_id': command['id']}))
+    callback_kwargs = {'command_id': command['id']}
+    callback = on_success_process_report_task.subtask(kwargs=callback_kwargs).on_error(on_chord_error.subtask(kwargs={'command_id': command['id']}))
     g = [create_host_task.s(workspace_id, command, host) for host in hosts]
     logger.info("Task to execute %s", len(g))
     group_of_tasks = group(g)
@@ -130,6 +132,49 @@ def workflow_task(obj_type: str, obj_ids: list, workspace_id: int, fields=None, 
     if hosts_to_update:
         logger.debug("Updating hosts stats from workflow task...")
         update_host_stats.delay(hosts_to_update, [])
+
+
+@celery.task()
+def cleanup_stuck_pipelines():
+    """Reset pipelines stuck in running state longer than configured timeout."""
+    try:
+        timeout = faraday_server.pipeline_running_timeout
+        threshold = datetime.utcnow() - timedelta(seconds=timeout)
+        stuck = db.session.query(Pipeline).filter(
+            Pipeline.running == True,  # noqa: E712
+            db.or_(Pipeline.running_since < threshold, Pipeline.running_since.is_(None))
+        ).all()
+        for pipeline in stuck:
+            if pipeline.running_since is None:
+                logger.error(
+                    f"Pipeline {pipeline.id} in inconsistent state: running=True with running_since=NULL. "
+                    f"This indicates corrupted data (likely a crash before running_since was set). Resetting."
+                )
+            else:
+                logger.warning(
+                    f"Resetting stuck pipeline {pipeline.id} (running since {pipeline.running_since})"
+                )
+            pipeline.running = False
+            pipeline.running_since = None
+        if stuck:
+            db.session.commit()
+            logger.info(f"Reset {len(stuck)} stuck pipeline(s)")
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"Failed to cleanup stuck pipelines: {e}")
+    schedule_cleanup_stuck_pipelines()
+
+
+def schedule_cleanup_stuck_pipelines():
+    import random  # pylint: disable=import-outside-toplevel
+    delta_minutes = random.randint(30, 120)
+    run_time = datetime.utcnow() + timedelta(minutes=delta_minutes)
+    try:
+        if faraday_server.celery_enabled:
+            cleanup_stuck_pipelines.apply_async(eta=run_time)
+            logger.info(f"Scheduled cleanup_stuck_pipelines at {run_time}")
+    except Exception as e:
+        logger.exception(f"Failed to schedule cleanup_stuck_pipelines: {e}")
 
 
 @celery.task(ignore_result=False, acks_late=True)

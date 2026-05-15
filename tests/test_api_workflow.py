@@ -1,12 +1,16 @@
 import random
+from datetime import datetime, timedelta
 from unittest import mock
 
 import pytest
 import sqlalchemy
 
 from faraday.server.api.modules.workflow import JobView, TaskView, PipelineView, PipelineSchema, fields_lookup
-from faraday.server.models import Workflow, Action, db, Pipeline
-from faraday.server.utils.workflows import _process_entry, WORKFLOW_QUEUE
+from faraday.server.models import Workflow, Action, db, Pipeline, Host, VulnerabilityGeneric
+from faraday.server.utils.workflows import (
+    _process_entry, _run_pipeline_chunked, _iter_id_chunks,
+    _change_pipeline_running_status, WORKFLOW_QUEUE,
+)
 from tests import factories
 from tests.factories import ActionFactory, HostFactory, ServiceFactory, VulnerabilityFactory, \
     VulnerabilityWebFactory
@@ -246,6 +250,190 @@ class TestPipelineMixinsView(ReadWriteAPITests):
         assert pipeline2.name == f"{pipeline.name} - Copy 1"
         assert pipeline.jobs == pipeline2.jobs
         assert pipeline2.enabled is False
+
+    @mock.patch('faraday.server.tasks.workflow_task')
+    def test_pipeline_stuck_auto_resets_after_timeout(self, mock_task, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        pipeline.running = True
+        pipeline.running_since = datetime.utcnow() - timedelta(hours=7)
+        db.session.commit()
+
+        res = test_client.post(self.url(obj=pipeline) + "/run")
+        assert res.status_code == 200
+        mock_task.delay.assert_called_once()
+
+    @mock.patch('faraday.server.tasks.workflow_task')
+    def test_pipeline_running_recently_blocks_rerun(self, mock_task, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        pipeline.running = True
+        pipeline.running_since = datetime.utcnow() - timedelta(minutes=1)
+        db.session.commit()
+
+        res = test_client.post(self.url(obj=pipeline) + "/run")
+        assert res.status_code == 400
+        mock_task.delay.assert_not_called()
+
+    def test_cleanup_stuck_pipelines_task(self, test_client):
+        from faraday.server.tasks import cleanup_stuck_pipelines
+
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        pipeline_id = pipeline.id
+        pipeline.running = True
+        pipeline.running_since = datetime.utcnow() - timedelta(hours=7)
+        db.session.commit()
+
+        with mock.patch('faraday.server.tasks.schedule_cleanup_stuck_pipelines'):
+            cleanup_stuck_pipelines()
+
+        updated = db.session.query(Pipeline).get(pipeline_id)
+        assert updated.running is False
+        assert updated.running_since is None
+
+    def test_pipeline_running_since_null_treated_as_stuck(self, test_client):
+        from faraday.server.tasks import cleanup_stuck_pipelines
+
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        pipeline_id = pipeline.id
+        pipeline.running = True
+        pipeline.running_since = None
+        db.session.commit()
+
+        with mock.patch('faraday.server.tasks.schedule_cleanup_stuck_pipelines'):
+            cleanup_stuck_pipelines()
+
+        updated = db.session.query(Pipeline).get(pipeline_id)
+        assert updated.running is False
+        assert updated.running_since is None
+
+    def test_run_all_sets_and_clears_running_since(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        host = HostFactory.create(description="testing", workspace=ws)
+        db.session.commit()
+
+        captured = {}
+        original_run = _run_pipeline_chunked.__wrapped__ if hasattr(_run_pipeline_chunked, '__wrapped__') else _run_pipeline_chunked
+
+        def spy_run(ws_id, pipeline_id):
+            p = db.session.query(Pipeline).get(pipeline.id)
+            captured['running_since'] = p.running_since
+            captured['running'] = p.running
+            return original_run(ws_id, pipeline_id)
+
+        with mock.patch('faraday.server.utils.workflows._run_pipeline_chunked', side_effect=spy_run):
+            _process_entry(None, None, ws.id, None, True, pipeline_id=pipeline.id)
+
+        assert captured['running'] is True
+        assert captured['running_since'] is not None
+        db.session.refresh(pipeline)
+        assert pipeline.running is False
+        assert pipeline.running_since is None
+
+    def test_chunked_execution_processes_all_objects(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        matching = [HostFactory.create(description="testing", workspace=ws) for _ in range(12)]
+        non_matching = [HostFactory.create(description="other", workspace=ws) for _ in range(3)]
+        db.session.commit()
+
+        with mock.patch('faraday.server.utils.workflows._iter_id_chunks',
+                        wraps=lambda ws_id, obj_model, chunk_size=5: _iter_id_chunks(ws_id, obj_model, chunk_size=5)):
+            _process_entry(None, None, ws.id, None, True, pipeline_id=pipeline.id)
+
+        for h in matching:
+            db.session.refresh(h)
+            assert h.description == "ActionExecuted", f"Host {h.id} not processed"
+        for h in non_matching:
+            db.session.refresh(h)
+            assert h.description == "other", f"Host {h.id} should be untouched"
+
+    def test_iter_id_chunks_yields_correct_chunks(self, test_client):
+        ws = factories.WorkspaceFactory.create()
+        hosts = [HostFactory.create(workspace=ws) for _ in range(7)]
+        db.session.commit()
+
+        chunks = list(_iter_id_chunks(ws.id, Host, chunk_size=3))
+        assert len(chunks) == 3
+        assert len(chunks[0]) == 3
+        assert len(chunks[1]) == 3
+        assert len(chunks[2]) == 1
+        all_ids = [i for c in chunks for i in c]
+        assert set(all_ids) == {h.id for h in hosts}
+
+    def test_iter_id_chunks_empty_workspace(self, test_client):
+        ws = factories.WorkspaceFactory.create()
+        db.session.commit()
+
+        chunks = list(_iter_id_chunks(ws.id, Host, chunk_size=3))
+        assert chunks == []
+
+    def test_chunked_execution_error_in_one_chunk_continues(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        hosts = [HostFactory.create(description="testing", workspace=ws) for _ in range(7)]
+        db.session.commit()
+
+        call_count = {'n': 0}
+        from faraday.server.utils import workflows as wf_module
+        original_run_workflow = wf_module._run_workflow
+
+        def failing_first_call(wf, objs):
+            call_count['n'] += 1
+            if call_count['n'] == 1:
+                raise RuntimeError("Simulated chunk failure")
+            return original_run_workflow(wf, objs)
+
+        with mock.patch('faraday.server.utils.workflows._iter_id_chunks',
+                        wraps=lambda ws_id, obj_model, chunk_size=3: _iter_id_chunks(ws_id, obj_model, chunk_size=3)), \
+             mock.patch('faraday.server.utils.workflows._run_workflow', side_effect=failing_first_call):
+            _process_entry(None, None, ws.id, None, True, pipeline_id=pipeline.id)
+
+        db.session.refresh(pipeline)
+        assert pipeline.running is False
+
+        # At least some hosts in later chunks should be processed
+        processed = sum(1 for h in hosts if (db.session.refresh(h) or True) and h.description == "ActionExecuted")
+        assert processed > 0, "No hosts processed after error in first chunk"
+        assert call_count['n'] >= 2, "Should have continued to next chunk after error"
+
+    def test_run_pipeline_chunked_empty_workspace(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        # No hosts or vulns created
+        result = _run_pipeline_chunked(ws.id, pipeline.id)
+        assert result == []
+
+    def test_run_pipeline_chunked_with_vulns(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client, model="vulnerability")
+        matching = [VulnerabilityFactory.create(description="testing", workspace=ws) for _ in range(7)]
+        non_matching = [VulnerabilityFactory.create(description="other", workspace=ws) for _ in range(2)]
+        db.session.commit()
+
+        with mock.patch('faraday.server.utils.workflows._iter_id_chunks',
+                        wraps=lambda ws_id, obj_model, chunk_size=3: _iter_id_chunks(ws_id, obj_model, chunk_size=3)):
+            _process_entry(None, None, ws.id, None, True, pipeline_id=pipeline.id)
+
+        for v in matching:
+            db.session.refresh(v)
+            assert v.description == "ActionExecuted", f"Vuln {v.id} not processed"
+        for v in non_matching:
+            db.session.refresh(v)
+            assert v.description == "other", f"Vuln {v.id} should be untouched"
+
+    def test_run_all_readonly_workspace_returns_403(self, test_client):
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        ws.readonly = True
+        db.session.commit()
+        res = test_client.post(self.url(obj=pipeline) + "/run")
+        assert res.status_code == 403
+
+    def test_process_entry_skips_readonly_workspace(self, test_client):
+        WORKFLOW_QUEUE.queue.clear()
+        ws, actions, workflow, pipeline = create_pipeline(test_client)
+        host = HostFactory.create(description="testing", workspace=ws)
+        db.session.add(host)
+        db.session.commit()
+        ws.readonly = True
+        db.session.commit()
+        result = _process_entry(None, None, ws.id, None, True, pipeline_id=pipeline.id)
+        assert result == []
+        assert host.description == "testing"
 
 
 class TestActionMixinsView(ReadWriteAPITests):
@@ -863,3 +1051,75 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
             assert value in hostname_names
         else:
             assert value in getattr(obj, field_name)
+
+
+@pytest.mark.usefixtures('logged_user')
+class TestTaskFieldsCustomAttributes:
+
+    def test_get_fields_includes_custom_attributes(self, session, test_client):
+        from tests.factories import CustomFieldsSchemaFactory
+
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_string',
+            field_type='str', field_order=1, field_display_name='My String',
+        )
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_choice',
+            field_type='choice', field_order=2, field_display_name='My Choice',
+            field_metadata='["a", "b", "c"]',
+        )
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_list',
+            field_type='list', field_order=3, field_display_name='My List',
+        )
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_date',
+            field_type='date', field_order=4, field_display_name='My Date',
+        )
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_int',
+            field_type='int', field_order=5, field_display_name='My Int',
+        )
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability', field_name='my_markdown',
+            field_type='markdown', field_order=6, field_display_name='My Markdown',
+        )
+        # Non-vulnerability custom field should NOT appear
+        CustomFieldsSchemaFactory.create(
+            table_name='host', field_name='host_field',
+            field_type='str', field_order=1, field_display_name='Host Field',
+        )
+        session.commit()
+
+        res = test_client.get('/v3/tasks/fields')
+        assert res.status_code == 200
+        data = res.json
+
+        # String
+        assert data['vulnerability']['my_string'] == {'type': 'string', 'replace': True, 'append': True}
+        assert data['vulnerability_web']['my_string'] == {'type': 'string', 'replace': True, 'append': True}
+
+        # Choice with valid values
+        assert data['vulnerability']['my_choice'] == {
+            'type': 'string', 'replace': True, 'append': False, 'valid': ['a', 'b', 'c']
+        }
+
+        # List
+        assert data['vulnerability']['my_list'] == {'type': 'list', 'replace': False, 'append': True}
+
+        # Date
+        assert data['vulnerability']['my_date'] == {'type': 'date', 'replace': True, 'append': False}
+
+        # Int
+        assert data['vulnerability']['my_int'] == {'type': 'int', 'replace': True, 'append': False}
+
+        # Markdown
+        assert data['vulnerability']['my_markdown'] == {'type': 'string', 'replace': True, 'append': True}
+
+        # Host custom field should not be in vulnerability fields
+        assert 'host_field' not in data['vulnerability']
+        assert 'host_field' not in data['vulnerability_web']
+
+        # Standard fields should still be present
+        assert 'severity' in data['vulnerability']
+        assert 'ip' in data['host']

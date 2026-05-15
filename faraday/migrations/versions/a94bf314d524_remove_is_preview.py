@@ -1,7 +1,7 @@
 """remove is_preview
 
 Revision ID: a94bf314d524
-Revises: 22321da63ce6
+Revises: b3e7f1a2c904
 Create Date: 2026-04-08 15:52:33.048551+00:00
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'a94bf314d524'
-down_revision = '22321da63ce6'
+down_revision = 'b3e7f1a2c904'
 branch_labels = None
 depends_on = None
 

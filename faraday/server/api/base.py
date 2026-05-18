@@ -1826,6 +1826,13 @@ class CountWorkspacedMixin:
           ---
           tags: [{tag_name}]
           summary: "Group {class_model} by the field set in the group_by GET parameter."
+          parameters:
+          - in: query
+            name: group_by
+            required: true
+            description: "Column to group by. Endpoint returns 404 if omitted."
+            schema:
+              type: string
           responses:
             200:
               description: Ok
@@ -1897,6 +1904,19 @@ class CountMultiWorkspacedMixin:
         ---
           tags: [{tag_name}]
           summary: "Count {class_model} by multiples workspaces"
+          parameters:
+          - in: query
+            name: workspaces
+            required: true
+            description: "Comma-separated workspace names to count across. Endpoint returns 400 if omitted."
+            schema:
+              type: string
+          - in: query
+            name: group_by
+            required: true
+            description: "Column to group by. Endpoint returns 400 if omitted."
+            schema:
+              type: string
           responses:
             200:
               description: Ok
@@ -2148,6 +2168,13 @@ class ContextMixin(GenericView):
           ---
           tags: [{tag_name}]
           summary: "Group {class_model} by the field set in the group_by GET parameter."
+          parameters:
+          - in: query
+            name: group_by
+            required: true
+            description: "Column to group by. Endpoint returns 404 if omitted."
+            schema:
+              type: string
           responses:
             200:
               description: Ok

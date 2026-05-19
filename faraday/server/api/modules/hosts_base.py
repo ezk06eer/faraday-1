@@ -87,10 +87,14 @@ class HostSchema(AutoSchema):
     metadata = SelfNestedField(MetadataSchema())
     type = fields.Function(lambda obj: 'Host', dump_only=True)
     service_summaries = fields.Method('get_service_summaries', dump_only=True)
+    services_status = fields.Method('get_services_status', dump_only=True)
     versions = fields.Method('get_service_version', dump_only=True)
     importance = fields.Integer(default=0, validate=lambda stars: stars in [0, 1, 2, 3])
     severity_counts = SelfNestedField(HostCountSchema(), dump_only=True)
     command_id = fields.Int(required=False, load_only=True)
+    creator_command_id = fields.Integer(dump_only=True, allow_none=True)
+    creator_command_tool = fields.String(dump_only=True, allow_none=True)
+    creator_command_params = fields.String(dump_only=True, allow_none=True)
     vulns = fields.Function(get_total_count, dump_only=True)
     workspace_name = fields.String(attribute='workspace.name', dump_only=True)
 
@@ -103,6 +107,18 @@ class HostSchema(AutoSchema):
         return [service.summary
                 for service in obj.services
                 if service.status == 'open']
+
+    @staticmethod
+    def get_services_status(obj):
+        return [
+            {
+                'name': service.name,
+                'port': service.port,
+                'protocol': service.protocol,
+                'status': service.status,
+            }
+            for service in obj.services
+        ]
 
     @staticmethod
     def get_service_version(obj):

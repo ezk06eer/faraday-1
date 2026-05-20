@@ -179,6 +179,9 @@ class HostView(
                    Host.vulnerability_low_generic_count,
                    Host.vulnerability_info_generic_count,
                    Host.vulnerability_unclassified_generic_count,
+                   Host.creator_command_id,
+                   Host.creator_command_tool,
+                   Host.creator_command_params,
                    ]
     get_joinedloads = [Host.hostnames, Host.services, Host.update_user]
 
@@ -244,6 +247,9 @@ class HostView(
                 undefer(self.model_class.vulnerability_info_generic_count),
                 undefer(self.model_class.vulnerability_unclassified_generic_count),
                 undefer(self.model_class.open_service_count),
+                undefer(self.model_class.creator_command_id),
+                undefer(self.model_class.creator_command_tool),
+                undefer(self.model_class.creator_command_params),
                 joinedload(self.model_class.hostnames),
                 joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),

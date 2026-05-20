@@ -4315,6 +4315,88 @@ class TestCustomFieldVulnerability(ReadWriteAPITests):
 
         assert res.status_code == 400
 
+    def test_create_vuln_with_float_custom_field(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float custom field',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.25,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 201
+        assert res.json['custom_fields']['score'] == 7.25
+
+        # Verify it persists when read back
+        vuln_id = res.json['_id']
+        res = test_client.get(self.url(vuln_id))
+        assert res.status_code == 200
+        assert res.json['custom_fields']['score'] == 7.25
+
+    def test_create_vuln_with_float_custom_field_rejects_more_than_2_decimals(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float too many decimals',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.555,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
+    def test_create_vuln_with_float_custom_field_rejects_invalid_value(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float invalid value',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 'not_a_number',
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
     def test_bulk_update_custom_attributes(self, test_client, session):
         host = HostFactory.create(workspace=self.workspace)
         custom_field_schema = CustomFieldsSchemaFactory(

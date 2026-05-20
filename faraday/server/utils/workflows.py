@@ -355,6 +355,9 @@ def _modify_custom_field(cf_name, obj, value, append):
     if cf_type == "int":
         # Int can Replace
         obj.custom_fields[cf_name] = int(value)
+    if cf_type == "float":
+        # Float can Replace
+        obj.custom_fields[cf_name] = float(value)
     if cf_type == "list":
         # List can Append
         if append is True:

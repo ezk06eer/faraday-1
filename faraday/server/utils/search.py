@@ -242,6 +242,8 @@ def get_json_query(table, field, op, op_type, counter):
         return f"({table}.{field} ->> :key_{counter}) {op} :value_{counter}"  # nosec
     elif op_type == 'compare_int':
         return f"({table}.{field} ->> :key_{counter})::int {op} :value_{counter}"  # nosec
+    elif op_type == 'compare_float':
+        return f"({table}.{field} ->> :key_{counter})::numeric {op} :value_{counter}"  # nosec
     elif op_type == 'exists':
         return f"{table}.{field} ->> :key_{counter} {op}"  # nosec
     elif op_type == 'any':
@@ -598,6 +600,8 @@ class QueryBuilder:
                 if op_type == 'compare':
                     if custom_field.field_type == 'int':
                         op_type = 'compare_int'
+                    elif custom_field.field_type == 'float':
+                        op_type = 'compare_float'
 
                 # Handle range operator
                 if op_type == 'range':

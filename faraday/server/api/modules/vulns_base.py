@@ -95,6 +95,7 @@ from faraday.server.utils.search import search
 from faraday.server.utils.vulns import (
     FILTER_SET_FIELDS,
     FILTER_SET_STRICT_FIELDS,
+    LARGE_VULN_FIELDS,
     SCHEMA_FIELDS,
     WEB_SCHEMA_FIELDS,
     bulk_update_custom_attributes,
@@ -642,6 +643,14 @@ class VulnerabilityFilterSet(FilterSet):
         return query
 
 
+def _truncate_large_fields(vulns, limit=100):
+    for vuln in vulns:
+        for field in LARGE_VULN_FIELDS:
+            value = vuln.get(field)
+            if isinstance(value, str) and len(value) > limit:
+                vuln[field] = value[:limit]
+
+
 class VulnerabilityView(
     PaginatedMixin,
     FilterAlchemyMixin,
@@ -1154,6 +1163,13 @@ class VulnerabilityView(
                     if column not in VALID_FILTER_VULN_COLUMNS:
                         abort(400, f"Invalid column {column}")
                     marshmallow_params.setdefault('only', []).append(column)
+                # Marshmallow applies 'exclude' after 'only', so user-requested fields
+                # must be removed from 'exclude' to avoid being silently dropped.
+                if not exclude_list:
+                    requested = set(marshmallow_params['only'])
+                    marshmallow_params['exclude'] = tuple(
+                        f for f in marshmallow_params['exclude'] if f not in requested
+                    )
         if 'group_by' not in filters:
             offset = None
             if 'offset' in filters:
@@ -1193,6 +1209,8 @@ class VulnerabilityView(
                 vulns = vulns.offset(offset)
 
             vulns = self.schema_class_dict['VulnerabilityWeb'](**marshmallow_params).dump(vulns)
+            if not exclude_list:
+                _truncate_large_fields(vulns)
             return vulns, total_count
 
         else:

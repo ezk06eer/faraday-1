@@ -1359,3 +1359,45 @@ class TestWorkspaceAPI(ReadWriteAPITests, BulkDeleteTestsMixin):
         assert returned_date.year == recent_date.year
         assert returned_date.month == recent_date.month
         assert returned_date.day == recent_date.day
+
+    def test_last_run_agent_date_only_local_no_cloud(self, session, test_client, workspace_factory):
+        """GREATEST(local_date, NULL) must return local_date, not NULL."""
+        from tests.factories import AgentExecutionFactory, ExecutorFactory, AgentFactory
+        ws = workspace_factory.create()
+        session.add(ws)
+        session.commit()
+
+        local_date = datetime(2024, 3, 10, 8, 0, 0)
+        agent = AgentFactory.create()
+        executor = ExecutorFactory.create(agent=agent, last_run=local_date)
+        session.add(executor)
+        session.commit()
+        AgentExecutionFactory.create(executor=executor, workspace=ws)
+        session.commit()
+
+        res = test_client.get(self.url(ws))
+        assert res.status_code == 200
+        assert res.json['last_run_agent_date'] is not None
+        returned_date = datetime.fromisoformat(res.json['last_run_agent_date'].replace('Z', '+00:00'))
+        assert returned_date.year == local_date.year
+        assert returned_date.month == local_date.month
+        assert returned_date.day == local_date.day
+
+    def test_last_run_agent_date_only_cloud_returns_exact_date(self, session, test_client, workspace_factory):
+        """GREATEST(NULL, cloud_date) must return cloud_date, not NULL."""
+        from tests.factories import CloudAgentExecutionFactory
+        ws = workspace_factory.create()
+        session.add(ws)
+        session.commit()
+
+        cloud_date = datetime(2024, 11, 22, 15, 30, 0)
+        CloudAgentExecutionFactory.create(workspace=ws, last_run=cloud_date)
+        session.commit()
+
+        res = test_client.get(self.url(ws))
+        assert res.status_code == 200
+        assert res.json['last_run_agent_date'] is not None
+        returned_date = datetime.fromisoformat(res.json['last_run_agent_date'].replace('Z', '+00:00'))
+        assert returned_date.year == cloud_date.year
+        assert returned_date.month == cloud_date.month
+        assert returned_date.day == cloud_date.day

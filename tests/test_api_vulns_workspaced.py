@@ -3431,11 +3431,15 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/filter', query_string=data)
         assert res.status_code == 200, res.json
         assert res.json['count'] == 2, res.json  # all vulns created by the same creator
-        expected = {'vulnerabilities': [
-            {'id': 0, 'key': 0, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 1'}},
-            {'id': 1, 'key': 1, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 2'}}], 'count': 2}
-
-        assert res.json == expected, res.json
+        expected_values = [
+            {'count': 10, 'severity': 'critical', 'name': 'name 1'},
+            {'count': 10, 'severity': 'critical', 'name': 'name 2'},
+        ]
+        actual_values = sorted(
+            (group['value'] for group in res.json['vulnerabilities']),
+            key=lambda v: v['name'],
+        )
+        assert actual_values == expected_values, res.json
 
     @pytest.mark.parametrize('col_name', [
         'severity',

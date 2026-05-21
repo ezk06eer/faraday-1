@@ -648,7 +648,7 @@ def _truncate_large_fields(vulns, limit=100):
         for field in LARGE_VULN_FIELDS:
             value = vuln.get(field)
             if isinstance(value, str) and len(value) > limit:
-                vuln[field] = value[:limit]
+                vuln[field] = value[:limit] + '...'
 
 
 class VulnerabilityView(

@@ -962,9 +962,11 @@ class TestVulnerabilitySearch:
             value = vuln_result['value']
             for field in ['description', 'data', 'resolution', 'request', 'response']:
                 if value.get(field):
-                    assert len(value[field]) <= 100, (
+                    assert len(value[field]) <= 103, (
                         f"Field '{field}' was not truncated: {len(value[field])} chars"
                     )
+                    if len(value[field]) == 103:
+                        assert value[field].endswith('...')
 
     @pytest.mark.skip_sql_dialect('sqlite')
     @pytest.mark.usefixtures('ignore_nplusone')

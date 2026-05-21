@@ -13,7 +13,6 @@ import string
 import sys
 from configparser import (
     ConfigParser,
-    NoSectionError,
     NoOptionError,
     DuplicateSectionError,
 )
@@ -68,6 +67,7 @@ from faraday.server.utils.ping import ping_home_background_task
 
 from faraday.server.utils.reports_processor import reports_manager_background_task
 from faraday.server.utils.command import schedule_update_failed_command_stats
+from faraday.server.tasks import schedule_cleanup_stuck_pipelines
 from faraday.server.utils.invalid_chars import remove_null_characters
 from faraday.server.utils.logger import LOGGING_HANDLERS
 from faraday.server.websockets.dispatcher import remove_sid
@@ -315,11 +315,9 @@ def save_new_secret_key(app):
     rng = SystemRandom()
     secret_key = "".join([rng.choice(string.ascii_letters + string.digits) for _ in range(25)])
     app.config['SECRET_KEY'] = secret_key
-    try:
-        config.set('faraday_server', 'secret_key', secret_key)
-    except NoSectionError:
+    if not config.has_section('faraday_server'):
         config.add_section('faraday_server')
-        config.set('faraday_server', 'secret_key', secret_key)
+    config.set('faraday_server', 'secret_key', secret_key)
     with open(LOCAL_CONFIG_FILE, 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 
@@ -329,11 +327,9 @@ def save_new_agent_creation_token_secret():
     config = ConfigParser()
     config.read(LOCAL_CONFIG_FILE)
     registration_secret = pyotp.random_base32()
-    try:
-        config.set('faraday_server', 'agent_registration_secret', registration_secret)
-    except NoSectionError:
+    if not config.has_section('faraday_server'):
         config.add_section('faraday_server')
-        config.set('faraday_server', 'agent_registration_secret', registration_secret)
+    config.set('faraday_server', 'agent_registration_secret', registration_secret)
     with open(LOCAL_CONFIG_FILE, 'w', encoding='utf-8') as configfile:
         config.write(configfile)
     faraday.server.config.faraday_server.agent_registration_secret = registration_secret
@@ -576,7 +572,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     from faraday.server.api.modules.agent import agent_creation_api  # pylint: disable=import-outside-toplevel
 
     app.limiter = Limiter(
-        app,
+        app=app,
         key_func=get_remote_address,
         default_limits=[]
     )
@@ -617,6 +613,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         agents_crontab.start()
 
         schedule_update_failed_command_stats()
+        schedule_cleanup_stuck_pipelines()
     return app
 
 

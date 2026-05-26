@@ -7,6 +7,7 @@ See the file 'doc/LICENSE' for the license information
 from unittest import mock
 
 import pytest
+from sqlalchemy import text
 
 from faraday.server.api.modules.agents_schedule import AgentsScheduleView
 from faraday.server.models import AgentsSchedule
@@ -242,7 +243,7 @@ class TestAgentScheduleView(ReadWriteAPITests):
 
     def test_count_agent_schedulers(self, test_client, session):
         # Cleanup - Delete all schedules from the AgentsSchedule table
-        session.execute('DELETE FROM agents_schedule_workspace_table')
+        session.execute(text('DELETE FROM agents_schedule_workspace_table'))
         session.query(AgentsSchedule).delete()
         session.commit()
 

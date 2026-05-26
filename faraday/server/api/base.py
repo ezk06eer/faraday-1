@@ -33,7 +33,7 @@ from marshmallow.validate import Length
 from marshmallow_sqlalchemy import ModelConverter
 from marshmallow_sqlalchemy.schema import SQLAlchemyAutoSchemaMeta, SQLAlchemyAutoSchemaOpts
 from sqlalchemy import and_, asc, column, desc, func, text, update as sqlalchemy_update
-from sqlalchemy.engine import ResultProxy
+from sqlalchemy.engine import CursorResult, MappingResult, Result, ResultProxy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import joinedload, undefer
@@ -47,6 +47,7 @@ from faraday.server.config import faraday_server
 from faraday.server.models import (
     Command,
     CommandObject,
+    User,
     Workspace,
     WorkspacePermission,
     db,
@@ -332,7 +333,7 @@ class GenericView(FlaskView):
             # username. Do a joinedload to prevent doing one query per object
             # (n+1) problem
             options.append(joinedload(
-                getattr(self.model_class, 'creator')).load_only('username'))
+                getattr(self.model_class, 'creator')).load_only(User.username))
         query = self._get_base_query(*args, **kwargs)
         options += [joinedload(relationship)
                     for relationship in self.get_joinedloads]
@@ -389,8 +390,10 @@ class GenericView(FlaskView):
         try:
             obj = query.filter(self._get_lookup_field().in_(object_ids)).all()
         except AttributeError:
-            # Handle the case where `query` is a ResultProxy, this comes from Workspace query_object_with_count
-            if isinstance(query, ResultProxy):
+            # Handle the case where `query` is a raw-SQL Result (e.g. Workspace.query_with_count
+            # returns a MappingResult from db.session.execute(text(...)).mappings()). Fall back to
+            # a normal ORM query on the model.
+            if isinstance(query, (ResultProxy, CursorResult, MappingResult, Result)):
                 res = db.session.query(self.model_class).filter(self.model_class.name.in_(object_ids)).all()
                 return res
             # If it's another AttributeError, re-raise
@@ -784,7 +787,7 @@ class FilterWorkspacedMixin(ListMixin):
                 joinedload(self.model_class.hostnames),
                 joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),
-                joinedload(getattr(self.model_class, 'creator')).load_only('username'),
+                joinedload(getattr(self.model_class, 'creator')).load_only(User.username),
             )
         return filter_query
 

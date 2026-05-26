@@ -29,7 +29,6 @@ import pyotp
 import requests
 from depot.manager import DepotManager
 from flask import Flask, session, g, request
-from flask.json import JSONEncoder
 from flask_kvsession import KVSessionExtension
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -42,7 +41,7 @@ from flask_security.utils import (
     verify_and_update_password,
     verify_hash,
 )
-from flask_sqlalchemy import get_debug_queries
+from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
 from simplekv.decorator import PrefixDecorator
 from simplekv.fs import FilesystemStore
 from sqlalchemy.pool import QueuePool
@@ -564,7 +563,6 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         'pool_size': 20,
         'max_overflow': 20,
         'pool_timeout': 60,
-        'future': True,
     }
     check_testing_configuration(testing, app)
 
@@ -579,8 +577,10 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         logger.info('Missing connection_string on [database] section on server.ini. '
                     'Please configure the database before running the server.')
 
-    from faraday.server.models import db  # pylint:disable=import-outside-toplevel
+    from faraday.server.models import db, register_sqlite_isolation_events  # pylint:disable=import-outside-toplevel
     db.init_app(app)
+    with app.app_context():
+        register_sqlite_isolation_events(db.engine)
     # Session(app)
 
     # Setup Flask-Security
@@ -684,11 +684,8 @@ def register_extensions(app):
 
 
 def minify_json_output(app):
-    class MiniJSONEncoder(JSONEncoder):
-        item_separator = ','
-        key_separator = ':'
-
-    app.json_encoder = MiniJSONEncoder
+    # Flask 2.3+: configure the JSONProvider instead of subclassing JSONEncoder.
+    app.json.compact = True
     app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
@@ -700,14 +697,14 @@ class CustomLoginForm(LoginForm):
     so it is possible for an attacker to enumerate usernames
     """
 
-    def validate(self):
+    def validate(self, extra_validators=None):
 
         user_ip = request_user_ip()
         time_now = datetime.datetime.utcnow()
 
         # Use super of LoginForm, not super of CustomLoginForm, since I
         # want to skip the LoginForm validate logic
-        if not super(LoginForm, self).validate():
+        if not super(LoginForm, self).validate(extra_validators=extra_validators):
             audit_logger.warning(f"Invalid Login - User [{self.email.data}] from IP [{user_ip}] at [{time_now}]")
             logger.warning(f"Invalid Login - User [{self.email.data}] from IP [{user_ip}] at [{time_now}]")
             return False

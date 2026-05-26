@@ -533,7 +533,7 @@ def manage_relationships(processed_data, result, workspace_id=None):
             if data['references']:
                 for reference in data['references']:
                     reference_sequence_id = db.session.execute(
-                        "SELECT nextval('vulnerability_reference_id_seq');").scalar()
+                        text("SELECT nextval('vulnerability_reference_id_seq');")).scalar()
                     logger.debug(f"Found reference {reference} for vulnerability {v_id}")
                     reference['id'] = reference_sequence_id
                     reference['vulnerability_id'] = v_id
@@ -562,14 +562,14 @@ def manage_relationships(processed_data, result, workspace_id=None):
             if data['references']:
                 for reference in data['references']:
                     reference_sequence_id = db.session.execute(
-                        "SELECT nextval('vulnerability_reference_id_seq');").scalar()
+                        text("SELECT nextval('vulnerability_reference_id_seq');")).scalar()
                     logger.debug(f"Found reference {reference} for vulnerability {r[0]}")
                     reference['id'] = reference_sequence_id
                     references_created.append(reference)
             logger.debug(f"Processing command for {v_id}")
             if data['command']:
                 command_object_sequence_id = db.session.execute(
-                    "SELECT nextval('command_object_id_seq');").scalar()
+                    text("SELECT nextval('command_object_id_seq');")).scalar()
                 data['command']['id'] = command_object_sequence_id
                 command_objects_created.append(data['command'])
             for owasp_object in data['owasp_objects']:
@@ -769,7 +769,7 @@ def _create_vuln(ws, vuln_data, command: dict, **kwargs):
             vuln_data['tool'] = 'Web UI'
 
     try:
-        vuln_data['id'] = db.session.execute("SELECT nextval('vulnerability_id_seq');").scalar()
+        vuln_data['id'] = db.session.execute(text("SELECT nextval('vulnerability_id_seq');")).scalar()
         logger.debug(f"Vulnerability seq id {vuln_data['id']}")
     except Exception as e:
         logger.error("Could not get vulnerability sequence.", exc_info=e)

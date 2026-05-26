@@ -61,10 +61,7 @@ from sqlalchemy.orm import (
     joinedload,
 )
 from sqlalchemy.schema import DDL
-from flask_sqlalchemy import (
-    SQLAlchemy as OriginalSQLAlchemy,
-    _EngineConnector,
-)
+from flask_sqlalchemy import SQLAlchemy
 
 from faraday.server.config import faraday_server
 from faraday.server.fields import JSONType, FaradayUploadedFile
@@ -128,51 +125,31 @@ LOCAL_TYPE = 'local'
 SAML_TYPE = 'saml'
 
 
-class SQLAlchemy(OriginalSQLAlchemy):
-    """Override to fix issues when doing a rollback with sqlite driver
-    See https://docs.sqlalchemy.org/en/14/dialects/sqlite.html#serializable-isolation-savepoints-transactional-ddl
-    and https://bitbucket.org/zzzeek/sqlalchemy/issues/3561/sqlite-nested-transactions-fail-with
-    for further information"""
-
-    def make_connector(self, app=None, bind=None):
-        """Creates the connector for a given state and bind."""
-        return CustomEngineConnector(self, self.get_app(app), bind)
+db = SQLAlchemy(session_options={"join_transaction_mode": "create_savepoint"})
 
 
-class CustomEngineConnector(_EngineConnector):
-    """Used by overridden SQLAlchemy class to fix rollback issues.
+def register_sqlite_isolation_events(engine):
+    """SQLite needs special handling for nested transactions / savepoints.
 
-    Also set case sensitive likes (in SQLite there are case
-    insensitive by default)"""
+    See https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#serializable-isolation-savepoints-transactional-ddl
+    Also enables case-sensitive LIKE (SQLite is case-insensitive by default).
+    """
+    if engine.url.get_backend_name() != "sqlite":
+        return
 
-    def get_engine(self):
-        # Use an existent engine and don't register events if possible
-        uri = self.get_uri()
-        echo = self._app.config['SQLALCHEMY_ECHO']
-        if (uri, echo) == self._connected_for:
-            return self._engine
+    @event.listens_for(engine, "connect")
+    def do_connect(dbapi_connection, connection_record):  # pylint:disable=unused-variable
+        # disable pysqlite's emitting of the BEGIN statement entirely.
+        # also stops it from emitting COMMIT before any DDL.
+        dbapi_connection.isolation_level = None
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA case_sensitive_like=true")
+        cursor.close()
 
-        # Call original method and register events
-        rv = super().get_engine()
-        if uri.startswith('sqlite://'):
-            with self._lock:
-                @event.listens_for(rv, "connect")
-                def do_connect(dbapi_connection, connection_record):  # pylint:disable=unused-variable
-                    # disable pysqlite's emitting of the BEGIN statement
-                    # entirely.  also stops it from emitting COMMIT before any DDL.
-                    dbapi_connection.isolation_level = None
-                    cursor = dbapi_connection.cursor()
-                    cursor.execute("PRAGMA case_sensitive_like=true")
-                    cursor.close()
-
-                @event.listens_for(rv, "begin")
-                def do_begin(conn):  # pylint:disable=unused-variable
-                    # emit our own BEGIN
-                    conn.exec_driver_sql("BEGIN")
-        return rv
-
-
-db = SQLAlchemy()
+    @event.listens_for(engine, "begin")
+    def do_begin(conn):  # pylint:disable=unused-variable
+        # emit our own BEGIN
+        conn.exec_driver_sql("BEGIN")
 
 
 def _last_run_agent_date():
@@ -238,20 +215,20 @@ def _make_vuln_count_property(type_=None, confirmed=None, use_column_property=Tr
         # In this case type_ is supplied from a whitelist so this is safe
         query = query.where(text(f"vulnerability.type = '{type_}'"))
     if confirmed:
-        if db.session.bind.dialect.name == 'sqlite':
+        if db.engine.dialect.name == 'sqlite':
             # SQLite has no "true" expression, we have to use the integer 1
             # instead
             query = query.where(text("vulnerability.confirmed = 1"))
-        elif db.session.bind.dialect.name == 'postgresql':
+        elif db.engine.dialect.name == 'postgresql':
             # I suppose that we're using PostgreSQL, that can't compare
             # booleans with integers
             query = query.where(text("vulnerability.confirmed = true"))
     elif confirmed is False:
-        if db.session.bind.dialect.name == 'sqlite':
+        if db.engine.dialect.name == 'sqlite':
             # SQLite has no "true" expression, we have to use the integer 1
             # instead
             query = query.where(text("vulnerability.confirmed = 0"))
-        elif db.session.bind.dialect.name == 'postgresql':
+        elif db.engine.dialect.name == 'postgresql':
             # I suppose that we're using PostgreSQL, that can't compare
             # booleans with integers
             query = query.where(text("vulnerability.confirmed = false"))
@@ -1300,7 +1277,7 @@ class Host(Metadata):
             joinedload(cls.hostnames),
             joinedload(cls.services),
             joinedload(cls.update_user),
-            joinedload(getattr(cls, 'creator')).load_only('username'),
+            joinedload(getattr(cls, 'creator')).load_only(User.username),
         ).limit(None).offset(0)
 
     @property
@@ -2588,7 +2565,7 @@ class Workspace(Metadata):
         # query += " GROUP BY workspace.id "
         query += " ORDER BY workspace.name ASC"
 
-        return db.session.execute(text(query), params)
+        return db.session.execute(text(query), params).mappings()
 
     def set_scope(self, new_scope):
         return set_children_objects(self, new_scope,

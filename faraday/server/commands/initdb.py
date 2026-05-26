@@ -418,7 +418,7 @@ class InitDB:
 
         # Check if the alembic_version exists
         # Taken from https://stackoverflow.com/a/24089729
-        (result,) = list(db.session.execute("select to_regclass('alembic_version')"))
+        (result,) = list(db.session.execute(text("select to_regclass('alembic_version')")))
         exists = result[0] is not None
 
         if exists:

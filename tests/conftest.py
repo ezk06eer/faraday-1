@@ -17,7 +17,7 @@ from flask.testing import FlaskClient
 from flask_principal import Identity, identity_changed
 from pathlib import Path
 from pytest_factoryboy import register
-from sqlalchemy import event
+from sqlalchemy import event, text
 
 import psycopg2
 from psycopg2.sql import SQL
@@ -162,9 +162,12 @@ def database(app, request):
 
     db.app = app
     db.create_all()
-    db.engine.execute("INSERT INTO faraday_role(name, weight, custom) "
-                      "VALUES ('admin', 10, false),('asset_owner', 20, false),('pentester', 30, false),('client', 40, false);"
-                      )
+    with db.engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO faraday_role(name, weight, custom) "
+            "VALUES ('admin', 10, false),('asset_owner', 20, false),"
+            "('pentester', 30, false),('client', 40, false);"
+        ))
 
     request.addfinalizer(teardown)
     return db

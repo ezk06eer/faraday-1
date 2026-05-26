@@ -32,7 +32,7 @@ from marshmallow import EXCLUDE, Schema, fields
 from marshmallow.validate import Length
 from marshmallow_sqlalchemy import ModelConverter
 from marshmallow_sqlalchemy.schema import SQLAlchemyAutoSchemaMeta, SQLAlchemyAutoSchemaOpts
-from sqlalchemy import and_, asc, desc, func, update as sqlalchemy_update
+from sqlalchemy import and_, asc, column, desc, func, text, update as sqlalchemy_update
 from sqlalchemy.engine import ResultProxy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
@@ -490,7 +490,9 @@ class GenericWorkspacedView(GenericView):
 
     def _get_base_query(self, workspace_name, **kwargs):
         base = super()._get_base_query()
-        return base.join(Workspace).filter(
+        return base.join(
+            Workspace, Workspace.id == self.model_class.workspace_id
+        ).filter(
             Workspace.id == get_workspace(workspace_name).id)
 
     def _get_object(self, object_id, workspace_name=None, eagerload=False, **kwargs):
@@ -1843,11 +1845,11 @@ class CountWorkspacedMixin:
         # using format is not a great practice.
         # the user input is group_by, however it's filtered by column name.
         table_name = inspect(self.model_class).tables[0].name
-        group_by = f'{table_name}.{group_by}'
+        group_by = column(f'{table_name}.{group_by}', is_literal=True)
 
         query_count = self._filter_query(
             db.session.query(self.model_class).
-            join(Workspace).
+            join(Workspace, Workspace.id == self.model_class.workspace_id).
             group_by(group_by).
             filter(Workspace.name == workspace_name,
                    *self.count_extra_filters)
@@ -1859,7 +1861,7 @@ class CountWorkspacedMixin:
             query_count = query_count.order_by(desc(order_by))
         else:
             query_count = query_count.order_by(asc(order_by))
-        for key, query_count in query_count.values(group_by, func.count(group_by)):
+        for key, query_count in query_count.with_entities(group_by, func.count(group_by)).all():
             res['groups'].append(
                 {'count': query_count,
                  'name': key,
@@ -2115,9 +2117,12 @@ class ContextMixin(GenericView):
 
     @staticmethod
     def _get_context_workspace_ids(filter):
-        return db.session.query(Workspace.id)\
-            .join(WorkspacePermission, Workspace.id == WorkspacePermission.workspace_id, isouter=True)\
+        return [
+            row[0]
+            for row in db.session.query(Workspace.id)
+            .join(WorkspacePermission, Workspace.id == WorkspacePermission.workspace_id, isouter=True)
             .filter(filter).all()
+        ]
 
     @staticmethod
     def _get_context_workspace_filter():
@@ -2164,7 +2169,7 @@ class ContextMixin(GenericView):
         # using format is not a great practice.
         # the user input is group_by, however it's filtered by column name.
         table_name = inspect(self.model_class).tables[0].name
-        group_by = f'{table_name}.{group_by}'
+        group_by = column(f'{table_name}.{group_by}', is_literal=True)
 
         query_count = self._apply_filter_context(
             self._filter_query(
@@ -2179,7 +2184,7 @@ class ContextMixin(GenericView):
             query_count = query_count.order_by(desc(order_by))
         else:
             query_count = query_count.order_by(asc(order_by))
-        for key, query_count in query_count.values(group_by, func.count(group_by)):
+        for key, query_count in query_count.with_entities(group_by, func.count(group_by)).all():
             res['groups'].append(
                 {'count': query_count,
                  'name': key,

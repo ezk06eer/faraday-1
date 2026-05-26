@@ -1,4 +1,4 @@
 {
   "level": "community",
-  "md": "[UPD] Upgrade SQLAlchemy to 2.0 and Flask-SQLAlchemy to 3.x. #8308"
+  "md": "[MOD] Upgrade SQLAlchemy to 2.0 and Flask-SQLAlchemy to 3.x. #8308"
 }

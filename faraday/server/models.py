@@ -7,6 +7,23 @@ import logging
 import operator
 import string
 import time
+import warnings
+
+# Silence noisy SQLAlchemy 2.0 mapper-configuration warnings about overlapping
+# FK paths in legacy relationships (e.g. Host.commands / Command.command_objects,
+# Service.host / Host.services, polymorphic Vulnerability.service, plus the
+# many association tables under VulnerabilityGeneric / VulnerabilityTemplate).
+# These are pre-existing patterns that work correctly at runtime; properly
+# silencing each one with ``overlaps=`` is tracked as a separate cleanup.
+# Must be registered before any ORM model is imported so configure_mappers
+# (triggered by the post-class ``aliased(Host)`` calls below) doesn't surface
+# them.
+from sqlalchemy.exc import SAWarning  # noqa: E402
+warnings.filterwarnings(
+    "ignore",
+    category=SAWarning,
+    message=r"relationship '.*' will copy column .* to column .*",
+)
 from datetime import datetime, timedelta, date
 from functools import partial
 from random import SystemRandom
@@ -1235,22 +1252,20 @@ class Host(Metadata):
     open_service_count = _make_generic_count_property('host', 'service', where=text("service.status = 'open'"))
     total_service_count = _make_generic_count_property('host', 'service')
 
-    __host_vulnerabilities = (
-        select(func.count(text('vulnerability.id'))).
-        select_from(text('vulnerability')).
-        where(text('vulnerability.host_id = host.id')).
-        scalar_subquery()
-    )
-    __service_vulnerabilities = (
-        select(func.count(text('vulnerability.id'))).
-        select_from(text('vulnerability, service')).
-        where(text('vulnerability.service_id = service.id and service.host_id = host.id')).
-        scalar_subquery()
-    )
     vulnerability_count = column_property(
-        # select(text('count(*)')).select_from(__host_vulnerabilities.subquery()),
-        __host_vulnerabilities + __service_vulnerabilities,
-        deferred=True)
+        (
+            select(func.count(text('vulnerability.id')))
+            .select_from(text('vulnerability'))
+            .where(text('vulnerability.host_id = host.id'))
+            .scalar_subquery()
+        ) + (
+            select(func.count(text('vulnerability.id')))
+            .select_from(text('vulnerability, service'))
+            .where(text('vulnerability.service_id = service.id and service.host_id = host.id'))
+            .scalar_subquery()
+        ),
+        deferred=True,
+    )
 
     __table_args__ = (
         UniqueConstraint(ip, workspace_id, name='uix_host_ip_workspace'),

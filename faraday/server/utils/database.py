@@ -193,6 +193,7 @@ def _group_concat_postgresql(element, compiler, **kw):
 
 
 class BooleanToIntColumn(FunctionElement):
+    inherit_cache = True
 
     def __init__(self, expression):
         super().__init__()

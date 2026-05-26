@@ -51,6 +51,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.ext.associationproxy import association_proxy, _AssociationSet
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import (
+    aliased,
     backref,
     column_property,
     query_expression,
@@ -167,7 +168,7 @@ class CustomEngineConnector(_EngineConnector):
                 @event.listens_for(rv, "begin")
                 def do_begin(conn):  # pylint:disable=unused-variable
                     # emit our own BEGIN
-                    conn.execute("BEGIN")
+                    conn.exec_driver_sql("BEGIN")
         return rv
 
 
@@ -175,13 +176,13 @@ db = SQLAlchemy()
 
 
 def _last_run_agent_date():
-    query = select([text('executor.last_run')])
+    query = select(text('executor.last_run'))
 
     from_clause = table('executor') \
         .join(AgentExecution, text('executor.id = agent_execution.executor_id'))
     where_clause = text('executor.last_run is not null and agent_execution.workspace_id = workspace.id')
     query = query.select_from(from_clause).where(where_clause).order_by(AgentExecution.create_date.desc()).limit(1)
-    return query
+    return query.scalar_subquery()
 
 
 def _make_generic_count_property(parent_table, children_table, where=None, use_column_property=True):
@@ -190,24 +191,25 @@ def _make_generic_count_property(parent_table, children_table, where=None, use_c
     children_id_field = f'{children_table}.id'
     parent_id_field = f'{parent_table}.id'
     children_rel_field = f'{children_table}.{parent_table}_id'
-    query = (select([func.count(text(children_id_field))]).
+    query = (select(func.count(text(children_id_field))).
              select_from(table(children_table)).
              where(text(f'{children_rel_field} = {parent_id_field}')))
     if where is not None:
         query = query.where(where)
+    query = query.scalar_subquery()
     if use_column_property:
         return column_property(query, deferred=True)
     return query
 
 
 def _make_command_created_related_object():
-    query = select([BooleanToIntColumn("(count(*) = 0)")])
+    query = select(BooleanToIntColumn("(count(*) = 0)"))
     query = query.select_from(text('command_object as command_object_inner'))
     where_expr = " command_object_inner.create_date < command_object.create_date and " \
                  " (command_object_inner.object_id = command_object.object_id and " \
                  " command_object_inner.object_type = command_object.object_type) and " \
                  " command_object_inner.workspace_id = command_object.workspace_id "
-    query = query.where(text(where_expr))
+    query = query.where(text(where_expr)).scalar_subquery()
     return column_property(
         query,
     )
@@ -222,7 +224,7 @@ def _make_vuln_count_property(type_=None, confirmed=None, use_column_property=Tr
             isouter=True
         )
 
-    query = (select([func.count(text('distinct(vulnerability.id)'))]).
+    query = (select(func.count(text('distinct(vulnerability.id)'))).
              select_from(from_clause)
              )
     if get_hosts_vulns:
@@ -256,6 +258,7 @@ def _make_vuln_count_property(type_=None, confirmed=None, use_column_property=Tr
 
     if extra_query:
         query = query.where(text(extra_query))
+    query = query.scalar_subquery()
     if use_column_property:
         return column_property(query, deferred=True)
     else:
@@ -325,18 +328,18 @@ def _make_vuln_generic_count_by_severity(severity):
     assert severity in ['critical', 'high', 'medium', 'low', 'informational', 'unclassified']
 
     vuln_count = (
-        select([func.count(text('vulnerability.id'))]).
+        select(func.count(text('vulnerability.id'))).
         select_from(text('vulnerability')).
         where(text(f'vulnerability.host_id = host.id and vulnerability.severity = \'{severity}\'')).
-        as_scalar()
+        scalar_subquery()
     )
 
     vuln_web_count = (
-        select([func.count(text('vulnerability.id'))]).
+        select(func.count(text('vulnerability.id'))).
         select_from(text('vulnerability, service')).
         where(text('(vulnerability.service_id = service.id and '
                    f'service.host_id = host.id) and vulnerability.severity = \'{severity}\'')).
-        as_scalar()
+        scalar_subquery()
     )
 
     vulnerability_generic_count = column_property(
@@ -416,23 +419,24 @@ def set_children_objects(instance, value, parent_field, child_field='id', worksp
     children_model = getattr(type(instance), parent_field).property.mapper.class_
 
     value = set(value)
-    current_value = getattr(instance, parent_field)
-    current_value_fields = set(map(operator.attrgetter(child_field), current_value))
+    with db.session.no_autoflush:
+        current_value = getattr(instance, parent_field)
+        current_value_fields = set(map(operator.attrgetter(child_field), current_value))
 
-    for existing_child in current_value_fields:
-        if existing_child not in value:
-            removed_instance = next(
-                inst for inst in current_value
-                if getattr(inst, child_field) == existing_child)
-            db.session.delete(removed_instance)
+        for existing_child in current_value_fields:
+            if existing_child not in value:
+                removed_instance = next(
+                    inst for inst in current_value
+                    if getattr(inst, child_field) == existing_child)
+                db.session.delete(removed_instance)
 
-    for new_child in value:
-        if new_child in current_value_fields:
-            continue
-        kwargs = {child_field: new_child}
-        if workspaced:
-            kwargs['workspace'] = instance.workspace
-        current_value.append(children_model(**kwargs))
+        for new_child in value:
+            if new_child in current_value_fields:
+                continue
+            kwargs = {child_field: new_child}
+            if workspaced:
+                kwargs['workspace'] = instance.workspace
+            current_value.append(children_model(**kwargs))
 
 
 class Hostname(Metadata):
@@ -1099,9 +1103,10 @@ def _make_created_objects_sum(object_type_filter):
                         "command_object.command_id = command.id",
                         "command_object.workspace_id = command.workspace_id"]
     return column_property(
-        select([func.sum(CommandObject.created)]).
+        select(func.sum(CommandObject.created)).
         select_from(table('command_object')).
-        where(text(' and '.join(where_conditions)))
+        where(text(' and '.join(where_conditions))).
+        scalar_subquery()
     )
 
 
@@ -1118,10 +1123,11 @@ def _make_created_objects_sum_joined(object_type_filter, join_filters):
     for attr, filter_value in join_filters.items():
         where_conditions.append(f"vulnerability.{attr} = {filter_value}")
     return column_property(
-        select([func.sum(CommandObject.created)]).
+        select(func.sum(CommandObject.created)).
         select_from(table('command_object')).
         select_from(table('vulnerability')).
-        where(text(' and '.join(where_conditions)))
+        where(text(' and '.join(where_conditions))).
+        scalar_subquery()
     )
 
 
@@ -1184,11 +1190,11 @@ class Command(Metadata):
                 f"vulnerability.severity = '{severity}'",
             ]
             return (
-                select([func.sum(CommandObject.created)])
+                select(func.sum(CommandObject.created))
                 .select_from(table('command_object'))
                 .select_from(table('vulnerability'))
                 .where(text(' and '.join(where_conditions)))
-                .as_scalar()
+                .scalar_subquery()
             )
 
         return query.options(
@@ -1253,16 +1259,16 @@ class Host(Metadata):
     total_service_count = _make_generic_count_property('host', 'service')
 
     __host_vulnerabilities = (
-        select([func.count(text('vulnerability.id'))]).
+        select(func.count(text('vulnerability.id'))).
         select_from(text('vulnerability')).
         where(text('vulnerability.host_id = host.id')).
-        as_scalar()
+        scalar_subquery()
     )
     __service_vulnerabilities = (
-        select([func.count(text('vulnerability.id'))]).
+        select(func.count(text('vulnerability.id'))).
         select_from(text('vulnerability, service')).
         where(text('vulnerability.service_id = service.id and service.host_id = host.id')).
-        as_scalar()
+        scalar_subquery()
     )
     vulnerability_count = column_property(
         # select(text('count(*)')).select_from(__host_vulnerabilities.subquery()),
@@ -1519,14 +1525,14 @@ class VulnerabilityGeneric(VulnerabilityABC):
     @group_count.expression
     def group_count(cls):
         inner = (
-            select([func.count(text('v.id'))])
+            select(func.count(text('v.id')))
             .select_from(text('vulnerability as v'))
             .where(text('v.group_id = vulnerability.group_id'))
             .where(cls.group_id.isnot(None))
-            .as_scalar()
+            .scalar_subquery()
         )
         return case(
-            [(cls.is_main.is_(True), inner)],
+            (cls.is_main.is_(True), inner),
             else_=None
         )
 
@@ -1963,53 +1969,6 @@ class VulnerabilityGeneric(VulnerabilityABC):
         collection_class=set,
     )
 
-    creator_command_id = column_property(
-        select([CommandObject.command_id]).
-        where(CommandObject.object_type == 'vulnerability').
-        where(text('command_object.object_id = vulnerability.id')).
-        where(CommandObject.workspace_id == workspace_id).
-        order_by(asc(CommandObject.create_date)).
-        limit(1),
-        deferred=True)
-
-    creator_command_tool = column_property(
-        select([Command.tool]).
-        select_from(join(Command, CommandObject, Command.id == CommandObject.command_id)).
-        where(CommandObject.object_type == 'vulnerability').
-        where(text('command_object.object_id = vulnerability.id')).
-        where(CommandObject.workspace_id == workspace_id).
-        order_by(asc(CommandObject.create_date)).
-        limit(1),
-        deferred=True
-    )
-
-    _host_ip_query = (
-        select([Host.ip]).
-        where(text('vulnerability.host_id = host.id'))
-    )
-    _service_ip_query = (
-        select([text('host_inner.ip')]).
-        select_from(text('host as host_inner, service')).
-        where(text('vulnerability.service_id = service.id and host_inner.id = service.host_id'))
-    )
-    target_host_ip = column_property(
-        case([
-            (text('vulnerability.host_id IS NOT null'), _host_ip_query.as_scalar()),
-            (text('vulnerability.service_id IS NOT null'), _service_ip_query.as_scalar())
-        ]),
-        deferred=True
-    )
-
-    _host_os_query = (
-        select([Host.os]).
-        where(text('vulnerability.host_id = host.id'))
-    )
-    _service_os_query = (
-        select([text('host_inner.os')]).
-        select_from(text('host as host_inner, service')).
-        where(text('vulnerability.service_id = service.id and host_inner.id = service.host_id'))
-    )
-
     host_id = Column(Integer, ForeignKey(Host.id, ondelete='CASCADE'), index=True)
     host = relationship(
         'Host',
@@ -2020,14 +1979,6 @@ class VulnerabilityGeneric(VulnerabilityABC):
     @declared_attr
     def service_id(self):
         return Column(Integer, db.ForeignKey('service.id', ondelete='CASCADE'), index=True)
-
-    target_host_os = column_property(
-        case([
-            (text('vulnerability.host_id IS NOT null'), _host_os_query.as_scalar()),
-            (text('vulnerability.service_id IS NOT null'), _service_os_query.as_scalar())
-        ]),
-        deferred=True
-    )
 
     __mapper_args__ = {
         'polymorphic_on': type
@@ -4121,6 +4072,80 @@ event.listen(
     'after_create',
     vulnerability_uniqueness_sqlite.execute_if(dialect='sqlite')
 )
+
+# Column properties on VulnerabilityGeneric that reference other tables via
+# correlated subqueries are added here, after all classes are defined, so that
+# SQLAlchemy can rewrite the parent-table references when the outer FROM is
+# aliased (e.g. by eager-load subqueries).
+VulnerabilityGeneric.creator_command_id = column_property(
+    select(CommandObject.command_id)
+    .where(CommandObject.object_type == 'vulnerability')
+    .where(CommandObject.object_id == VulnerabilityGeneric.id)
+    .where(CommandObject.workspace_id == VulnerabilityGeneric.workspace_id)
+    .order_by(asc(CommandObject.create_date))
+    .limit(1)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery(),
+    deferred=True,
+)
+
+VulnerabilityGeneric.creator_command_tool = column_property(
+    select(Command.tool)
+    .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
+    .where(CommandObject.object_type == 'vulnerability')
+    .where(CommandObject.object_id == VulnerabilityGeneric.id)
+    .where(CommandObject.workspace_id == VulnerabilityGeneric.workspace_id)
+    .order_by(asc(CommandObject.create_date))
+    .limit(1)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery(),
+    deferred=True,
+)
+
+_host_ip_query = (
+    select(Host.ip)
+    .where(VulnerabilityGeneric.host_id == Host.id)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery()
+)
+_service_inner_ip = aliased(Host, name='host_inner')
+_service_ip_query = (
+    select(_service_inner_ip.ip)
+    .where(VulnerabilityGeneric.service_id == Service.id)
+    .where(_service_inner_ip.id == Service.host_id)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery()
+)
+VulnerabilityGeneric.target_host_ip = column_property(
+    case(
+        (VulnerabilityGeneric.host_id.isnot(None), _host_ip_query),
+        (VulnerabilityGeneric.service_id.isnot(None), _service_ip_query),
+    ),
+    deferred=True,
+)
+
+_host_os_query = (
+    select(Host.os)
+    .where(VulnerabilityGeneric.host_id == Host.id)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery()
+)
+_service_inner_os = aliased(Host, name='host_inner_os')
+_service_os_query = (
+    select(_service_inner_os.os)
+    .where(VulnerabilityGeneric.service_id == Service.id)
+    .where(_service_inner_os.id == Service.host_id)
+    .correlate(VulnerabilityGeneric)
+    .scalar_subquery()
+)
+VulnerabilityGeneric.target_host_os = column_property(
+    case(
+        (VulnerabilityGeneric.host_id.isnot(None), _host_os_query),
+        (VulnerabilityGeneric.service_id.isnot(None), _service_os_query),
+    ),
+    deferred=True,
+)
+
 
 # We have to import this after all models are defined
 import faraday.server.events  # noqa F401

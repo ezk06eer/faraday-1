@@ -78,6 +78,25 @@ from faraday.server.debouncer import Debouncer
 # Don't move this import from here
 from nplusone.ext.flask_sqlalchemy import NPlusOne
 
+
+def _patch_nplusone_for_sqlalchemy_14():
+    """Restore Query._offset / _limit attributes that nplusone reads;
+    SQLAlchemy 1.4 replaced them with _offset_clause / _limit_clause."""
+    from sqlalchemy.orm import Query as _SAQuery
+    if not hasattr(_SAQuery, "_offset"):
+        def _offset(self):
+            clause = getattr(self, "_offset_clause", None)
+            return clause.value if clause is not None else None
+
+        def _limit(self):
+            clause = getattr(self, "_limit_clause", None)
+            return clause.value if clause is not None else None
+        _SAQuery._offset = property(_offset)
+        _SAQuery._limit = property(_limit)
+
+
+_patch_nplusone_for_sqlalchemy_14()
+
 logger = logging.getLogger(__name__)
 
 # gevent logging is very verbose, so we mute it
@@ -545,6 +564,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         'pool_size': 20,
         'max_overflow': 20,
         'pool_timeout': 60,
+        'future': True,
     }
     check_testing_configuration(testing, app)
 

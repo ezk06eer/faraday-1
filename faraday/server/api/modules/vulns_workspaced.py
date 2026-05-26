@@ -69,47 +69,19 @@ class VulnerabilityWorkspacedView(
         This is too complex to get_joinedloads, so I have to override the function.
         """
         query = super()._get_eagerloaded_query(*args, **kwargs)
+        # NOTE: Strategies for host / service / Host.hostnames / Vulnerability.owasp
+        # / VulnerabilityWeb.owasp / evidence are already configured by the parent
+        # VulnerabilityView._get_eagerloaded_query. Re-declaring them here causes
+        # "Loader strategies conflict" errors in SQLAlchemy 2.0.
         options = [
-            joinedload(Vulnerability.host).
-            load_only(Host.id).  # Only hostnames are needed
-            joinedload(Host.hostnames),
-
-            joinedload(Vulnerability.service).
-            joinedload(Service.host).
-            joinedload(Host.hostnames),
-
-            joinedload(VulnerabilityWeb.service).
-            joinedload(Service.host).
-            joinedload(Host.hostnames),
-
-            joinedload(VulnerabilityGeneric.update_user),
             joinedload(VulnerabilityGeneric.group),
-            undefer(VulnerabilityGeneric.creator_command_id),
-            undefer(VulnerabilityGeneric.creator_command_tool),
-            undefer(VulnerabilityGeneric.target_host_ip),
-            undefer(VulnerabilityGeneric.target_host_os),
-            selectinload(VulnerabilityGeneric.tags),
-            selectinload(VulnerabilityGeneric.cwe),
-            selectinload(VulnerabilityGeneric.owasp),
-            selectinload(Vulnerability.owasp),
-            selectinload(VulnerabilityWeb.owasp),
-
-            selectinload('refs'),
-            selectinload('cve_instances'),
-            selectinload('policy_violation_instances'),
-
+            selectinload(VulnerabilityGeneric.refs),
+            selectinload(VulnerabilityGeneric.cve_instances),
+            selectinload(VulnerabilityGeneric.policy_violation_instances),
             selectinload(VulnerabilityGeneric.credentials),
         ]
 
-        if request.args.get('get_evidence'):
-            options.append(joinedload(VulnerabilityGeneric.evidence))
-        else:
-            options.append(noload(VulnerabilityGeneric.evidence))
-
-        return query.options(selectin_polymorphic(
-            VulnerabilityGeneric,
-            [Vulnerability, VulnerabilityWeb]
-        ), *options)
+        return query.options(*options)
 
     def _bulk_update_query(self, ids, **kwargs):
         # It IS better to as is but warn of ON CASCADE

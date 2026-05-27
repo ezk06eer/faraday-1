@@ -1191,6 +1191,9 @@ class Command(Metadata):
                 .scalar_subquery()
             )
 
+        # populate_existing forces with_expression values to overwrite cached
+        # query_expression defaults on instances already in the identity map
+        # (required in SQLAlchemy 2.0).
         return query.options(
             with_expression(cls.sum_created_vulnerability_critical, _sev_expr('critical')),
             with_expression(cls.sum_created_vulnerability_high, _sev_expr('high')),
@@ -1198,7 +1201,7 @@ class Command(Metadata):
             with_expression(cls.sum_created_vulnerability_low, _sev_expr('low')),
             with_expression(cls.sum_created_vulnerability_info, _sev_expr('informational')),
             with_expression(cls.sum_created_vulnerability_unclassified, _sev_expr('unclassified')),
-        )
+        ).execution_options(populate_existing=True)
 
     agent_execution = relationship(
         'AgentExecution',

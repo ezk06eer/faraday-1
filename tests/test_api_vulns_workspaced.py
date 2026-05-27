@@ -4089,8 +4089,8 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         assert vuln in cred2.vulnerabilities
 
     def test_vulnerability_with_many_cves_performance(self, test_client, session, workspace):
-        from flask_sqlalchemy import get_debug_queries
-        from flask import _app_ctx_stack
+        from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
+        from flask import g
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4113,9 +4113,7 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         session.expire_all()
 
         # Clear accumulated queries so we only measure this request
-        ctx = _app_ctx_stack.top
-        if ctx is not None:
-            ctx.sqlalchemy_queries = []
+        g._sqlalchemy_queries = []
 
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/{vuln.id}')
 
@@ -4127,8 +4125,8 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
             f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
     def test_vulnerability_list_with_many_cves_performance(self, test_client, session, workspace):
-        from flask_sqlalchemy import get_debug_queries
-        from flask import _app_ctx_stack
+        from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
+        from flask import g
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4152,9 +4150,7 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         session.expire_all()
 
         # Clear accumulated queries so we only measure this request
-        ctx = _app_ctx_stack.top
-        if ctx is not None:
-            ctx.sqlalchemy_queries = []
+        g._sqlalchemy_queries = []
 
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns')
 
@@ -4166,8 +4162,8 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
             f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
     def test_vulnerability_without_cves_baseline_performance(self, test_client, session, workspace):
-        from flask_sqlalchemy import get_debug_queries
-        from flask import _app_ctx_stack
+        from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
+        from flask import g
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4184,9 +4180,7 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         session.expire_all()
 
         # Clear accumulated queries so we only measure this request
-        ctx = _app_ctx_stack.top
-        if ctx is not None:
-            ctx.sqlalchemy_queries = []
+        g._sqlalchemy_queries = []
 
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/{vuln.id}')
 

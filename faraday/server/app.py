@@ -44,6 +44,7 @@ from flask_security.utils import (
 from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
 from simplekv.decorator import PrefixDecorator
 from simplekv.fs import FilesystemStore
+from sqlalchemy.orm import Query as _SAQuery
 from sqlalchemy.pool import QueuePool
 from wtforms import ValidationError
 
@@ -81,7 +82,6 @@ from nplusone.ext.flask_sqlalchemy import NPlusOne
 def _patch_nplusone_for_sqlalchemy_14():
     """Restore Query._offset / _limit attributes that nplusone reads;
     SQLAlchemy 1.4 replaced them with _offset_clause / _limit_clause."""
-    from sqlalchemy.orm import Query as _SAQuery
     if not hasattr(_SAQuery, "_offset"):
         def _offset(self):
             clause = getattr(self, "_offset_clause", None)

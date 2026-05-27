@@ -402,12 +402,15 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
         }
 
     def _add_to_filter(self, filter_query, **kwargs):
+        # populate_existing is required so with_expression overrides the
+        # query_expression default on Workspace instances already in the
+        # identity map (SQLAlchemy 2.0).
         filter_query = filter_query.options(
             with_expression(
                 Workspace.last_run_agent_date,
                 _last_run_agent_date(),
             ),
-        )
+        ).execution_options(populate_existing=True)
         return filter_query
 
     @staticmethod

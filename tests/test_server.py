@@ -79,17 +79,18 @@ class TestAuthentication(BaseAPITestCase, unittest.TestCase):
 
     def test_401_when_logged_user_is_inactive(self):
         with self.flask_app.app_context():
-            # Without this line the test breaks. Taken from
-            # http://pythonhosted.org/Flask-Testing/#testing-with-sqlalchemy
-            db.session.add(self.user)
-
-            self.assertTrue(self.flask_app.user_datastore.deactivate_user(self.user))
+            # Flask-SQLAlchemy 3 scopes db.session by app context, so the
+            # inner context owns a new session; merge re-attaches self.user
+            # (bound to the outer fixture session) into the active one.
+            user = db.session.merge(self.user)
+            self.assertTrue(self.flask_app.user_datastore.deactivate_user(user))
         res = self.app.get('/_api/v3/ws/')
         self.assertEqual(res.status_code, 401)
 
     def test_401_when_logged_user_is_deleted(self):
         with self.flask_app.app_context():
-            self.flask_app.user_datastore.delete_user(self.user)
+            user = db.session.merge(self.user)
+            self.flask_app.user_datastore.delete_user(user)
         res = self.app.get('/_api/v3/ws/')
         self.assertEqual(res.status_code, 401)
 

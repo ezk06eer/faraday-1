@@ -46,7 +46,8 @@ from simplekv.decorator import PrefixDecorator
 from simplekv.fs import FilesystemStore
 from sqlalchemy.orm import Query as _SAQuery
 from sqlalchemy.pool import QueuePool
-from wtforms import ValidationError
+from wtforms import StringField, ValidationError
+from wtforms.validators import DataRequired
 
 # Local application imports
 import faraday.server.config
@@ -696,6 +697,11 @@ class CustomLoginForm(LoginForm):
     The builtin form of flask_security generates different messages
     so it is possible for an attacker to enumerate usernames
     """
+
+    # Override the parent EmailField (which enforces email-format validation
+    # under flask-security 5) with a plain StringField, since Faraday uses
+    # this field for username login rather than an email address.
+    email = StringField('Email', validators=[DataRequired()])
 
     def validate(self, extra_validators=None):
 

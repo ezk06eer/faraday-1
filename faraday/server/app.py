@@ -698,9 +698,7 @@ class CustomLoginForm(LoginForm):
     so it is possible for an attacker to enumerate usernames
     """
 
-    # Override the parent EmailField (which enforces email-format validation
-    # under flask-security 5) with a plain StringField, since Faraday uses
-    # this field for username login rather than an email address.
+    # Override parent EmailField — Faraday logs in by username, not email.
     email = StringField('Email', validators=[DataRequired()])
 
     def validate(self, extra_validators=None):

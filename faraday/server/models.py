@@ -1191,9 +1191,7 @@ class Command(Metadata):
                 .scalar_subquery()
             )
 
-        # populate_existing forces with_expression values to overwrite cached
-        # query_expression defaults on instances already in the identity map
-        # (required in SQLAlchemy 2.0).
+        # populate_existing: SA 2.0 needs this for with_expression to override identity-map instances.
         return query.options(
             with_expression(cls.sum_created_vulnerability_critical, _sev_expr('critical')),
             with_expression(cls.sum_created_vulnerability_high, _sev_expr('high')),

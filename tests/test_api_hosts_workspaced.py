@@ -255,7 +255,7 @@ class TestHostAPI:
                                          workspace=host.workspace)
             session.commit()
             res = test_client.get(self.url(host))
-            assert res.json['services'] == len(services)
+            assert res.json['open_services'] == len(services)
 
     def test_index_shows_service_count(self, test_client, session,
                                        host_services, service_factory):
@@ -275,7 +275,7 @@ class TestHostAPI:
         assert len(res.json['rows']) >= len(ids_map)  # Some hosts can have no services
         for host in res.json['rows']:
             if host['id'] in ids_map:
-                assert host['value']['services'] == len(ids_map[host['id']])
+                assert host['value']['open_services'] == len(ids_map[host['id']])
 
     def test_filter_by_os_exact(self, test_client, session, workspace,
                                 second_workspace, host_factory):
@@ -729,7 +729,7 @@ class TestHostAPI:
             "description": "",
             "default_gateway": None,
             "owned": False,
-            "services": 12,
+            "open_services": 12,
             "hostnames": [],
             "vulns": 43,
             "owner": "leonardo",
@@ -768,7 +768,7 @@ class TestHostAPI:
             'os': 'Microsoft Windows Server 2008 R2 Standard Service Pack 1',
             'owned': False,
             'owner': host.creator.username,
-            'services': 0,
+            'open_services': 0,
             'service_summaries': [],
             'services_status': [],
             'creator_command_id': None,
@@ -965,7 +965,7 @@ class TestHostAPIGeneric(ReadWriteAPITests, PaginationTestsMixin, BulkUpdateTest
             expected_ids.append(host.id)
         session.commit()
         res = test_client.get(urljoin(self.url(workspace=second_workspace),
-                                      '?sort=services&sort_dir=asc'))
+                                      '?sort=open_services&sort_dir=asc'))
         assert res.status_code == 200
         assert [h['_id'] for h in res.json['data']] == expected_ids
 
@@ -1303,7 +1303,7 @@ def host_json():
             "description": st.one_of(st.none(), st.text()),
             "default_gateway": st.one_of(st.none(), st.text()),
             "owned": st.booleans(),
-            "services": st.one_of(st.none(), st.integers()),
+            "open_services": st.one_of(st.none(), st.integers()),
             "hostnames": st.lists(st.text()),
             "vulns": st.one_of(st.none(), st.integers()),
             "owner": st.one_of(st.none(), st.text()),

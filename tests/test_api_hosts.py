@@ -154,7 +154,7 @@ class TestHostAPI:
                                          workspace=host.workspace)
             session.commit()
             res = test_client.get(self.url(host))
-            assert res.json['services'] == len(services)
+            assert res.json['open_services'] == len(services)
 
     @pytest.mark.usefixtures('ignore_nplusone')
     def test_index_shows_service_count(self, test_client, session,
@@ -175,7 +175,7 @@ class TestHostAPI:
         assert len(res.json['rows']) >= len(ids_map)  # Some hosts can have no services
         for host in res.json['rows']:
             if host['id'] in ids_map:
-                assert host['value']['services'] == len(ids_map[host['id']])
+                assert host['value']['open_services'] == len(ids_map[host['id']])
 
     @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_os_exact(self, test_client, session, workspace,
@@ -764,7 +764,7 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
             expected_ids.append(host.id)
         session.commit()
         res = test_client.get(urljoin(self.url(),
-                                      '?sort=services&sort_dir=asc'))
+                                      '?sort=open_services&sort_dir=asc'))
         assert res.status_code == 200
         assert [h['_id'] for h in res.json['data'] if h['_id'] in expected_ids] == expected_ids
 
@@ -976,7 +976,7 @@ def host_json():
             "description": st.one_of(st.none(), st.text()),
             "default_gateway": st.one_of(st.none(), st.text()),
             "owned": st.booleans(),
-            "services": st.one_of(st.none(), st.integers()),
+            "open_services": st.one_of(st.none(), st.integers()),
             "hostnames": st.lists(st.text()),
             "vulns": st.one_of(st.none(), st.integers()),
             "owner": st.one_of(st.none(), st.text()),

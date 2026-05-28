@@ -181,7 +181,8 @@ def schedule_cleanup_stuck_pipelines():
 def create_host_task(workspace_id, command: dict, host):
     from faraday.server.api.modules.bulk_create import _create_host  # pylint: disable=import-outside-toplevel
     created_objects = {}
-    db.engine.dispose()
+    if hasattr(db.engine, 'dispose'):
+        db.engine.dispose()
     start_time = time.time()
     workspace = Workspace.query.filter_by(id=workspace_id).first()
     if not workspace:

@@ -293,17 +293,18 @@ def host_with_hostnames(host, hostname_factory):
 
 def login_as(test_client, user):
     with test_client.session_transaction() as sess:
-        # Without this line the test breaks. Taken from
-        # http://pythonhosted.org/Flask-Testing/#testing-with-sqlalchemy
         assert user.id is not None
-        sess['_user_id'] = user.fs_uniquifier  # TODO use public flask_login functions
+        sess['_user_id'] = user.fs_uniquifier
+        sess['_fresh'] = True
         identity_changed.send(test_client.application,
                               identity=Identity(user.id))
-    # Flask-Login 0.6.x stores current_user in g._login_user (app-context scoped, not
-    # request-scoped like 0.5.x). Updating it explicitly ensures subsequent requests
-    # use the correct user even when login_as() is called mid-test after logout().
+    # Clear any cached current_user from the outer app context so the next
+    # request loads from the session we just populated, which forces
+    # flask-security's _user_loader to run and set `fs_authn_via=session`
+    # (required by @auth_required endpoints like /change).
     from flask import g
-    g._login_user = user
+    if hasattr(g, '_login_user'):
+        del g._login_user
 
 
 @pytest.fixture

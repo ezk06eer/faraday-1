@@ -6,7 +6,6 @@ See the file 'doc/LICENSE' for the license information
 import http
 import json
 import logging
-from copy import deepcopy
 from datetime import datetime
 from uuid import uuid4
 
@@ -238,7 +237,10 @@ def _build_agent_conditions(custom_filters):
             ]
             if cats:
                 combined = or_(*cats)
-                conditions.append(~combined if op_lower in ('not_in', 'nin', 'is_not_one_of') else combined)
+                if op_lower in ('is_not_one_of', 'not_in', 'nin'):
+                    conditions.append(~combined)
+                else:
+                    conditions.append(combined)
 
     return conditions
 
@@ -510,6 +512,8 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
             val = f.get('val', '')
             if name == 'status':
                 is_online = str(val).lower() == 'online'
+                if op in ('ne', '!=', 'neq'):
+                    is_online = not is_online
                 standard.append({"name": "sid", "op": "is_not_null" if is_online else "is_null", "val": ""})
             elif name == 'tools':
                 tool = str(val)

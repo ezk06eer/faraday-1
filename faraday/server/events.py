@@ -25,6 +25,7 @@ from faraday.server.models import (
     Vulnerability,
     VulnerabilityWeb,
     VulnerabilityGeneric,
+    Workspace,
     db,
 )
 
@@ -83,12 +84,15 @@ def update_object_event(mapper, connection, instance):
         # this will avoid duplicate messages on websockets
         return
     name = getattr(instance, 'ip', None) or getattr(instance, 'name', None)
+    workspace_name = connection.execute(
+        select(Workspace.name).where(Workspace.id == instance.workspace_id)
+    ).scalar()
     msg = {
         'id': instance.id,
         'action': 'UPDATE',
         'type': instance.__class__.__name__,
         'name': name,
-        'workspace': instance.workspace.name
+        'workspace': workspace_name
     }
     changes_queue.put(msg)
 
@@ -119,13 +123,14 @@ def _create_or_update_histogram(connection, workspace_id=None, medium=0, high=0,
         'confirmed': confirmed
     }
     stmt = postgresql.insert(SeveritiesHistogram).values(histogram)
+    sh = SeveritiesHistogram.__table__
     on_update_stmt = stmt.on_conflict_do_update(
-        index_elements=[text('date'), text('workspace_id')],
+        index_elements=[sh.c.date, sh.c.workspace_id],
         set_={
-            "critical": text("severities_histogram.critical") + stmt.excluded.critical,
-            "high": text("severities_histogram.high") + stmt.excluded.high,
-            "medium": text("severities_histogram.medium") + stmt.excluded.medium,
-            "confirmed": text("severities_histogram.confirmed") + stmt.excluded.confirmed
+            "critical": sh.c.critical + stmt.excluded.critical,
+            "high": sh.c.high + stmt.excluded.high,
+            "medium": sh.c.medium + stmt.excluded.medium,
+            "confirmed": sh.c.confirmed + stmt.excluded.confirmed,
         }
     )
     connection.execute(on_update_stmt)

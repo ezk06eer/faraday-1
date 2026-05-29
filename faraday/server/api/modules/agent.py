@@ -198,9 +198,9 @@ def _build_agent_conditions(custom_filters):
 
         if name == 'last_execution_date':
             try:
-                dval = datetime.fromisoformat(str(val)) if isinstance(val, str) else val
+                dval = datetime.fromisoformat(str(val).replace('Z', '+00:00')) if isinstance(val, str) else val
             except ValueError:
-                continue
+                abort(400, f"Invalid date format for last_execution_date: {val!r}")
             max_lr = (
                 db.session.query(func.max(Executor.last_run))
                 .filter(Executor.agent_id == Agent.id)
@@ -208,6 +208,16 @@ def _build_agent_conditions(custom_filters):
                 .as_scalar()
             )
             conditions.append(OPERATORS.get(op.lower(), OPERATORS['eq'])(max_lr, dval))
+
+        elif name == 'tools':
+            tool = str(val)
+            tool_escaped = tool.replace('%', r'\%').replace('_', r'\_')
+            conditions.append(
+                exists().where(and_(
+                    Executor.agent_id == Agent.id,
+                    Executor.name.ilike(f'%{tool_escaped}%', escape='\\'),
+                ))
+            )
 
         elif name == 'last_execution_tool':
             tool = str(val)
@@ -223,7 +233,8 @@ def _build_agent_conditions(custom_filters):
             elif op_lower in ('ne', '!=', 'neq'):
                 name_cond = Executor.name != tool
             else:
-                name_cond = Executor.name.ilike(f'%{tool}%')
+                tool_escaped = tool.replace('%', r'\%').replace('_', r'\_')
+                name_cond = Executor.name.ilike(f'%{tool_escaped}%', escape='\\')
             conditions.append(
                 exists().where(and_(Executor.agent_id == Agent.id, Executor.last_run == max_lr, name_cond))
             )
@@ -496,10 +507,7 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         return jsonify({"message": "Parameters saved successfully"}), 200
 
     def _filter(self, filters, extra_alchemy_filters=None, **kwargs):
-        try:
-            raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})
-        except (ValueError, TypeError):
-            raw = {}
+        raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})
         top = raw.get('filters', [])
         standard = []
         sql_custom = []
@@ -522,7 +530,7 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
                 elif op in ('ne', '!=', 'neq'):
                     standard.append({"name": "executors", "op": "not_any", "val": {"name": "name", "op": "eq", "val": tool}})
                 else:
-                    standard.append({"name": "executors", "op": "any", "val": {"name": "name", "op": "ilike", "val": f'%{tool}%'}})
+                    sql_custom.append(f)
             elif name in _AGENT_CUSTOM_FILTER_NAMES:
                 sql_custom.append(f)
             else:

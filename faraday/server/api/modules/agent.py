@@ -210,6 +210,9 @@ def _build_agent_conditions(custom_filters):
             conditions.append(OPERATORS.get(op.lower(), OPERATORS['eq'])(max_lr, dval))
 
         elif name == 'tools':
+            op_lower = op.lower()
+            if op_lower not in ('contains', 'ilike', 'like'):
+                abort(400, f"Unsupported operator {op!r} for tools filter; use 'contains', 'like', or 'ilike'")
             tool = str(val)
             tool_escaped = tool.replace('%', r'\%').replace('_', r'\_')
             conditions.append(
@@ -507,7 +510,10 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         return jsonify({"message": "Parameters saved successfully"}), 200
 
     def _filter(self, filters, extra_alchemy_filters=None, **kwargs):
-        raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})
+        try:
+            raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})
+        except (ValueError, TypeError):
+            abort(400, 'Invalid filter JSON')
         top = raw.get('filters', [])
         standard = []
         sql_custom = []

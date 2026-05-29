@@ -4,6 +4,9 @@ Copyright (C) 2019  Infobyte LLC (http://www.infobytesec.com/)
 See the file 'doc/LICENSE' for the license information
 """
 
+import json
+import urllib.parse
+from datetime import datetime, timedelta
 from unittest import mock
 
 from posixpath import join
@@ -594,3 +597,137 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         assert response.json['deleted'] == 1
         assert session.query(Agent).filter(Agent.id == agent_id).count() == 0
         assert session.query(Executor).filter(Executor.id == executor_id).count() == 0
+
+    def _filter_q(self, *filters):
+        q = json.dumps({"filters": list(filters)})
+        return f'/v3/agents/filter?q={urllib.parse.quote(q)}'
+
+    def test_filter_by_status_online(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "status", "op": "eq", "val": "online"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert online.id in ids
+        assert offline.id not in ids
+
+    def test_filter_by_status_offline(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "status", "op": "eq", "val": "offline"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert offline.id in ids
+        assert online.id not in ids
+
+    def test_filter_by_tools_eq(self, test_client, session):
+        agent_with = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_with, name="nmap")
+        agent_without = AgentFactory.create()
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "eq", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_with.id in ids
+        assert agent_without.id not in ids
+
+    def test_filter_by_tools_ne(self, test_client, session):
+        agent_nmap = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_nmap, name="nmap")
+        agent_burp = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_burp, name="burp")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "ne", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_burp.id in ids
+        assert agent_nmap.id not in ids
+
+    def test_filter_by_tools_contains(self, test_client, session):
+        agent_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_match, name="nmap_scanner")
+        agent_no_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_no_match, name="burp")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "like", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_match.id in ids
+        assert agent_no_match.id not in ids
+
+    def test_filter_by_last_execution_date_le(self, test_client, session):
+        now = datetime.utcnow()
+        agent_old = AgentFactory.create()
+        ex_old = ExecutorFactory.create(agent=agent_old)
+        ex_old.last_run = now - timedelta(days=10)
+
+        agent_new = AgentFactory.create()
+        ex_new = ExecutorFactory.create(agent=agent_new)
+        ex_new.last_run = now - timedelta(days=1)
+        session.commit()
+
+        cutoff = (now - timedelta(days=5)).isoformat()
+        res = test_client.get(self._filter_q({"name": "last_execution_date", "op": "le", "val": cutoff}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_old.id in ids
+        assert agent_new.id not in ids
+
+    def test_filter_by_last_execution_tool(self, test_client, session):
+        now = datetime.utcnow()
+        agent = AgentFactory.create()
+        ex_first = ExecutorFactory.create(agent=agent, name="nmap")
+        ex_first.last_run = now - timedelta(hours=2)
+        ex_last = ExecutorFactory.create(agent=agent, name="burp")
+        ex_last.last_run = now - timedelta(hours=1)
+
+        agent_other = AgentFactory.create()
+        ex_nmap = ExecutorFactory.create(agent=agent_other, name="nmap")
+        ex_nmap.last_run = now - timedelta(hours=1)
+        session.commit()
+
+        # "burp" ran last on agent; only agent should match
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "eq", "val": "burp"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent.id in ids
+        assert agent_other.id not in ids
+
+    def test_filter_by_category_eq(self, test_client, session):
+        agent_web = AgentFactory.create()
+        ex_web = ExecutorFactory.create(agent=agent_web)
+        ex_web.category = ["web", "network"]
+
+        agent_mobile = AgentFactory.create()
+        ex_mobile = ExecutorFactory.create(agent=agent_mobile)
+        ex_mobile.category = ["mobile"]
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "category", "op": "eq", "val": "web"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_web.id in ids
+        assert agent_mobile.id not in ids
+
+    def test_filter_by_category_is_not_one_of(self, test_client, session):
+        agent_web = AgentFactory.create()
+        ex_web = ExecutorFactory.create(agent=agent_web)
+        ex_web.category = ["web"]
+
+        agent_network = AgentFactory.create()
+        ex_network = ExecutorFactory.create(agent=agent_network)
+        ex_network.category = ["network"]
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "category", "op": "is_not_one_of", "val": "web"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_network.id in ids
+        assert agent_web.id not in ids

@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[ADD] Runners table now supports filtering by Status, Tools, Last Execution Date, Last Execution Tool, and Category. #8279"
+}

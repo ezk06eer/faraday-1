@@ -41,7 +41,6 @@ from sqlalchemy.sql.schema import Table as SQLAlchemySchemaTableType
 # Local application imports
 from faraday.server.models import (
     User,
-    CVE,
     Role,
     CustomFieldsSchema,
     VulnerabilityGeneric,
@@ -786,14 +785,7 @@ class QueryBuilder:
                     relation = getattr(model, field_name)
                     relation_model = relation.mapper.class_
                     field = getattr(relation_model, field_name_in_relation)
-                    if relation_model not in joined_models:
-                        if relation_model == User:
-                            query = query.join(relation_model, model.creator_id == relation_model.id)
-                        elif relation_model == CVE:
-                            query = query.join(relation_model, model.cve_instances)
-                        else:
-                            query = query.join(relation_model)
-                    joined_models.add(relation_model)
+                    query = apply_join(query, model, relation, joined_models)
                     select_fields.append(field)
                 else:
                     select_fields.append(getattr(model, group_by.field))
@@ -816,15 +808,15 @@ class QueryBuilder:
         filters = [filt for filt in filters_generator if filt is not None]
 
         # Check if it is necessary to join relationship tables for filters
-        if model.__tablename__ != User.__tablename__:
+        creator_relation = getattr(model, 'creator', None)
+        if model.__tablename__ != User.__tablename__ and creator_relation is not None:
             for filter in filters:
                 if isinstance(filter, BinaryExpression):
                     table = getattr(filter.left, "table", None)
                     if not isinstance(table, SQLAlchemySchemaTableType):
                         continue
-                    if table.name == User.__tablename__ and User not in joined_models:
-                        query = query.join(User, model.creator_id == User.id)
-                        joined_models.add(User)
+                    if table.name == User.__tablename__:
+                        query = apply_join(query, model, creator_relation, joined_models)
 
         # Multiple filter criteria at the top level of the provided search
         # parameters are interpreted as a conjunction (AND).

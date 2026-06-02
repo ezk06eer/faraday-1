@@ -159,6 +159,7 @@ class FaradayServerConfigObject(ConfigSection):
         self.idle_session_timeout = 0  # Default to 0 seconds (disabled)
         self.celery_queue_prefix = None
         self.pipeline_running_timeout = 21600  # 6 hours in seconds
+        self.debounce_command_finalize_wait = 60  # seconds to wait for all import batches before finalizing
 
 
 class StorageConfigObject(ConfigSection):

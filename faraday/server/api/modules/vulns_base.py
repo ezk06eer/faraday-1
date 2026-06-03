@@ -1241,7 +1241,7 @@ class VulnerabilityView(
                 vulns = vulns.offset(offset)
 
             vulns = self.schema_class_dict['VulnerabilityWeb'](**marshmallow_params).dump(vulns)
-            if not exclude_list:
+            if exclude_list is None:
                 _truncate_large_fields(vulns)
             return vulns, total_count
 

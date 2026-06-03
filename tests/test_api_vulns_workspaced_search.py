@@ -858,9 +858,8 @@ class TestVulnerabilitySearch:
         # Verify we have the expected number of rows
         assert len(rows) == 10
 
-        # The limited export excludes large fields (data, description, request,
-        # resolution, response) even when they are requested via columns.
-        assert set(rows[0].keys()) == set(VALID_FILTER_VULN_COLUMNS) - LARGE_VULN_FIELDS
+        # When columns are explicitly requested, large fields are included.
+        assert set(rows[0].keys()) == set(VALID_FILTER_VULN_COLUMNS)
 
     @pytest.mark.skip_sql_dialect('sqlite')
     @pytest.mark.usefixtures('ignore_nplusone')
@@ -999,3 +998,56 @@ class TestVulnerabilitySearch:
         assert rows[0]['desc'] == long_text
         assert rows[0]['data'] == long_text
         assert rows[0]['resolution'] == long_text
+
+    def test_export_csv_and_export_csv_limited_mutually_exclusive(self, test_client, workspace):
+        response = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?export_csv=true&export_csv_limited=true&q={{}}'
+        )
+        assert response.status_code == 400
+
+    @pytest.mark.skip_sql_dialect('sqlite')
+    @pytest.mark.usefixtures('ignore_nplusone')
+    @pytest.mark.parametrize('column', VALID_FILTER_VULN_COLUMNS)
+    def test_export_csv_limited_single_column(self, test_client, session, workspace, column):
+        host = HostFactory.create(workspace=workspace)
+        vuln = VulnerabilityFactory.create(workspace=workspace, host=host, service=None)
+        session.add(vuln)
+        session.commit()
+
+        query_filter = {"columns": [column], "filters": []}
+        response = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?export_csv_limited=true&q={json.dumps(query_filter)}'
+        )
+        assert response.status_code == 200
+        assert 'text/csv' in response.content_type
+        csv_content = StringIO(response.data.decode('utf-8'))
+        csv_reader = csv.DictReader(csv_content)
+        rows = list(csv_reader)
+        assert len(rows) == 1
+        assert csv_reader.fieldnames == [column]
+
+    @pytest.mark.skip_sql_dialect('sqlite')
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_export_csv_limited_all_columns(self, test_client, session, workspace):
+        host = HostFactory.create(workspace=workspace)
+        vuln = VulnerabilityFactory.create(
+            workspace=workspace,
+            description='some description',
+            host=host,
+            service=None,
+        )
+        session.add(vuln)
+        session.commit()
+
+        query_filter = {"columns": VALID_FILTER_VULN_COLUMNS, "filters": []}
+        response = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?export_csv_limited=true&q={json.dumps(query_filter)}'
+        )
+        assert response.status_code == 200
+        assert 'text/csv' in response.content_type
+        csv_content = StringIO(response.data.decode('utf-8'))
+        csv_reader = csv.DictReader(csv_content)
+        rows = list(csv_reader)
+        assert len(rows) == 1
+        assert csv_reader.fieldnames == VALID_FILTER_VULN_COLUMNS
+        assert rows[0]['description'] == 'some description'

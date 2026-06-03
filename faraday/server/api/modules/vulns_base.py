@@ -1017,7 +1017,7 @@ class VulnerabilityView(
             try:
                 raw = json_loads(filters) or {}
                 cols = raw.get('columns') if isinstance(raw, dict) else None
-                if cols:
+                if isinstance(cols, list) and all(isinstance(c, str) for c in cols):
                     selected_columns_for_export = cols
             except Exception:
                 pass

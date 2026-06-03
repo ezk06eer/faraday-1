@@ -1005,6 +1005,19 @@ class TestVulnerabilitySearch:
         )
         assert response.status_code == 400
 
+    @pytest.mark.parametrize('bad_columns', [
+        '{"columns": "description"}',           # string instead of list
+        '{"columns": [1, 2, 3]}',               # list of ints
+        '{"columns": [["description"]]}',       # nested list
+    ])
+    def test_export_csv_limited_invalid_columns_type_returns_400(
+            self, test_client, workspace, bad_columns):
+        response = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter'
+            f'?export_csv_limited=true&q={bad_columns}'
+        )
+        assert response.status_code == 400
+
     @pytest.mark.skip_sql_dialect('sqlite')
     @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.parametrize('column', VALID_FILTER_VULN_COLUMNS)

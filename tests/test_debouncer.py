@@ -331,20 +331,6 @@ class TestDebounceCommandExtensions:
         b = _debounce_key_for_workspace("_dummy_action", 1, "cmd_id:2")
         assert a != b
 
-    def test_wait_override_changes_countdown(self):
-        """A per-call wait overrides the instance default for the scheduled countdown."""
-        debouncer = _make_debouncer(wait=10)
-        _setup_redis_first_event(debouncer)
-
-        with patch("faraday.server.debouncer.faraday_server") as mock_server, \
-             patch("faraday.server.tasks.execute_debounced_action") as mock_task, \
-             patch("faraday.server.app.logger"):
-            mock_server.celery_enabled = True
-            debouncer.debounce(_dummy_action, {"workspace_id": 1}, wait=60)
-
-        _, kwargs = mock_task.apply_async.call_args
-        assert kwargs["countdown"] == 60
-
     def test_execute_dispatches_finalize_report(self):
         """execute_debounced_action runs the allowlisted finalize_report action on token match."""
         debounce_key = "faraday:debounce:finalize_report:ws_id:5:cmd_id:42"

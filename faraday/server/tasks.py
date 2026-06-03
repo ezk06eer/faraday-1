@@ -46,17 +46,38 @@ from faraday.server.debouncer import (
 logger = get_task_logger(__name__)
 
 
-def finalize_report(command_id=None, workspace_id=None):
-    # Runs once per command via the debouncer, after all import batches have settled.
+FINALIZE_MAX_POLLS = 360  # ~1h at the 10s poll interval; cap so a lost task can't poll forever
+
+
+def finalize_report(command_id=None, workspace_id=None, attempt=0):
+    # Runs once per command via the debouncer, after all import batches have actually finished.
     # Holds everything that must happen exactly once: end_date, workspace count refresh,
     # and pipeline/workflow processing over the command's full object set.
-    from faraday.server.app import get_app  # pylint: disable=import-outside-toplevel
+    from faraday.server.app import get_app, get_debouncer  # pylint: disable=import-outside-toplevel
     app = get_app()
     with _app_ctx(app):
         command = db.session.query(Command).filter(Command.id == command_id).first()
         if not command:
             logger.error("Finalize: command id %s was not found", command_id)
             return
+
+        # Only finalize once every batch chord of this command has completed. Each batch's chord id
+        # is recorded in command.tasks; AsyncResult.ready() is True on SUCCESS or FAILURE, so a
+        # failed/errored batch won't block forever. While any are pending, re-debounce and poll.
+        pending = [tid for tid in (command.tasks or []) if not celery.AsyncResult(tid).ready()]
+        if pending and attempt < FINALIZE_MAX_POLLS:
+            logger.info("Finalize deferred: %s batch task(s) pending for command %s (attempt %s)",
+                        len(pending), command_id, attempt)
+            get_debouncer().debounce(
+                finalize_report,
+                {"command_id": command_id, "workspace_id": workspace_id, "attempt": attempt + 1},
+                key_suffix=f"cmd_id:{command_id}",
+            )
+            return
+        if pending:
+            logger.warning("Finalize: giving up on %s pending task(s) for command %s after %s polls",
+                           len(pending), command_id, attempt)
+
         workspace = db.session.query(Workspace).filter(Workspace.id == workspace_id).first()
         if workspace and workspace.name:
             debounce_workspace_update(workspace.name, workspace_id=workspace.id)
@@ -104,7 +125,6 @@ def on_success_process_report_task(results, command_id=None):
     get_debouncer().debounce(
         finalize_report,
         {"command_id": command_id, "workspace_id": workspace.id},
-        wait=faraday_server.debounce_command_finalize_wait,
         key_suffix=f"cmd_id:{command_id}",
     )
 

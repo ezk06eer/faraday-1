@@ -503,7 +503,7 @@ class Debouncer:
         self.wait = wait
         self._redis = get_redis_client()
 
-    def debounce(self, action, parameters, wait=None, key_suffix=None):
+    def debounce(self, action, parameters, key_suffix=None):
         from faraday.server.app import logger  # pylint:disable=import-outside-toplevel
         from faraday.server.tasks import execute_debounced_action  # pylint:disable=import-outside-toplevel
 
@@ -512,7 +512,6 @@ class Debouncer:
             return
 
         parameters = parameters or {}
-        effective_wait = self.wait if wait is None else wait
 
         workspace_id = _resolve_workspace_id(parameters)
         if workspace_id is None:
@@ -545,7 +544,7 @@ class Debouncer:
         existing_token = self._redis.get(token_key)
         token = int(self._redis.incr(token_key))
 
-        time_to_live = max(int(effective_wait) + 120, 180)
+        time_to_live = max(int(self.wait) + 120, 180)
         self._redis.expire(token_key, time_to_live)
         self._redis.expire(meta_key, time_to_live)
         self._redis.expire(payload_key, time_to_live)
@@ -553,12 +552,12 @@ class Debouncer:
         if existing_token:
             logger.info(
                 f"Debouncer(redis): postponed (action={action_name} key={debounce_key} old_token={existing_token} "
-                f"new_token={token} countdown={effective_wait}s)"
+                f"new_token={token} countdown={self.wait}s)"
             )
         else:
             logger.info(
                 f"Debouncer(redis): scheduled (action={action_name} key={debounce_key} token={token} "
-                f"wait={effective_wait}s)"
+                f"wait={self.wait}s)"
             )
-        execute_debounced_action.apply_async(args=[debounce_key, token], countdown=effective_wait)
+        execute_debounced_action.apply_async(args=[debounce_key, token], countdown=self.wait)
 

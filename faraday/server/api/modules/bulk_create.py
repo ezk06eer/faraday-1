@@ -25,9 +25,11 @@ from marshmallow import (
 )
 from marshmallow.validate import Range
 from sqlalchemy import (
+    Sequence,
     and_,
     case,
     func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import insert
@@ -533,8 +535,8 @@ def manage_relationships(processed_data, result, workspace_id=None):
             logger.debug(f"Data On conflict {data}")
             if data['references']:
                 for reference in data['references']:
-                    reference_sequence_id = db.session.execute(
-                        text("SELECT nextval('vulnerability_reference_id_seq');")).scalar()
+                    reference_sequence_id = db.session.scalar(
+                        select(Sequence('vulnerability_reference_id_seq').next_value()))
                     logger.debug(f"Found reference {reference} for vulnerability {v_id}")
                     reference['id'] = reference_sequence_id
                     reference['vulnerability_id'] = v_id
@@ -562,15 +564,15 @@ def manage_relationships(processed_data, result, workspace_id=None):
             logger.debug(f"Processing references for {v_id}")
             if data['references']:
                 for reference in data['references']:
-                    reference_sequence_id = db.session.execute(
-                        text("SELECT nextval('vulnerability_reference_id_seq');")).scalar()
+                    reference_sequence_id = db.session.scalar(
+                        select(Sequence('vulnerability_reference_id_seq').next_value()))
                     logger.debug(f"Found reference {reference} for vulnerability {r[0]}")
                     reference['id'] = reference_sequence_id
                     references_created.append(reference)
             logger.debug(f"Processing command for {v_id}")
             if data['command']:
-                command_object_sequence_id = db.session.execute(
-                    text("SELECT nextval('command_object_id_seq');")).scalar()
+                command_object_sequence_id = db.session.scalar(
+                    select(Sequence('command_object_id_seq').next_value()))
                 data['command']['id'] = command_object_sequence_id
                 command_objects_created.append(data['command'])
             for owasp_object in data['owasp_objects']:
@@ -770,7 +772,7 @@ def _create_vuln(ws, vuln_data, command: dict, **kwargs):
             vuln_data['tool'] = 'Web UI'
 
     try:
-        vuln_data['id'] = db.session.execute(text("SELECT nextval('vulnerability_id_seq');")).scalar()
+        vuln_data['id'] = db.session.scalar(select(Sequence('vulnerability_id_seq').next_value()))
         logger.debug(f"Vulnerability seq id {vuln_data['id']}")
     except Exception as e:
         logger.error("Could not get vulnerability sequence.", exc_info=e)

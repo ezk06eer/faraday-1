@@ -1030,7 +1030,7 @@ class FilterMixin(ListMixin):
                 abort(HTTP_BAD_REQUEST, e)
 
             if extra_alchemy_filters is not None:
-                filter_query += filter_query.filter(extra_alchemy_filters)
+                filter_query = filter_query.filter(extra_alchemy_filters)
 
             data, rows_count = get_filtered_data(filters, filter_query)
             return data, rows_count

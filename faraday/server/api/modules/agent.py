@@ -188,17 +188,25 @@ class AgentRunSchema(Schema):
 # Filters that require custom SQLAlchemy — cannot be expressed with standard OPERATORS
 _AGENT_CUSTOM_FILTER_NAMES = frozenset({'last_execution_date', 'last_execution_tool', 'category'})
 
+# Binary comparison operators valid for scalar subquery filters (last_execution_date).
+# 1-arg (is_null, is_not_null) and ordering (asc, desc) ops take a wrong arity → TypeError.
+_DATE_COMPARISON_OPS = frozenset({'eq', '==', 'ne', '!=', 'neq', 'lt', '<', 'le', '<=', 'gt', '>', 'ge', '>='})
+
 
 def _build_agent_conditions(custom_filters):
     conditions = []
     for f in custom_filters:
         name = f.get('name')
-        op = f.get('op', 'eq')
+        op = str(f.get('op') or 'eq').lower()
         val = f.get('val', '')
 
         if name == 'last_execution_date':
+            if op not in _DATE_COMPARISON_OPS:
+                abort(400, f"Unsupported operator {op!r} for last_execution_date; use eq/ne/lt/le/gt/ge")
+            if not isinstance(val, str):
+                abort(400, f"Invalid date format for last_execution_date: {val!r}")
             try:
-                dval = datetime.fromisoformat(str(val).replace('Z', '+00:00')) if isinstance(val, str) else val
+                dval = datetime.fromisoformat(val.replace('Z', '+00:00'))
             except ValueError:
                 abort(400, f"Invalid date format for last_execution_date: {val!r}")
             max_lr = (
@@ -207,7 +215,7 @@ def _build_agent_conditions(custom_filters):
                 .correlate(Agent)
                 .as_scalar()
             )
-            conditions.append(OPERATORS.get(op.lower(), OPERATORS['eq'])(max_lr, dval))
+            conditions.append(OPERATORS[op](max_lr, dval))
 
         elif name == 'tools':
             op_lower = op.lower()
@@ -522,7 +530,7 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
                 standard.append(f)
                 continue
             name = f.get('name')
-            op = f.get('op', 'eq').lower()
+            op = str(f.get('op') or 'eq').lower()
             val = f.get('val', '')
             if name == 'status':
                 is_online = str(val).lower() == 'online'

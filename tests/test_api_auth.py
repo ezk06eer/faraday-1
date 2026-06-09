@@ -138,3 +138,20 @@ class TestBasicAuth:
         headers = [('Authorization', f'Basic {valid_credentials}')]
         res = test_client.get('/v3/agents', headers=headers)
         assert res.status_code == 200
+
+
+class TestTokenAuth:
+    @pytest.mark.usefixtures('session')
+    @pytest.mark.parametrize('token', [
+        'this-is-not-a-jwt',          # not enough segments -> DecodeError
+        'aaa.bbb.ccc',                # undecodable header/payload -> DecodeError
+        'Zm9v.YmFy.YmF6',             # valid b64 but not a JWT -> DecodeError
+    ])
+    def test_malformed_token_does_not_500(self, test_client, token):
+        """A malformed/undecodable bearer token must be rejected as
+        unauthorized, not raise jwt.DecodeError -> HTTP 500."""
+        test_client._cookies.clear()
+        headers = [('Authorization', f'Token {token}')]
+        res = test_client.get('/v3/agents', headers=headers)
+        assert res.status_code != 500
+        assert res.status_code in (401, 403)

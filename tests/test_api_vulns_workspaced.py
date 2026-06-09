@@ -4191,6 +4191,39 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         assert sum(q.duration for q in queries) < 2.0, \
             f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
+    def test_vulnerability_list_hostnames_no_n_plus_one(self, test_client, session, workspace):
+        """The vuln list must eager-load host/service hostnames; otherwise each
+        vuln triggers a per-row hostnames query (N+1). Query count must stay
+        flat as the number of vulns/hostnames grows."""
+        from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
+        from flask import g
+
+        # Several hosts, each with several hostnames, each with one vuln.
+        for host_idx in range(6):
+            host = HostFactory.create(workspace=workspace)
+            session.add(host)
+            session.flush()
+            for hn_idx in range(3):
+                session.add(HostnameFactory.create(
+                    workspace=workspace, host=host,
+                    name=f'host{host_idx}-name{hn_idx}.example.com'))
+            session.add(VulnerabilityFactory.create(
+                workspace=workspace, host=host, service=None, severity='high'))
+        session.commit()
+        session.expire_all()
+
+        # Clear accumulated queries so we only measure this request
+        g._sqlalchemy_queries = []
+
+        res = test_client.get(f'/v3/ws/{workspace.name}/vulns')
+
+        queries = get_debug_queries()
+        assert res.status_code == 200
+        assert res.json['count'] >= 6  # the 6 we created (plus any fixture vulns)
+        # With eager-loaded hostnames this is a handful of queries; a per-vuln
+        # hostnames lazy-load (N+1) would push it well past this bound.
+        assert len(queries) <= 25, f"Too many queries: {len(queries)} (hostnames N+1?)"
+
 
 @pytest.mark.usefixtures('logged_user')
 class TestCustomFieldVulnerability(ReadWriteAPITests):

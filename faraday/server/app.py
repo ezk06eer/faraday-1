@@ -241,6 +241,8 @@ def register_handlers(app):
             return None  # valid token, but expired
         except jwt.InvalidSignatureError:
             return None  # invalid token
+        except jwt.InvalidTokenError:
+            return None  # malformed / otherwise undecodable token
 
     @app.login_manager.request_loader
     def load_user_from_request(request):

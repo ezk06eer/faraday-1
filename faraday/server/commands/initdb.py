@@ -104,8 +104,7 @@ class InitDB:
     def _create_roles(conn_string):
         engine = create_engine(conn_string)
         try:
-            connection = engine.connect()
-            initdb_roles_and_permissions(connection)
+            initdb_roles_and_permissions(engine)
         except IntegrityError as ex:
             if is_unique_constraint_violation(ex):
                 # when re using database user could be created previously

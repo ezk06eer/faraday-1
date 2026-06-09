@@ -32,7 +32,7 @@ from marshmallow import EXCLUDE, Schema, fields
 from marshmallow.validate import Length
 from marshmallow_sqlalchemy import ModelConverter
 from marshmallow_sqlalchemy.schema import SQLAlchemyAutoSchemaMeta, SQLAlchemyAutoSchemaOpts
-from sqlalchemy import and_, asc, column, desc, func, text, update as sqlalchemy_update
+from sqlalchemy import and_, asc, column, desc, func, update as sqlalchemy_update
 from sqlalchemy.engine import CursorResult, MappingResult, Result, ResultProxy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect

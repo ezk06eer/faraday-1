@@ -12,10 +12,7 @@ from logging import getLogger
 from flask import Blueprint, abort, request
 from sqlalchemy.orm import (
     joinedload,
-    selectin_polymorphic,
     selectinload,
-    undefer,
-    noload
 )
 
 # Local application imports
@@ -29,11 +26,7 @@ from faraday.server.api.modules.vulns_base import VulnerabilityFilterSet, Vulner
 from faraday.server.config import faraday_server
 from faraday.server.debouncer import debounce_workspace_update, debounce_workspace_vulns_count_update
 from faraday.server.models import (
-    Host,
-    Service,
-    Vulnerability,
     VulnerabilityGeneric,
-    VulnerabilityWeb,
     db,
 )
 from faraday.server.utils.command import set_command_id

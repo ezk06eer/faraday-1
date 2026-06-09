@@ -17,7 +17,7 @@ from flask.testing import FlaskClient
 from flask_principal import Identity, identity_changed
 from pathlib import Path
 from pytest_factoryboy import register
-from sqlalchemy import event, text
+from sqlalchemy import text
 
 import psycopg2
 from psycopg2.sql import SQL

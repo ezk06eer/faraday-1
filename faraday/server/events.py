@@ -10,7 +10,7 @@ import sys
 from queue import Queue
 
 # Related third party imports
-from sqlalchemy import event, select, text
+from sqlalchemy import event, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm.attributes import get_history
 

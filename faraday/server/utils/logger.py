@@ -86,6 +86,9 @@ def create_logging_path(path_file):
 
 def setup_celery_logging():
     """Register RotatingFileHandler on Celery's logger signals."""
+    if os.environ.get("FARADAY_DISABLE_LOGS"):
+        return
+
     from celery.signals import after_setup_logger, after_setup_task_logger  # pylint: disable=import-outside-toplevel
 
     def _add_rotating_handler(logger, **kwargs):

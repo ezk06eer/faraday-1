@@ -1,7 +1,7 @@
 {
     "info": {
         "description": "The Faraday REST API enables you to interact with [our server](https://github.com/infobyte/faraday).\nUse this API to interact or integrate with Faraday server. This page documents the REST API, with HTTP response codes and example requests and responses.",
-        "title": "Faraday 5.20.0 API",
+        "title": "Faraday 5.21.0 API",
         "version": "v3"
     },
     "security": [
@@ -8796,6 +8796,33 @@
                     "protocol"
                 ]
             },
+            "BulkCredential": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "endpoint": {
+                        "type": "string",
+                        "default": ""
+                    },
+                    "leak_date": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "owned": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "password",
+                    "username"
+                ]
+            },
             "Vulnerability": {
                 "type": "object",
                 "properties": {
@@ -8956,7 +8983,14 @@
                         "format": "date-time",
                         "readOnly": true
                     },
-                    "run_date": {}
+                    "run_date": {},
+                    "credentials": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/BulkCredential"
+                        }
+                    }
                 },
                 "required": [
                     "name",
@@ -9123,6 +9157,13 @@
                     },
                     "command": {
                         "$ref": "#/components/schemas/BulkCommand"
+                    },
+                    "credentials": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/BulkCredential"
+                        }
                     },
                     "execution_id": {
                         "type": "integer"

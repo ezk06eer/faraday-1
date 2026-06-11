@@ -1,6 +1,25 @@
 New features in the latest update
 =====================================
 
+5.21.0 [May 14th, 2026]:
+---
+ * [ADD] Added custom attributes to the tasks/fields endpoint for `Jobs`. #8007
+ * [ADD] Bulk Create now supports attaching credentials to vulnerabilities via a `credentials` field. #8078
+ * [ADD] Add bulk delete endpoint for agents. #8084
+ * [MOD] Update dependencies to resolve security CVEs (flask-login, flask, pyjwt and others). #8058
+ * [FIX] Block pipeline execution on read-only workspaces. #8093
+ * [FIX] Users update conflicts now properly handle SQLAlchemy session rollback. #8246
+ * [FIX] Fixed pipeline getting permanently stuck in "running" state when Celery worker dies. Added automatic recovery via timeout and periodic cleanup. #8170
+ * [FIX] Fixed security issue related to filter. #8274
+ * [FIX] Fixed filter order on notifications. #8178
+ * [FIX] Fixed 500 error on some occasions when editing a vulnerability into a duplicate. #8232
+
+
+5.20.1 [May 8th, 2026]:
+---
+ * [ADD] Added MCP Configuration. #9999
+
+
 5.20.0 [Apr 10th, 2026]:
 ---
  * [MOD] Debouncer now uses Redis to ensure distributed, single execution of workspace updates across Celery workers. #8076
@@ -15,7 +34,7 @@ New features in the latest update
 ---
  * [MOD] Refined Docker configuration with health checks, service dependencies, and optimized image handling. #8081
  * [FIX] Several indexes were added to improve workspace delete performance. #8075
- * [FIX] Fixed Credentials Bulk Update overwriting linked vulns. #8080
+ * [FIX] Fixed Credentials Bulk Update overwriting linked vulnerabilities. #8080
  * [FIX] Resolved a date inconsistency that could trigger continuous scheduler runs or runs at incorrect times. #8071
 
 

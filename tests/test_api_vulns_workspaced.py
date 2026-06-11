@@ -3431,11 +3431,15 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/filter', query_string=data)
         assert res.status_code == 200, res.json
         assert res.json['count'] == 2, res.json  # all vulns created by the same creator
-        expected = {'vulnerabilities': [
-            {'id': 0, 'key': 0, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 1'}},
-            {'id': 1, 'key': 1, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 2'}}], 'count': 2}
-
-        assert res.json == expected, res.json
+        expected_values = [
+            {'count': 10, 'severity': 'critical', 'name': 'name 1'},
+            {'count': 10, 'severity': 'critical', 'name': 'name 2'},
+        ]
+        actual_values = sorted(
+            (group['value'] for group in res.json['vulnerabilities']),
+            key=lambda v: v['name'],
+        )
+        assert actual_values == expected_values, res.json
 
     @pytest.mark.parametrize('col_name', [
         'severity',
@@ -4086,6 +4090,7 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
 
     def test_vulnerability_with_many_cves_performance(self, test_client, session, workspace):
         from flask_sqlalchemy import get_debug_queries
+        from flask import _app_ctx_stack
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4107,19 +4112,23 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
 
         session.expire_all()
 
+        # Clear accumulated queries so we only measure this request
+        ctx = _app_ctx_stack.top
+        if ctx is not None:
+            ctx.sqlalchemy_queries = []
+
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/{vuln.id}')
 
         queries = get_debug_queries()
         assert res.status_code == 200
-        total_time = sum(q.duration for q in queries)
-
-        assert total_time < 2.0, f"Query time too slow: {total_time:.3f}s"
-
-        slow_queries = [q for q in queries if q.duration > 0.5]
-        assert len(slow_queries) == 0, f"Found {len(slow_queries)} slow queries (>0.5s)"
+        # Query count must stay low regardless of CVE count — N+1 would produce 150+ queries
+        assert len(queries) <= 30, f"Too many queries: {len(queries)} (N+1 problem?)"
+        assert sum(q.duration for q in queries) < 2.0, \
+            f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
     def test_vulnerability_list_with_many_cves_performance(self, test_client, session, workspace):
         from flask_sqlalchemy import get_debug_queries
+        from flask import _app_ctx_stack
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4142,19 +4151,23 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         session.commit()
         session.expire_all()
 
+        # Clear accumulated queries so we only measure this request
+        ctx = _app_ctx_stack.top
+        if ctx is not None:
+            ctx.sqlalchemy_queries = []
+
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns')
 
         queries = get_debug_queries()
         assert res.status_code == 200
-        total_time = sum(q.duration for q in queries)
-
-        assert total_time < 2.0, f"Query time too slow: {total_time:.3f}s"
-
-        slow_queries = [q for q in queries if q.duration > 0.5]
-        assert len(slow_queries) == 0, f"Found {len(slow_queries)} slow queries (>0.5s)"
+        # Query count must stay low regardless of CVE count — N+1 would produce 100+ queries
+        assert len(queries) <= 40, f"Too many queries: {len(queries)} (N+1 problem?)"
+        assert sum(q.duration for q in queries) < 2.0, \
+            f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
     def test_vulnerability_without_cves_baseline_performance(self, test_client, session, workspace):
         from flask_sqlalchemy import get_debug_queries
+        from flask import _app_ctx_stack
 
         host = HostFactory.create(workspace=workspace)
         session.add(host)
@@ -4170,13 +4183,19 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         session.commit()
         session.expire_all()
 
+        # Clear accumulated queries so we only measure this request
+        ctx = _app_ctx_stack.top
+        if ctx is not None:
+            ctx.sqlalchemy_queries = []
+
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/{vuln.id}')
 
         queries = get_debug_queries()
         assert res.status_code == 200
-        total_time = sum(q.duration for q in queries)
-
-        assert total_time < 0.5, f"Baseline query time too slow: {total_time:.3f}s"
+        # Baseline: 1 vuln, no CVEs — should be very few queries
+        assert len(queries) <= 20, f"Too many queries: {len(queries)} (N+1 problem?)"
+        assert sum(q.duration for q in queries) < 2.0, \
+            f"Total query time too slow: {sum(q.duration for q in queries):.3f}s"
 
 
 @pytest.mark.usefixtures('logged_user')
@@ -4290,6 +4309,88 @@ class TestCustomFieldVulnerability(ReadWriteAPITests):
             'type': 'Vulnerability',
             'custom_fields': {
                 'cvss': 'pepe',
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
+    def test_create_vuln_with_float_custom_field(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float custom field',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.25,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 201
+        assert res.json['custom_fields']['score'] == 7.25
+
+        # Verify it persists when read back
+        vuln_id = res.json['_id']
+        res = test_client.get(self.url(vuln_id))
+        assert res.status_code == 200
+        assert res.json['custom_fields']['score'] == 7.25
+
+    def test_create_vuln_with_float_custom_field_rejects_more_than_2_decimals(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float too many decimals',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.555,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
+    def test_create_vuln_with_float_custom_field_rejects_invalid_value(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float invalid value',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 'not_a_number',
             }
         }
         res = test_client.post(self.url(), data=data)

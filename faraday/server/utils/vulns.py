@@ -142,6 +142,7 @@ VALID_FILTER_VULN_COLUMNS = [
     'impact',
     'update_date',
     'type',
+    'workspace_name',
 ]
 
 

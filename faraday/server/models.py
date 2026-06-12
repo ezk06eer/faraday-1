@@ -175,13 +175,25 @@ db = SQLAlchemy()
 
 
 def _last_run_agent_date():
-    query = select([text('executor.last_run')])
+    local_agent_query = (
+        select([text('executor.last_run')])
+        .select_from(
+            table('executor').join(AgentExecution, text('executor.id = agent_execution.executor_id'))
+        )
+        .where(text('executor.last_run is not null and agent_execution.workspace_id = workspace.id'))
+        .order_by(AgentExecution.create_date.desc())
+        .limit(1)
+        .as_scalar()
+    )
 
-    from_clause = table('executor') \
-        .join(AgentExecution, text('executor.id = agent_execution.executor_id'))
-    where_clause = text('executor.last_run is not null and agent_execution.workspace_id = workspace.id')
-    query = query.select_from(from_clause).where(where_clause).order_by(AgentExecution.create_date.desc()).limit(1)
-    return query
+    cloud_agent_query = (
+        select([func.max(text('cloud_agent_execution.last_run'))])
+        .select_from(table('cloud_agent_execution'))
+        .where(text('cloud_agent_execution.workspace_id = workspace.id'))
+        .as_scalar()
+    )
+
+    return func.greatest(local_agent_query, cloud_agent_query)
 
 
 def _make_generic_count_property(parent_table, children_table, where=None, use_column_property=True):
@@ -2538,14 +2550,20 @@ class Workspace(Metadata):
                     FROM host
                     WHERE host.workspace_id = workspace.id
                 ) AS host_count,
-                (SELECT executor.last_run
-                    FROM executor
-                    JOIN agent_execution ON executor.id = agent_execution.executor_id
-                    WHERE executor.last_run is not null and
-                    agent_execution.workspace_id = workspace.id
-                    ORDER BY agent_execution.create_date DESC
-                    LIMIT 1
-                ) AS last_run_agent_date,
+                (SELECT GREATEST(
+                    (SELECT executor.last_run
+                        FROM executor
+                        JOIN agent_execution ON executor.id = agent_execution.executor_id
+                        WHERE executor.last_run is not null and
+                        agent_execution.workspace_id = workspace.id
+                        ORDER BY agent_execution.create_date DESC
+                        LIMIT 1
+                    ),
+                    (SELECT MAX(cloud_agent_execution.last_run)
+                        FROM cloud_agent_execution
+                        WHERE cloud_agent_execution.workspace_id = workspace.id
+                    )
+                )) AS last_run_agent_date,
                 p_4.count_3 as open_services,
                 p_4.count_4 as total_service_count,
                 p_5.count_5 as vulnerability_web_count,

@@ -13,7 +13,6 @@ import string
 import sys
 from configparser import (
     ConfigParser,
-    NoSectionError,
     NoOptionError,
     DuplicateSectionError,
 )
@@ -316,11 +315,9 @@ def save_new_secret_key(app):
     rng = SystemRandom()
     secret_key = "".join([rng.choice(string.ascii_letters + string.digits) for _ in range(25)])
     app.config['SECRET_KEY'] = secret_key
-    try:
-        config.set('faraday_server', 'secret_key', secret_key)
-    except NoSectionError:
+    if not config.has_section('faraday_server'):
         config.add_section('faraday_server')
-        config.set('faraday_server', 'secret_key', secret_key)
+    config.set('faraday_server', 'secret_key', secret_key)
     with open(LOCAL_CONFIG_FILE, 'w', encoding='utf-8') as configfile:
         config.write(configfile)
 
@@ -330,11 +327,9 @@ def save_new_agent_creation_token_secret():
     config = ConfigParser()
     config.read(LOCAL_CONFIG_FILE)
     registration_secret = pyotp.random_base32()
-    try:
-        config.set('faraday_server', 'agent_registration_secret', registration_secret)
-    except NoSectionError:
+    if not config.has_section('faraday_server'):
         config.add_section('faraday_server')
-        config.set('faraday_server', 'agent_registration_secret', registration_secret)
+    config.set('faraday_server', 'agent_registration_secret', registration_secret)
     with open(LOCAL_CONFIG_FILE, 'w', encoding='utf-8') as configfile:
         config.write(configfile)
     faraday.server.config.faraday_server.agent_registration_secret = registration_secret

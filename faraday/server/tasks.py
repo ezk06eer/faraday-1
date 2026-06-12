@@ -31,6 +31,7 @@ from faraday.server.models import (
 )
 from faraday.server.utils.workflows import _process_entry
 from faraday.server.debouncer import (
+    _app_ctx,
     debounce_workspace_update,
     debounce_workspace_vulns_count_update,
     debounce_workspace_host_count,
@@ -45,47 +46,87 @@ from faraday.server.debouncer import (
 logger = get_task_logger(__name__)
 
 
+FINALIZE_MAX_POLLS = 360  # ~1h at the 10s poll interval; cap so a lost task can't poll forever
+
+
+def finalize_report(command_id=None, workspace_id=None, attempt=0):
+    # Runs once per command via the debouncer, after all import batches have actually finished.
+    # Holds everything that must happen exactly once: end_date, workspace count refresh,
+    # and pipeline/workflow processing over the command's full object set.
+    from faraday.server.app import get_app, get_debouncer  # pylint: disable=import-outside-toplevel
+    app = get_app()
+    with _app_ctx(app):
+        command = db.session.query(Command).filter(Command.id == command_id).first()
+        if not command:
+            logger.error("Finalize: command id %s was not found", command_id)
+            return
+
+        # Only finalize once every batch chord of this command has completed. Each batch's chord id
+        # is recorded in command.tasks; AsyncResult.ready() is True on SUCCESS or FAILURE, so a
+        # failed/errored batch won't block forever. While any are pending, re-debounce and poll.
+        pending = [tid for tid in (command.tasks or []) if not celery.AsyncResult(tid).ready()]
+        if pending and attempt < FINALIZE_MAX_POLLS:
+            logger.info("Finalize deferred: %s batch task(s) pending for command %s (attempt %s)",
+                        len(pending), command_id, attempt)
+            get_debouncer().debounce(
+                finalize_report,
+                {"command_id": command_id, "workspace_id": workspace_id, "attempt": attempt + 1},
+                key_suffix=f"cmd_id:{command_id}",
+            )
+            return
+        if pending:
+            logger.warning("Finalize: giving up on %s pending task(s) for command %s after %s polls",
+                           len(pending), command_id, attempt)
+
+        workspace = db.session.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if workspace and workspace.name:
+            debounce_workspace_update(workspace.name, workspace_id=workspace.id)
+
+        no_debounce = command.import_source == "report"
+        update_host_stats.delay([], [], workspace_id=workspace_id, no_debounce=no_debounce, command_id=command_id)
+
+        # Apply Workflow
+        pipeline = [pipeline for pipeline in command.workspace.pipelines if pipeline.enabled]
+        if pipeline:
+            vuln_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "vulnerability"]
+            vuln_web_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "vulnerability_web"]
+            host_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "host"]
+
+            # Process vulns
+            if vuln_object_ids:
+                workflow_task.delay("vulnerability", vuln_object_ids, command.workspace.id, update_hosts=False)
+
+            # Process vulns web
+            if vuln_web_object_ids:
+                workflow_task.delay("vulnerability_web", vuln_web_object_ids, command.workspace.id, update_hosts=False)
+
+            # Process hosts
+            if host_object_ids:
+                workflow_task.delay("host", host_object_ids, command.workspace.id, update_hosts=False)
+
+
 @celery.task
 def on_success_process_report_task(results, command_id=None):
     command = db.session.query(Command).filter(Command.id == command_id).first()
     if not command:
         logger.error("File imported but command id %s was not found", command_id)
         return
-    else:
-        workspace = db.session.query(Workspace).filter(Workspace.id == command.workspace_id).first()
-        if workspace.name:
-            debounce_workspace_update(workspace.name, workspace_id=workspace.id)
-    db.session.commit()
-    host_ids = []
+    workspace = db.session.query(Workspace).filter(Workspace.id == command.workspace_id).first()
+
+    # Per-batch: per-host vulnerability stats must run for every batch.
     for result in results:
         if result.get('created'):
             calc_vulnerability_stats.delay(result['host_id'])
-            host_ids.append(result["host_id"])
-    no_debounce = False
-    if command.import_source == "report":
-        no_debounce = True
-    update_host_stats.delay(host_ids, [], workspace_id=workspace.id, no_debounce=no_debounce, command_id=command_id)
 
-    # Apply Workflow
-    pipeline = [pipeline for pipeline in command.workspace.pipelines if pipeline.enabled]
-    if pipeline:
-        vuln_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "vulnerability"]
-        vuln_web_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "vulnerability_web"]
-        host_object_ids = [command_object.object_id for command_object in command.command_objects if command_object.object_type == "host"]
-
-        # Process vulns
-        if vuln_object_ids:
-            workflow_task.delay("vulnerability", vuln_object_ids, command.workspace.id, update_hosts=False)
-
-        # Process vulns web
-        if vuln_web_object_ids:
-            workflow_task.delay("vulnerability_web", vuln_web_object_ids, command.workspace.id, update_hosts=False)
-
-        # Process hosts
-        if host_object_ids:
-            workflow_task.delay("host", host_object_ids, command.workspace.id, update_hosts=False)
-
-    logger.debug("No pipelines found in ws %s", command.workspace.name)
+    # Debounce the finalization so it runs once per command after all batches settle.
+    # This collapses multi-batch repetition and worker-death (acks_late) redelivery into
+    # a single finalization. Keyed per command so concurrent same-workspace imports don't collide.
+    from faraday.server.app import get_debouncer  # pylint: disable=import-outside-toplevel
+    get_debouncer().debounce(
+        finalize_report,
+        {"command_id": command_id, "workspace_id": workspace.id},
+        key_suffix=f"cmd_id:{command_id}",
+    )
 
 
 @celery.task()
@@ -506,6 +547,7 @@ def execute_debounced_action(debounce_key: str, expected_token: int) -> None:
         "update_workspace_service_count": update_workspace_service_count,
         "update_workspace_vulns_count": update_workspace_vulns_count,
         "update_workspace_update_date": None,  # handled separately below
+        "finalize_report": finalize_report,
     }
 
     if action_name not in action_map:

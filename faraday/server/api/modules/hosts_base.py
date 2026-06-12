@@ -77,6 +77,7 @@ class HostSchema(AutoSchema):
     os = fields.String(default='')
     owned = fields.Boolean(default=False)
     owner = PrimaryKeyRelatedField('username', attribute='creator', dump_only=True)
+    services = fields.Integer(attribute='open_service_count', dump_only=True)
     open_services = fields.Integer(attribute='open_service_count', dump_only=True)
     hostnames = MutableField(
         PrimaryKeyRelatedField('name', many=True,
@@ -228,7 +229,7 @@ class HostView(
         kwargs['show_stats'] = request.args.get('stats', '') != 'false'
 
         if not kwargs['show_stats']:
-            kwargs['exclude'] = ['severity_counts', 'vulns', 'open_services']
+            kwargs['exclude'] = ['severity_counts', 'vulns', 'services', 'open_services']
 
         return super().index(**kwargs)
 

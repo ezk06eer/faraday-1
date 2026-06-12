@@ -18,6 +18,7 @@ SCHEMA_FIELDS = (
     "os",
     "owned",
     "owner",
+    "services",
     "open_services",
     "services_status",
     "vulns",

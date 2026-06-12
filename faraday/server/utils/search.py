@@ -498,9 +498,10 @@ def apply_order(query, field, direction):
 
 def apply_json_order(query, model, field_name, field_name_in_relation, direction):
     table_name = model.__tablename__
-    json_field = f"{table_name}.{field_name} ->> '{field_name_in_relation}'"
     ordering = "DESC NULLS LAST" if direction == "desc" else "ASC NULLS FIRST"
-    return query.order_by(text(f"{json_field} {ordering}"))
+    return query.order_by(
+        text(f"{table_name}.{field_name} ->> :json_key {ordering}").bindparams(json_key=field_name_in_relation)
+    )
 
 
 def apply_join(query, model, relation, joined_models):

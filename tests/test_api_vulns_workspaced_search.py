@@ -7,6 +7,7 @@ import pytest
 
 from faraday.server.utils.vulns import VALID_FILTER_VULN_COLUMNS
 from tests.factories import (
+    CustomFieldsSchemaFactory,
     HostFactory,
     HostnameFactory,
     ServiceFactory,
@@ -859,3 +860,69 @@ class TestVulnerabilitySearch:
 
         # Verify headers are correct
         assert set(rows[0].keys()) == set(VALID_FILTER_VULN_COLUMNS)
+
+    @pytest.mark.skip_sql_dialect('sqlite')
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_float_custom_field(self, test_client, session, workspace):
+        CustomFieldsSchemaFactory.create(
+            table_name='vulnerability',
+            field_name='score',
+            field_type='float',
+            field_order=1,
+            field_display_name='Score',
+        )
+        session.commit()
+
+        vuln1 = VulnerabilityFactory.create(workspace=workspace, custom_fields={'score': 3.5})
+        vuln2 = VulnerabilityFactory.create(workspace=workspace, custom_fields={'score': 7.25})
+        vuln3 = VulnerabilityFactory.create(workspace=workspace, custom_fields={'score': 9.99})
+        session.add_all([vuln1, vuln2, vuln3])
+        session.commit()
+
+        # Test == operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '==', 'val': 7.25}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 1
+
+        # Test > operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '>', 'val': 7.0}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 2
+
+        # Test < operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '<', 'val': 5.0}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 1
+
+        # Test >= operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '>=', 'val': 7.25}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 2
+
+        # Test <= operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '<=', 'val': 7.25}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 2
+
+        # Test != operator
+        query_filter = {'filters': [{'name': 'custom_fields->score', 'op': '!=', 'val': 3.5}]}
+        res = test_client.get(
+            f'/v3/ws/{workspace.name}/vulns/filter?q={json.dumps(query_filter)}'
+        )
+        assert res.status_code == 200
+        assert res.json['count'] == 2

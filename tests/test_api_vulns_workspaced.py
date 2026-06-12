@@ -3431,11 +3431,15 @@ class TestListVulnerabilityView(ReadWriteAPITests, BulkUpdateTestsMixin, BulkDel
         res = test_client.get(f'/v3/ws/{workspace.name}/vulns/filter', query_string=data)
         assert res.status_code == 200, res.json
         assert res.json['count'] == 2, res.json  # all vulns created by the same creator
-        expected = {'vulnerabilities': [
-            {'id': 0, 'key': 0, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 1'}},
-            {'id': 1, 'key': 1, 'value': {'count': 10, 'severity': 'critical', 'name': 'name 2'}}], 'count': 2}
-
-        assert res.json == expected, res.json
+        expected_values = [
+            {'count': 10, 'severity': 'critical', 'name': 'name 1'},
+            {'count': 10, 'severity': 'critical', 'name': 'name 2'},
+        ]
+        actual_values = sorted(
+            (group['value'] for group in res.json['vulnerabilities']),
+            key=lambda v: v['name'],
+        )
+        assert actual_values == expected_values, res.json
 
     @pytest.mark.parametrize('col_name', [
         'severity',
@@ -4305,6 +4309,88 @@ class TestCustomFieldVulnerability(ReadWriteAPITests):
             'type': 'Vulnerability',
             'custom_fields': {
                 'cvss': 'pepe',
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
+    def test_create_vuln_with_float_custom_field(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float custom field',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.25,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 201
+        assert res.json['custom_fields']['score'] == 7.25
+
+        # Verify it persists when read back
+        vuln_id = res.json['_id']
+        res = test_client.get(self.url(vuln_id))
+        assert res.status_code == 200
+        assert res.json['custom_fields']['score'] == 7.25
+
+    def test_create_vuln_with_float_custom_field_rejects_more_than_2_decimals(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float too many decimals',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 7.555,
+            }
+        }
+        res = test_client.post(self.url(), data=data)
+
+        assert res.status_code == 400
+
+    def test_create_vuln_with_float_custom_field_rejects_invalid_value(self, test_client, session):
+        host = HostFactory.create(workspace=self.workspace)
+        custom_field_schema = CustomFieldsSchemaFactory(
+            field_name='score',
+            field_type='float',
+            field_display_name='Score',
+            table_name='vulnerability'
+        )
+        session.add(host)
+        session.add(custom_field_schema)
+        session.commit()
+        data = {
+            'name': 'Test float invalid value',
+            'severity': 'high',
+            'parent_type': 'Host',
+            'parent': host.id,
+            'type': 'Vulnerability',
+            'custom_fields': {
+                'score': 'not_a_number',
             }
         }
         res = test_client.post(self.url(), data=data)

@@ -304,3 +304,41 @@ class TestExecuteDebouncedAction:
             execute_debounced_action(debounce_key, token)
 
         mock_pipe.reset.assert_called_once()
+
+
+# ─── Command-finalize extensions (key discriminator + per-call wait) ──────────
+
+class TestDebounceCommandExtensions:
+
+    def test_key_suffix_produces_per_command_key(self):
+        """key_suffix is appended to the debounce key so concurrent same-ws commands don't collide."""
+        debouncer = _make_debouncer(wait=10)
+        _setup_redis_first_event(debouncer)
+        expected_key = _debounce_key_for_workspace("_dummy_action", 1, "cmd_id:42")
+        assert expected_key.endswith(":cmd_id:42")
+
+        with patch("faraday.server.debouncer.faraday_server") as mock_server, \
+             patch("faraday.server.tasks.execute_debounced_action") as mock_task, \
+             patch("faraday.server.app.logger"):
+            mock_server.celery_enabled = True
+            debouncer.debounce(_dummy_action, {"workspace_id": 1}, key_suffix="cmd_id:42")
+
+        args, kwargs = mock_task.apply_async.call_args
+        assert kwargs["args"][0] == expected_key
+
+    def test_distinct_command_keys_do_not_collide(self):
+        a = _debounce_key_for_workspace("_dummy_action", 1, "cmd_id:1")
+        b = _debounce_key_for_workspace("_dummy_action", 1, "cmd_id:2")
+        assert a != b
+
+    def test_execute_dispatches_finalize_report(self):
+        """execute_debounced_action runs the allowlisted finalize_report action on token match."""
+        debounce_key = "faraday:debounce:finalize_report:ws_id:5:cmd_id:42"
+        token = 1
+        mock_redis, _ = _make_task_redis_mock(token, "finalize_report", {"command_id": 42, "workspace_id": 5})
+
+        with patch("faraday.server.tasks.get_redis_client", return_value=mock_redis), \
+             patch("faraday.server.tasks.finalize_report") as mock_finalize:
+            execute_debounced_action(debounce_key, token)
+
+        mock_finalize.assert_called_once_with(command_id=42, workspace_id=5)

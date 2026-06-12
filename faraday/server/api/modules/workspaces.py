@@ -442,7 +442,11 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
             with_expression(
                 Workspace.credential_count,
                 _make_generic_count_property('workspace', 'credential', use_column_property=False)
-            )
+            ),
+            with_expression(
+                Workspace.last_run_agent_date,
+                _last_run_agent_date(),
+            ),
         )
         try:
             obj = query.one()

@@ -68,6 +68,7 @@ from faraday.server.models import (
     File,
     Host,
     Hostname,
+    REFERENCE_TYPES,
     Service,
     User,
     Vulnerability,
@@ -95,6 +96,7 @@ from faraday.server.utils.search import search
 from faraday.server.utils.vulns import (
     FILTER_SET_FIELDS,
     FILTER_SET_STRICT_FIELDS,
+    LARGE_VULN_FIELDS,
     SCHEMA_FIELDS,
     WEB_SCHEMA_FIELDS,
     bulk_update_custom_attributes,
@@ -282,7 +284,7 @@ class OWASPSchema(AutoSchema):
 
 class ReferenceSchema(AutoSchema):
     name = fields.String()
-    type = fields.String()
+    type = fields.String(validate=OneOf(REFERENCE_TYPES))
 
 
 class VulnerabilitySchema(AutoSchema):
@@ -642,6 +644,14 @@ class VulnerabilityFilterSet(FilterSet):
         return query
 
 
+def _truncate_large_fields(vulns, limit=100):
+    for vuln in vulns:
+        for field in LARGE_VULN_FIELDS:
+            value = vuln.get(field)
+            if isinstance(value, str) and len(value) > limit:
+                vuln[field] = value[:limit] + '...'
+
+
 class VulnerabilityView(
     PaginatedMixin,
     FilterAlchemyMixin,
@@ -977,6 +987,8 @@ class VulnerabilityView(
           - in: query
             name: q
             description: Recursive json with filters that supports operators. The json could also contain sort and group.
+            schema:
+              type: string
           responses:
             200:
               description: Returns filtered, sorted and grouped results
@@ -994,11 +1006,40 @@ class VulnerabilityView(
         filters = request.args.get('q', '{}')
         export_csv = request.args.get('export_csv', '')
         export_csv_limited = request.args.get('export_csv_limited', '')
+
+        is_full_export = export_csv.lower() == 'true'
+        is_limited_export = export_csv_limited.lower() == 'true'
+
+        if is_full_export and is_limited_export:
+            abort(HTTP_BAD_REQUEST, "export_csv and export_csv_limited are mutually exclusive")
+
+        # For limited export with explicit columns: extract them before _filter pops them,
+        # and use a minimal exclude_list so requested large fields are serialized.
+        selected_columns_for_export = None
+        if is_limited_export:
+            try:
+                raw = json_loads(filters) or {}
+                cols = raw.get('columns') if isinstance(raw, dict) else None
+                if isinstance(cols, list) and all(isinstance(c, str) for c in cols):
+                    selected_columns_for_export = cols
+            except Exception:
+                pass
+
+        if is_full_export:
+            exclude_list = ('_attachments', 'desc')
+        elif is_limited_export and selected_columns_for_export:
+            exclude_list = ('_attachments',)
+        elif is_limited_export:
+            exclude_list = ('_attachments', 'description', 'desc', 'refs', 'request',
+                            'resolution', 'response', 'policyviolations', 'data')
+        else:
+            exclude_list = None
+
         filtered_vulns, count = self._filter(
-            filters, exclude_list=('_attachments', 'desc') if export_csv.lower() == 'true' else (
-            '_attachments', 'description', 'desc', 'refs', 'request',
-            'resolution', 'response', 'policyviolations', 'data'
-            ) if export_csv_limited.lower() == 'true' else None, **kwargs
+            filters,
+            exclude_list=exclude_list,
+            skip_columns_restriction=is_full_export,
+            **kwargs
         )
 
         class PageMeta:
@@ -1008,14 +1049,15 @@ class VulnerabilityView(
         pagination_metadata.total = count
 
         # Handle CSV exports
-        if export_csv.lower() == 'true':
+        if is_full_export:
             custom_fields_columns = []
             for custom_field in db.session.query(CustomFieldsSchema).order_by(CustomFieldsSchema.field_order):
                 custom_fields_columns.append(custom_field.field_name)
             memory_file = export_vulns_to_csv(filtered_vulns, custom_fields_columns)
             default_filename = "Faraday-SR-Context.csv"
-        elif export_csv_limited.lower() == 'true':
-            memory_file = export_vulns_to_csv_limited(filtered_vulns)
+        elif is_limited_export:
+            memory_file = export_vulns_to_csv_limited(filtered_vulns,
+                                                      selected_columns=selected_columns_for_export)
             default_filename = "Faraday-SR-Limited.csv"
         else:
             return self._envelope_list(filtered_vulns, pagination_metadata)
@@ -1121,7 +1163,7 @@ class VulnerabilityView(
             ), *options)
         return vulns
 
-    def _filter(self, filters, exclude_list=None, **kwargs):
+    def _filter(self, filters, exclude_list=None, skip_columns_restriction=False, **kwargs):
         hostname_filters = []
         vulns = None
         try:
@@ -1153,7 +1195,16 @@ class VulnerabilityView(
                 for column in columns:
                     if column not in VALID_FILTER_VULN_COLUMNS:
                         abort(400, f"Invalid column {column}")
-                    marshmallow_params.setdefault('only', []).append(column)
+                if not skip_columns_restriction:
+                    for column in columns:
+                        marshmallow_params.setdefault('only', []).append(column)
+                    # Marshmallow applies 'exclude' after 'only', so user-requested fields
+                    # must be removed from 'exclude' to avoid being silently dropped.
+                    if not exclude_list:
+                        requested = set(marshmallow_params['only'])
+                        marshmallow_params['exclude'] = tuple(
+                            f for f in marshmallow_params['exclude'] if f not in requested
+                        )
         if 'group_by' not in filters:
             offset = None
             if 'offset' in filters:
@@ -1193,6 +1244,8 @@ class VulnerabilityView(
                 vulns = vulns.offset(offset)
 
             vulns = self.schema_class_dict['VulnerabilityWeb'](**marshmallow_params).dump(vulns)
+            if exclude_list is None:
+                _truncate_large_fields(vulns)
             return vulns, total_count
 
         else:
@@ -1336,6 +1389,17 @@ class VulnerabilityView(
         get:
           tags: ["Vulnerability", "File"]
           description: Get a CSV file with all vulns from a workspace
+          parameters:
+          - in: query
+            name: confirmed
+            description: "If truthy, only export confirmed vulnerabilities."
+            schema:
+              type: boolean
+          - in: query
+            name: q
+            description: "JSON-encoded flask-restless filter object."
+            schema:
+              type: string
           responses:
             200:
               description: Ok
@@ -1384,8 +1448,14 @@ class VulnerabilityView(
         ---
         get:
           tags: ["Vulnerability"]
-          params: limit
           description: Gets a list of top users having account its uploaded vulns
+          parameters:
+          - in: query
+            name: limit
+            description: "Maximum number of users to return (default 1)."
+            schema:
+              type: integer
+              default: 1
           responses:
             200:
               description: List of top users

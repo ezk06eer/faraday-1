@@ -250,16 +250,20 @@ def _perform_leaf_check(obj, condition, field):
     class_name = obj.__class__.__name__.lower()
     class_name = "vulnerability" if "web" in class_name else class_name
 
-    if class_name == "service":
-        data_type = service_datatypes.get(condition.field, None)
-    elif class_name == "host":
-        data_type = host_datatypes.get(condition.field, None)
-    else:
-        data_type = [x.get("type") for x in _get_rules_attributes()[class_name] if x.get("name") == condition.field][0]
+    data_type = None
+    rules = _get_rules_attributes().get(class_name)
+    if rules:
+        matches = [x.get("type") for x in rules if x.get("name") == condition.field]
+        if matches:
+            data_type = matches[0]
+    if data_type is None:
+        if class_name == "service":
+            data_type = service_datatypes.get(condition.field)
+        elif class_name == "host":
+            data_type = host_datatypes.get(condition.field)
 
-        # If custom field and data type is datetime change to string
-        if field.startswith("custom_fields") and data_type == "datetime":
-            data_type = "string"
+    if field.startswith("custom_fields") and data_type == "datetime":
+        data_type = "string"
 
     data = condition.data
 
@@ -275,6 +279,8 @@ def _perform_leaf_check(obj, condition, field):
     elif data_type == "datetime":
         # convert data formatted as YYYY-MM-DD to datetime date object
         data = datetime.strptime(data, "%Y-%m-%d").date()
+        if model_data is None:
+            return False
         return operator(model_data.date(), data)
     elif data_type == "cwe":
         model_data = [x.name for x in model_data]
@@ -355,6 +361,9 @@ def _modify_custom_field(cf_name, obj, value, append):
     if cf_type == "int":
         # Int can Replace
         obj.custom_fields[cf_name] = int(value)
+    if cf_type == "float":
+        # Float can Replace
+        obj.custom_fields[cf_name] = float(value)
     if cf_type == "list":
         # List can Append
         if append is True:

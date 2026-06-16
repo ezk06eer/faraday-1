@@ -78,6 +78,7 @@ class HostSchema(AutoSchema):
     owned = fields.Boolean(default=False)
     owner = PrimaryKeyRelatedField('username', attribute='creator', dump_only=True)
     services = fields.Integer(attribute='open_service_count', dump_only=True)
+    open_services = fields.Integer(attribute='open_service_count', dump_only=True)
     hostnames = MutableField(
         PrimaryKeyRelatedField('name', many=True,
                                attribute="hostnames",
@@ -87,10 +88,14 @@ class HostSchema(AutoSchema):
     metadata = SelfNestedField(MetadataSchema())
     type = fields.Function(lambda obj: 'Host', dump_only=True)
     service_summaries = fields.Method('get_service_summaries', dump_only=True)
+    services_status = fields.Method('get_services_status', dump_only=True)
     versions = fields.Method('get_service_version', dump_only=True)
     importance = fields.Integer(default=0, validate=lambda stars: stars in [0, 1, 2, 3])
     severity_counts = SelfNestedField(HostCountSchema(), dump_only=True)
     command_id = fields.Int(required=False, load_only=True)
+    creator_command_id = fields.Integer(dump_only=True, allow_none=True)
+    creator_command_tool = fields.String(dump_only=True, allow_none=True)
+    creator_command_params = fields.String(dump_only=True, allow_none=True)
     vulns = fields.Function(get_total_count, dump_only=True)
     workspace_name = fields.String(attribute='workspace.name', dump_only=True)
 
@@ -103,6 +108,18 @@ class HostSchema(AutoSchema):
         return [service.summary
                 for service in obj.services
                 if service.status == 'open']
+
+    @staticmethod
+    def get_services_status(obj):
+        return [
+            {
+                'name': service.name,
+                'port': service.port,
+                'protocol': service.protocol,
+                'status': service.status,
+            }
+            for service in obj.services
+        ]
 
     @staticmethod
     def get_service_version(obj):
@@ -163,6 +180,9 @@ class HostView(
                    Host.vulnerability_low_generic_count,
                    Host.vulnerability_info_generic_count,
                    Host.vulnerability_unclassified_generic_count,
+                   Host.creator_command_id,
+                   Host.creator_command_tool,
+                   Host.creator_command_params,
                    ]
     get_joinedloads = [Host.hostnames, Host.services, Host.update_user]
 
@@ -216,7 +236,7 @@ class HostView(
         kwargs['show_stats'] = request.args.get('stats', '') != 'false'
 
         if not kwargs['show_stats']:
-            kwargs['exclude'] = ['severity_counts', 'vulns', 'services']
+            kwargs['exclude'] = ['severity_counts', 'vulns', 'services', 'open_services']
 
         return super().index(**kwargs)
 
@@ -235,6 +255,9 @@ class HostView(
                 undefer(self.model_class.vulnerability_info_generic_count),
                 undefer(self.model_class.vulnerability_unclassified_generic_count),
                 undefer(self.model_class.open_service_count),
+                undefer(self.model_class.creator_command_id),
+                undefer(self.model_class.creator_command_tool),
+                undefer(self.model_class.creator_command_params),
                 joinedload(self.model_class.hostnames),
                 joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),

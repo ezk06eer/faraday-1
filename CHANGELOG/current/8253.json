@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[ADD] Expose creator command, parameters and per-service status on hosts API response. #8253"
+}

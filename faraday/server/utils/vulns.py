@@ -142,7 +142,14 @@ VALID_FILTER_VULN_COLUMNS = [
     'impact',
     'update_date',
     'type',
+    'data',
+    'description',
+    'request',
+    'resolution',
+    'response',
 ]
+
+LARGE_VULN_FIELDS = frozenset({'data', 'description', 'request', 'resolution', 'response'})
 
 
 def parse_cve_references_and_policyviolations(vuln, references, policyviolations, cve_list):

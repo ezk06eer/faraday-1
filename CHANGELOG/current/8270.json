@@ -1,0 +1,1 @@
+{"level": "community", "md": "[MOD] Truncate large vuln fields (data, description, request, resolution, response) to 100 chars in table view; full content preserved in CSV exports. Add column selection support to export_csv_limited endpoint. #8270"}

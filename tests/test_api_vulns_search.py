@@ -809,3 +809,42 @@ class TestVulnerabilitySearch:
         attachment = attachments_json['testing_description.txt']
 
         assert attachment['description'] == 'Attachment description'
+
+    @pytest.mark.skip_sql_dialect('sqlite')
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_large_fields_truncated_in_table_view_no_workspace(self, test_client, session):
+        long_text = 'a' * 200
+        workspace = WorkspaceFactory.create()
+        host = HostFactory.create(workspace=workspace)
+        vuln = VulnerabilityFactory.create(
+            workspace=workspace,
+            description=long_text,
+            data=long_text,
+            resolution=long_text,
+            host=host,
+            service=None,
+        )
+        web_vuln = VulnerabilityWebFactory.create(
+            workspace=workspace,
+            request=long_text,
+            response=long_text,
+        )
+        session.add_all([vuln, web_vuln])
+        session.commit()
+
+        query_filter = {
+            "filters": [],
+            "columns": ["description", "data", "resolution", "request", "response"],
+        }
+        res = test_client.get(f'/v3/vulns/filter?q={json.dumps(query_filter)}')
+        assert res.status_code == 200
+        assert res.json['count'] == 2
+        for vuln_result in res.json['vulnerabilities']:
+            value = vuln_result['value']
+            for field in ['description', 'data', 'resolution', 'request', 'response']:
+                if value.get(field):
+                    assert len(value[field]) <= 103, (
+                        f"Field '{field}' was not truncated: {len(value[field])} chars"
+                    )
+                    if len(value[field]) == 103:
+                        assert value[field].endswith('...')

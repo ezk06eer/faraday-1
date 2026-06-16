@@ -738,6 +738,93 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
         assert host.description == "ActionExecuted"
 
+    @pytest.mark.parametrize(
+        "operator, data, importance, should_match", [
+            ("==", "5", 5, True),
+            ("==", "2", 5, False),
+            ("!=", "2", 5, True),
+            ("!=", "5", 5, False),
+            (">", "2", 5, True),
+            (">", "5", 5, False),
+            (">=", "5", 5, True),
+            (">=", "2", 1, False),
+            ("<", "6", 5, True),
+            ("<", "5", 5, False),
+            ("<=", "5", 5, True),
+            ("<=", "4", 5, False),
+        ]
+    )
+    def test_conditions_on_host_int_field_operators(self, test_client, operator, data, importance, should_match):
+        cond = [
+            {
+                "type": "leaf",
+                "field": "importance",
+                "operator": operator,
+                "data": data
+            }
+        ]
+        ws, action, workflow, pipeline = create_pipeline(test_client, cond=cond)
+        host = HostFactory.create(description="testing", workspace=ws)
+        host.importance = importance
+        db.session.add(host)
+        db.session.commit()
+        with mock.patch("faraday.server.utils.workflows.logger") as mock_logger:
+            _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+            cond_errors = [c for c in mock_logger.error.call_args_list
+                           if "Error while checking condition" in str(c)]
+            assert not cond_errors, f"Condition raised instead of evaluating: {cond_errors}"
+        assert host.description == ("ActionExecuted" if should_match else "testing")
+
+    @pytest.mark.parametrize(
+        "operator, data, should_match", [
+            ("==", "2020-01-01", False),
+            ("!=", "2020-01-01", True),
+            (">", "2020-01-01", True),
+            (">", "2999-01-01", False),
+            (">=", "2020-01-01", True),
+            (">=", "2999-01-01", False),
+            ("<", "2999-01-01", True),
+            ("<", "2020-01-01", False),
+            ("<=", "2999-01-01", True),
+            ("<=", "2020-01-01", False),
+        ]
+    )
+    def test_conditions_on_host_datetime_field_operators(self, test_client, operator, data, should_match):
+        cond = [
+            {
+                "type": "leaf",
+                "field": "create_date",
+                "operator": operator,
+                "data": data
+            }
+        ]
+        ws, action, workflow, pipeline = create_pipeline(test_client, cond=cond)
+        host = HostFactory.create(description="testing", workspace=ws)
+        db.session.add(host)
+        db.session.commit()
+        with mock.patch("faraday.server.utils.workflows.logger") as mock_logger:
+            _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+            cond_errors = [c for c in mock_logger.error.call_args_list
+                           if "Error while checking condition" in str(c)]
+            assert not cond_errors, f"Condition raised instead of evaluating: {cond_errors}"
+        assert host.description == ("ActionExecuted" if should_match else "testing")
+
+    def test_conditions_on_host_datetime_field_eq_today(self, test_client):
+        cond = [
+            {
+                "type": "leaf",
+                "field": "create_date",
+                "operator": "==",
+                "data": datetime.utcnow().strftime("%Y-%m-%d")
+            }
+        ]
+        ws, action, workflow, pipeline = create_pipeline(test_client, cond=cond)
+        host = HostFactory.create(description="testing", workspace=ws)
+        db.session.add(host)
+        db.session.commit()
+        _process_entry(host.__class__.__name__, [host.id], host.workspace.id)
+        assert host.description == "ActionExecuted"
+
     def test_object_does_not_exist(self, test_client):
         action = ActionFactory.create()
         db.session.commit()

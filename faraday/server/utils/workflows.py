@@ -250,16 +250,20 @@ def _perform_leaf_check(obj, condition, field):
     class_name = obj.__class__.__name__.lower()
     class_name = "vulnerability" if "web" in class_name else class_name
 
-    if class_name == "service":
-        data_type = service_datatypes.get(condition.field, None)
-    elif class_name == "host":
-        data_type = host_datatypes.get(condition.field, None)
-    else:
-        data_type = [x.get("type") for x in _get_rules_attributes()[class_name] if x.get("name") == condition.field][0]
+    data_type = None
+    rules = _get_rules_attributes().get(class_name)
+    if rules:
+        matches = [x.get("type") for x in rules if x.get("name") == condition.field]
+        if matches:
+            data_type = matches[0]
+    if data_type is None:
+        if class_name == "service":
+            data_type = service_datatypes.get(condition.field)
+        elif class_name == "host":
+            data_type = host_datatypes.get(condition.field)
 
-        # If custom field and data type is datetime change to string
-        if field.startswith("custom_fields") and data_type == "datetime":
-            data_type = "string"
+    if field.startswith("custom_fields") and data_type == "datetime":
+        data_type = "string"
 
     data = condition.data
 

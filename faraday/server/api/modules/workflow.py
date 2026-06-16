@@ -665,9 +665,20 @@ class JobView(ReadWriteView):
     def import_wf(self):
         """
         ---
-        get:
+        post:
           tags: ["Job"]
           summary: "Import job from json"
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                      format: binary
+                      description: "JSON file describing the job to import."
           responses:
             201:
               description: Ok

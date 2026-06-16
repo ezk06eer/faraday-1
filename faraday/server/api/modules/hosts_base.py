@@ -195,6 +195,13 @@ class HostView(
           get:
             summary: "Get a list of hosts."
             tags: ["Host"]
+            parameters:
+            - in: query
+              name: stats
+              description: "If 'false', exclude severity counts, vulns and services from each host (default true)."
+              schema:
+                type: string
+                enum: ["true", "false"]
             responses:
               200:
                 description: Ok
@@ -248,6 +255,8 @@ class HostView(
           - in: query
             name: q
             description: Recursive json with filters that supports operators. The json could also contain sort and group.
+            schema:
+              type: string
           responses:
             200:
               description: Returns filtered, sorted and grouped results
@@ -303,6 +312,12 @@ class HostView(
         get:
           tags: ["Host"]
           summary: Counts Vulnerabilities per host
+          parameters:
+          - in: query
+            name: hosts
+            description: "Comma-separated host IDs to restrict the count to. Omit to count all hosts in the workspace(s)."
+            schema:
+              type: string
           responses:
             200:
               description: Ok

@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Fix several OpenAPI/Swagger generation bugs and document enum constraints on schema fields. #8181"
+}

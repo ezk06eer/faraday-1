@@ -1156,6 +1156,20 @@
                 "tags": [
                     "Host"
                 ],
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "stats",
+                        "description": "If 'false', exclude severity counts, vulns and services from each host (default true).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false"
+                            ]
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok",
@@ -1222,6 +1236,16 @@
                     "Host"
                 ],
                 "summary": "Counts Vulnerabilities per host",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "hosts",
+                        "description": "Comma-separated host IDs to restrict the count to. Omit to count all hosts in the workspace(s).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok",
@@ -1247,7 +1271,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -1376,6 +1403,26 @@
                     "Host"
                 ],
                 "description": "Creates hosts in bulk",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary",
+                                        "description": "CSV with headers: description, hostnames, ip, os."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "Created",
@@ -1443,6 +1490,20 @@
                 "summary": "Get a list of hosts.",
                 "tags": [
                     "Host"
+                ],
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "stats",
+                        "description": "If 'false', exclude severity counts, vulns and services from each host (default true).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false"
+                            ]
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -1578,6 +1639,16 @@
                     "Host"
                 ],
                 "summary": "Counts Vulnerabilities per host",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "hosts",
+                        "description": "Comma-separated host IDs to restrict the count to. Omit to count all hosts in the workspace(s).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok",
@@ -1810,7 +1881,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -2235,7 +2309,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -2636,7 +2713,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -2855,6 +2935,24 @@
                     "File"
                 ],
                 "description": "Get a CSV file with all vulns from a workspace",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "confirmed",
+                        "description": "If truthy, only export confirmed vulnerabilities.",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "q",
+                        "description": "JSON-encoded flask-restless filter object.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok"
@@ -2873,7 +2971,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -2987,8 +3088,18 @@
                 "tags": [
                     "Vulnerability"
                 ],
-                "params": "limit",
                 "description": "Gets a list of top users having account its uploaded vulns",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Maximum number of users to return (default 1).",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "List of top users"
@@ -3102,6 +3213,17 @@
                     "Vulnerability"
                 ],
                 "summary": "Group vulnerabilities by the field set in the group_by GET parameter.",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "group_by",
+                        "required": true,
+                        "description": "Field to group vulnerabilities by (e.g. severity, confirmed, status).",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok",
@@ -3307,30 +3429,12 @@
                     "Vulnerability"
                 ],
                 "summary": "Updates Vulnerability",
-                "parameters": [
-                    {
-                        "in": "path",
-                        "name": "object_id",
-                        "required": true,
-                        "schema": {
-                            "type": "integer"
-                        }
-                    },
-                    {
-                        "in": "path",
-                        "name": "workspace_name",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/VulnerabilitySchema"
+                                "$ref": "#/components/schemas/VulnerabilityWeb"
                             }
                         }
                     }
@@ -3341,7 +3445,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/VulnerabilitySchema"
+                                    "$ref": "#/components/schemas/VulnerabilityWeb"
                                 }
                             }
                         }
@@ -3442,6 +3546,24 @@
                     "File"
                 ],
                 "description": "Get a CSV file with all vulns from a workspace",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "confirmed",
+                        "description": "If truthy, only export confirmed vulnerabilities.",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "q",
+                        "description": "JSON-encoded flask-restless filter object.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok"
@@ -3470,7 +3592,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -3562,8 +3687,18 @@
                 "tags": [
                     "Vulnerability"
                 ],
-                "params": "limit",
                 "description": "Gets a list of top users having account its uploaded vulns",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "description": "Maximum number of users to return (default 1).",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "List of top users"
@@ -3856,7 +3991,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -3916,6 +4054,29 @@
                     "Workspace"
                 ],
                 "summary": "Get a list of workspaces.",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "histogram",
+                        "description": "If 'true', include a per-day severity histogram for each workspace.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false"
+                            ]
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "histogram_days",
+                        "description": "Number of days included in the histogram (only when histogram=true). Defaults to the server-configured default.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok",
@@ -4194,7 +4355,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "recursive json with filters that supports operators. The json could also contain sort and group"
+                        "description": "recursive json with filters that supports operators. The json could also contain sort and group",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -4600,6 +4764,70 @@
                     "File"
                 ],
                 "description": "Upload a report file to create data within the given workspace",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "file"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary",
+                                        "description": "Report file to import."
+                                    },
+                                    "ignore_info": {
+                                        "type": "string",
+                                        "enum": [
+                                            "True",
+                                            "true",
+                                            "False",
+                                            "false"
+                                        ],
+                                        "description": "If truthy, skip vulnerabilities with severity 'informational'."
+                                    },
+                                    "min_severity": {
+                                        "type": "string",
+                                        "enum": [
+                                            "unclassified",
+                                            "info",
+                                            "low",
+                                            "med",
+                                            "high",
+                                            "critical"
+                                        ],
+                                        "description": "Lower bound for severities to import."
+                                    },
+                                    "max_severity": {
+                                        "type": "string",
+                                        "enum": [
+                                            "unclassified",
+                                            "info",
+                                            "low",
+                                            "med",
+                                            "high",
+                                            "critical"
+                                        ],
+                                        "description": "Upper bound for severities to import."
+                                    },
+                                    "resolve_hostname": {
+                                        "type": "string",
+                                        "enum": [
+                                            "True",
+                                            "true",
+                                            "False",
+                                            "false"
+                                        ],
+                                        "description": "If truthy, resolve hostnames to IPs during import."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "Created"
@@ -4893,9 +5121,12 @@
                 "summary": "Get all manifests, Optionally choose latest version with parameter",
                 "parameters": [
                     {
-                        "in": "version",
+                        "in": "query",
                         "name": "agent_version",
-                        "description": "latest version to request"
+                        "description": "latest version to request",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -5104,7 +5335,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -5132,9 +5366,12 @@
                 "summary": "Get all manifests, Optionally choose latest version with parameter",
                 "parameters": [
                     {
-                        "in": "version",
+                        "in": "query",
                         "name": "agent_version",
-                        "description": "latest version to request"
+                        "description": "latest version to request",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -5150,6 +5387,16 @@
                     "Agent"
                 ],
                 "description": "Runs an agent",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AgentRun"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "400": {
                         "description": "Bad request"
@@ -5252,7 +5499,7 @@
                     }
                 },
                 "responses": {
-                    "201:tags": {
+                    "201": {
                         "description": "Created",
                         "content": {
                             "application/json": {
@@ -5547,15 +5794,23 @@
                 }
             },
             "post": {
-                "set": {
-                    "tags": [
-                        "User"
-                    ],
-                    "description": "Set the user preferences",
-                    "responses": {
-                        "200": {
-                            "description": "Ok"
+                "tags": [
+                    "User"
+                ],
+                "description": "Set the user preferences",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Preference"
+                            }
                         }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Ok"
                     }
                 }
             }
@@ -5567,6 +5822,20 @@
                     "Workspace"
                 ],
                 "description": "Exports all the workspace data in a XML file",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "format",
+                        "required": true,
+                        "description": "Export format. Currently only 'xml_metasploit' is supported.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "xml_metasploit"
+                            ]
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "Ok"
@@ -5663,7 +5932,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5690,7 +5959,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                "$ref": "#/components/schemas/AgentsSchedule"
                             }
                         }
                     }
@@ -5701,7 +5970,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5711,7 +5980,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5738,7 +6007,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                "$ref": "#/components/schemas/AgentsSchedule"
                             }
                         }
                     }
@@ -5749,7 +6018,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5759,7 +6028,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5778,7 +6047,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -5810,7 +6082,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5827,7 +6099,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                "$ref": "#/components/schemas/AgentsSchedule"
                             }
                         }
                     }
@@ -5838,7 +6110,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -5848,7 +6120,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/AgentsScheduleSchema"
+                                    "$ref": "#/components/schemas/AgentsSchedule"
                                 }
                             }
                         }
@@ -6214,31 +6486,27 @@
         },
         "/_api/v3/jobs/import_job": {
             "post": {
-                "get": {
-                    "tags": [
-                        "Job"
-                    ],
-                    "summary": "Import job from json",
-                    "responses": {
-                        "201": {
-                            "description": "Ok"
-                        }
-                    }
-                },
-                "tags": [
-                    "Job"
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Ok"
-                    }
-                }
-            },
-            "get": {
                 "tags": [
                     "Job"
                 ],
                 "summary": "Import job from json",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "file": {
+                                        "type": "string",
+                                        "format": "binary",
+                                        "description": "JSON file describing the job to import."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "Ok"
@@ -6897,14 +7165,14 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Retrieves settings of {route_base}",
+                "summary": "Retrieves settings of reports",
                 "responses": {
                     "200": {
                         "description": "Ok",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/ReportsSetting"
                                 }
                             }
                         }
@@ -6918,13 +7186,13 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Creates/Updates settings of {route_base}",
+                "summary": "Creates/Updates settings of reports",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "schema_class": null
+                                "$ref": "#/components/schemas/ReportsSetting"
                             }
                         }
                     }
@@ -6935,7 +7203,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/ReportsSetting"
                                 }
                             }
                         }
@@ -6951,14 +7219,14 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Retrieves settings of {route_base}",
+                "summary": "Retrieves settings of dashboard",
                 "responses": {
                     "200": {
                         "description": "Ok",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/DashboardSetting"
                                 }
                             }
                         }
@@ -6972,13 +7240,13 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Creates/Updates settings of {route_base}",
+                "summary": "Creates/Updates settings of dashboard",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "schema_class": null
+                                "$ref": "#/components/schemas/DashboardSetting"
                             }
                         }
                     }
@@ -6989,7 +7257,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/DashboardSetting"
                                 }
                             }
                         }
@@ -7005,14 +7273,14 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Retrieves settings of {route_base}",
+                "summary": "Retrieves settings of elk",
                 "responses": {
                     "200": {
                         "description": "Ok",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/ELKSetting"
                                 }
                             }
                         }
@@ -7026,13 +7294,13 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Creates/Updates settings of {route_base}",
+                "summary": "Creates/Updates settings of elk",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "schema_class": null
+                                "$ref": "#/components/schemas/ELKSetting"
                             }
                         }
                     }
@@ -7043,7 +7311,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/ELKSetting"
                                 }
                             }
                         }
@@ -7072,14 +7340,14 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Retrieves settings of {route_base}",
+                "summary": "Retrieves settings of query_limits",
                 "responses": {
                     "200": {
                         "description": "Ok",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/QueryLimits"
                                 }
                             }
                         }
@@ -7093,13 +7361,13 @@
                 "tags": [
                     "settings"
                 ],
-                "summary": "Creates/Updates settings of {route_base}",
+                "summary": "Creates/Updates settings of query_limits",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "schema_class": null
+                                "$ref": "#/components/schemas/QueryLimits"
                             }
                         }
                     }
@@ -7110,7 +7378,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "schema_class": null
+                                    "$ref": "#/components/schemas/QueryLimits"
                                 }
                             }
                         }
@@ -7163,7 +7431,10 @@
                     {
                         "in": "query",
                         "name": "q",
-                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group."
+                        "description": "Recursive json with filters that supports operators. The json could also contain sort and group.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -7274,6 +7545,7 @@
                         "nullable": true
                     },
                     "import_source": {
+                        "type": "string",
                         "enum": [
                             "report",
                             "shell",
@@ -7281,7 +7553,6 @@
                             "cloud_agent",
                             null
                         ],
-                        "maxLength": 11,
                         "nullable": true
                     },
                     "metadata": {},
@@ -7734,7 +8005,12 @@
                         "type": "string"
                     },
                     "type": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "exploit",
+                            "patch",
+                            "other"
+                        ]
                     }
                 }
             },
@@ -8209,7 +8485,7 @@
                     "table_name"
                 ]
             },
-            "AgentsSchedule": {
+            "ExecutorScheduleStub": {
                 "type": "object",
                 "properties": {
                     "id": {
@@ -8258,7 +8534,7 @@
                         "readOnly": true,
                         "allOf": [
                             {
-                                "$ref": "#/components/schemas/AgentsSchedule"
+                                "$ref": "#/components/schemas/ExecutorScheduleStub"
                             }
                         ]
                     },
@@ -8331,6 +8607,86 @@
                 },
                 "required": [
                     "name"
+                ]
+            },
+            "ExecutorData": {
+                "type": "object",
+                "properties": {
+                    "executor": {
+                        "type": "string"
+                    },
+                    "args": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            },
+            "AgentRun": {
+                "type": "object",
+                "properties": {
+                    "executor_data": {
+                        "$ref": "#/components/schemas/ExecutorData"
+                    },
+                    "workspaces_names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "ignore_info": {
+                        "type": "boolean"
+                    },
+                    "resolve_hostname": {
+                        "type": "boolean"
+                    },
+                    "vuln_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "service_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "host_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "min_severity": {
+                        "type": "string",
+                        "enum": [
+                            "UNCLASSIFIED",
+                            "INFO",
+                            "LOW",
+                            "MED",
+                            "HIGH",
+                            "CRITICAL",
+                            null
+                        ],
+                        "nullable": true
+                    },
+                    "max_severity": {
+                        "type": "string",
+                        "enum": [
+                            "UNCLASSIFIED",
+                            "INFO",
+                            "LOW",
+                            "MED",
+                            "HIGH",
+                            "CRITICAL",
+                            null
+                        ],
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "executor_data",
+                    "workspaces_names"
                 ]
             },
             "AgentAuthToken": {
@@ -8773,6 +9129,7 @@
                         "nullable": true
                     },
                     "import_source": {
+                        "type": "string",
                         "enum": [
                             "report",
                             "shell",
@@ -8780,7 +9137,6 @@
                             "cloud_agent",
                             null
                         ],
-                        "maxLength": 11,
                         "nullable": true
                     }
                 },
@@ -8843,6 +9199,130 @@
                     "json_query",
                     "name",
                     "user_query"
+                ]
+            },
+            "Preference": {
+                "type": "object",
+                "properties": {
+                    "preferences": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AgentsSchedule": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "readOnly": true
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "crontab": {
+                        "type": "string",
+                        "pattern": "^(((([1-5]?\\d(-([1-5]?\\d))?|\\*)(\\/(\\d+))?),?)+)\\ (((((2[0-3]|1?\\d)(-(2[0-3]|1?\\d))?|\\*)(\\/(\\d+))?),?)+)\\ (((((3[01]|[12]?\\d)(-(3[01]|[12]?\\d))?|\\*)(\\/(\\d+))?),?)+)\\ (((((1[0-2]|\\d)(-(1[0-2]|\\d))?|\\*)(\\/(\\d+))?),?)+)\\ (((([0-6](-([0-6]))?|\\*)(\\/(\\d+))?),?)+)$",
+                        "example": "10 * 10 * *"
+                    },
+                    "timezone": {
+                        "type": "string"
+                    },
+                    "active": {
+                        "type": "boolean"
+                    },
+                    "owner": {
+                        "readOnly": true
+                    },
+                    "executor_id": {
+                        "type": "integer"
+                    },
+                    "executor": {
+                        "readOnly": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/Executor"
+                            }
+                        ]
+                    },
+                    "agent": {
+                        "readOnly": true
+                    },
+                    "parameters": {},
+                    "next_run": {
+                        "type": "string",
+                        "readOnly": true
+                    },
+                    "metadata": {},
+                    "workspaces_names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "workspaces": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "ignore_info": {
+                        "type": "boolean"
+                    },
+                    "resolve_hostname": {
+                        "type": "boolean"
+                    },
+                    "vuln_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "service_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "host_tag": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "min_severity": {
+                        "type": "string",
+                        "enum": [
+                            "UNCLASSIFIED",
+                            "INFO",
+                            "LOW",
+                            "MED",
+                            "HIGH",
+                            "CRITICAL",
+                            null
+                        ],
+                        "nullable": true
+                    },
+                    "max_severity": {
+                        "type": "string",
+                        "enum": [
+                            "UNCLASSIFIED",
+                            "INFO",
+                            "LOW",
+                            "MED",
+                            "HIGH",
+                            "CRITICAL",
+                            null
+                        ],
+                        "nullable": true
+                    }
+                },
+                "required": [
+                    "crontab",
+                    "description",
+                    "timezone",
+                    "workspaces_names"
                 ]
             },
             "Condition": {
@@ -9263,6 +9743,70 @@
                         "nullable": true
                     }
                 }
+            },
+            "ReportsSetting": {
+                "type": "object",
+                "properties": {
+                    "custom_plugins_folder": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "custom_plugins_folder"
+                ]
+            },
+            "DashboardSetting": {
+                "type": "object",
+                "properties": {
+                    "show_vulns_by_price": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "show_vulns_by_price"
+                ]
+            },
+            "ELKSetting": {
+                "type": "object",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "username": {
+                        "type": "string"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "host": {
+                        "type": "string"
+                    },
+                    "port": {
+                        "type": "integer"
+                    },
+                    "ignore_ssl": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "enabled",
+                    "host",
+                    "ignore_ssl",
+                    "password",
+                    "port",
+                    "username"
+                ]
+            },
+            "QueryLimits": {
+                "type": "object",
+                "properties": {
+                    "vuln_query_limit": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "vuln_query_limit"
+                ]
             },
             "AgentExecution": {
                 "type": "object",

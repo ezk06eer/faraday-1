@@ -101,6 +101,35 @@ class TestPipelineMixinsView(ReadWriteAPITests):
         _process_entry(obj.__class__.__name__, [obj.id], obj.workspace.id)
         assert obj.description == "ActionExecuted"
 
+    @pytest.mark.parametrize(
+        "operator,rule_date,vuln_last_detected,should_match",
+        [
+            (">=", "2025-01-01", datetime(2025, 6, 1), True),
+            (">=", "2025-01-01", datetime(2024, 6, 1), False),
+            ("<=", "2025-01-01", datetime(2024, 6, 1), True),
+            ("<=", "2025-01-01", datetime(2025, 6, 1), False),
+            (">", "2025-01-01", datetime(2025, 1, 2), True),
+            (">", "2025-01-01", datetime(2025, 1, 1), False),
+            ("<", "2025-01-01", datetime(2024, 12, 31), True),
+            ("<", "2025-01-01", datetime(2025, 1, 1), False),
+            ("==", "2025-01-01", datetime(2025, 1, 1, 12, 30), True),
+            ("==", "2025-01-01", datetime(2025, 1, 2), False),
+            (">=", "2025-01-01", None, False),
+            ("<=", "2025-01-01", None, False),
+        ],
+    )
+    def test_pipeline_rule_last_detected(self, test_client, operator, rule_date, vuln_last_detected, should_match):
+        cond = [{"type": "leaf", "field": "last_detected", "operator": operator, "data": rule_date}]
+        ws, _, _, _ = create_pipeline(test_client, "vulnerability", cond=cond)
+        obj = VulnerabilityFactory.create(description="testing", workspace=ws, last_detected=vuln_last_detected)
+        db.session.add(obj)
+        db.session.commit()
+        _process_entry(obj.__class__.__name__, [obj.id], obj.workspace.id)
+        if should_match:
+            assert obj.description == "ActionExecuted"
+        else:
+            assert obj.description == "testing"
+
     def test_pipeline_executed_multiple_actions(self, test_client):
         action1 = ActionFactory.create()
         action2 = ActionFactory.create(command="UPDATE", field="ip", value="1.1.1.1", target="asset")

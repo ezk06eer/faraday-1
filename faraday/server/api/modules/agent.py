@@ -14,6 +14,7 @@ from flask import Blueprint, abort, request, jsonify
 import flask_login
 from flask_classful import route
 from marshmallow import fields, Schema, EXCLUDE
+from marshmallow.validate import OneOf
 from sqlalchemy.orm.exc import NoResultFound
 from faraday_agent_parameters_types.utils import type_validate, get_manifests
 
@@ -28,6 +29,7 @@ from faraday.server.extensions import socketio
 from faraday.server.models import (
     Agent,
     Executor,
+    SchedulerGeneric,
     db,
 )
 from faraday.server.schemas import PrimaryKeyRelatedField
@@ -75,7 +77,7 @@ def validate_executor_args(parameters_metadata, args):
     return errors
 
 
-class AgentsScheduleSchema(AutoSchema):
+class ExecutorScheduleStubSchema(AutoSchema):
     id = fields.Integer(dump_only=True)
     description = fields.String(required=True)
 
@@ -92,7 +94,7 @@ class ExecutorSchema(AutoSchema):
     name = fields.String(dump_only=True)
     agent_id = fields.Integer(dump_only=True, attribute='agent_id')
     last_run = fields.DateTime(dump_only=True)
-    schedules = fields.Nested(AgentsScheduleSchema(), dump_only=True, many=True)
+    schedules = fields.Nested(ExecutorScheduleStubSchema(), dump_only=True, many=True)
     tool = fields.String(dump_only=True)
     category = fields.List(fields.String(), dump_only=True)
 
@@ -172,9 +174,10 @@ class AgentRunSchema(Schema):
     vuln_tag = fields.List(fields.String, required=False)
     service_tag = fields.List(fields.String, required=False)
     host_tag = fields.List(fields.String, required=False)
-    # TODO: add validation for severity fields
-    min_severity = fields.String(required=False, allow_none=True)
-    max_severity = fields.String(required=False, allow_none=True)
+    min_severity = fields.String(required=False, allow_none=True,
+                                 validate=OneOf(SchedulerGeneric.SEVERITIES))
+    max_severity = fields.String(required=False, allow_none=True,
+                                 validate=OneOf(SchedulerGeneric.SEVERITIES))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -211,6 +214,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         ---
           tags: ["Agent"]
           description: Runs an agent
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: AgentRunSchema
           responses:
             400:
               description: Bad request
@@ -326,9 +334,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
           tags: ["Agent"]
           summary: Get all manifests, Optionally choose latest version with parameter
           parameters:
-          - in: version
+          - in: query
             name: agent_version
             description: latest version to request
+            schema:
+              type: string
 
           responses:
             200:
@@ -348,9 +358,11 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
           tags: ["Agent"]
           summary: Get all manifests, Optionally choose latest version with parameter
           parameters:
-          - in: version
+          - in: query
             name: agent_version
             description: latest version to request
+            schema:
+              type: string
 
           responses:
             200:
@@ -441,6 +453,8 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
         - in: query
           name: q
           description: Recursive json with filters that supports operators. The json could also contain sort and group.
+          schema:
+            type: string
         responses:
           200:
             description: Returns filtered, sorted and grouped results

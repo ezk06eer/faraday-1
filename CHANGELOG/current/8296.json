@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Fixed workflow conditions failing on host date/numeric fields with `<`/`>`/`<=`/`>=`. #8296"
+}

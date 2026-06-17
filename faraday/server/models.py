@@ -15,7 +15,7 @@ from typing import Callable
 import cvss
 import dateutil
 import jwt
-from croniter import croniter
+from croniter import croniter, CroniterError
 from depot.fields.sqlalchemy import UploadedFileField
 from flask import (
     current_app as app,
@@ -3574,11 +3574,15 @@ class SchedulerGeneric(Metadata):
 
     @property
     def next_run(self):
-        return croniter(
-            self.crontab,
-            datetime.now(tz=dateutil.tz.gettz(self.timezone)),
-            ret_type=datetime
-        ).get_next(datetime)
+        try:
+            return croniter(
+                self.crontab,
+                datetime.now(tz=dateutil.tz.gettz(self.timezone)),
+                ret_type=datetime
+            ).get_next(datetime)
+        except (CroniterError, ValueError):
+            # An unparseable crontab must not break serialization of the list
+            return None
 
     __mapper_args__ = {
         'polymorphic_on': type

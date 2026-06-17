@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Reject out-of-range cron expressions on agent schedules so an invalid crontab can no longer break the schedule list or the scheduler. #8355"
+}

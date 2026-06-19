@@ -1,4 +1,0 @@
-{
-  "level": "community",
-  "md": "[ADD] Added workspace_name to the supported columns for vulns CSV export. #8272"
-}

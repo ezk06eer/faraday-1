@@ -1,7 +1,7 @@
 New features in the latest update
 =====================================
 
-5.22.0 [June 19th, 2026]:
+5.22.0 [Jun 19th, 2026]:
 ---
  * [ADD] Added workspace_name to the supported columns for vulnerabilities CSV export. #8272
  * [ADD] Expose creator command, parameters and per-service status on assets' API response. #8253

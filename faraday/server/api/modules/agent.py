@@ -219,16 +219,26 @@ def _build_agent_conditions(custom_filters):
 
         elif name == 'tools':
             op_lower = op.lower()
-            if op_lower not in ('contains', 'ilike', 'like'):
-                abort(400, f"Unsupported operator {op!r} for tools filter; use 'contains', 'like', or 'ilike'")
-            tool = str(val)
-            tool_escaped = tool.replace('%', r'\%').replace('_', r'\_')
-            conditions.append(
-                exists().where(and_(
-                    Executor.agent_id == Agent.id,
-                    Executor.name.ilike(f'%{tool_escaped}%', escape='\\'),
-                ))
-            )
+            if op_lower in ('is_one_of', 'in'):
+                vals = val if isinstance(val, list) else [v.strip() for v in str(val).split(',') if v.strip()]
+                conditions.append(
+                    exists().where(and_(Executor.agent_id == Agent.id, Executor.tool.in_(vals)))
+                )
+            elif op_lower in ('is_not_one_of', 'not_in', 'nin'):
+                vals = val if isinstance(val, list) else [v.strip() for v in str(val).split(',') if v.strip()]
+                conditions.append(
+                    ~exists().where(and_(Executor.agent_id == Agent.id, Executor.tool.in_(vals)))
+                )
+            elif op_lower not in ('contains', 'ilike', 'like'):
+                abort(400, f"Unsupported operator {op!r} for tools filter; use 'contains', 'like', 'ilike', 'is_one_of', or 'is_not_one_of'")
+            else:
+                tool_escaped = str(val).replace('%', r'\%').replace('_', r'\_')
+                conditions.append(
+                    exists().where(and_(
+                        Executor.agent_id == Agent.id,
+                        Executor.name.ilike(f'%{tool_escaped}%', escape='\\'),
+                    ))
+                )
 
         elif name == 'last_execution_tool':
             tool = str(val)
@@ -537,6 +547,13 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
                 if op in ('ne', '!=', 'neq'):
                     is_online = not is_online
                 standard.append({"name": "sid", "op": "is_not_null" if is_online else "is_null", "val": ""})
+            elif name == 'blocked':
+                is_blocked = str(val).lower() in ('true', '1', 'yes')
+                if op in ('ne', '!=', 'neq'):
+                    is_blocked = not is_blocked
+                standard.append({"name": "active", "op": "eq", "val": not is_blocked})
+            elif name in ('name', 'description') and op == 'contains':
+                standard.append({"name": name, "op": "ilike", "val": f"%{val}%"})
             elif name == 'tools':
                 tool = str(val)
                 if op in ('eq', '=='):

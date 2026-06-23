@@ -216,7 +216,7 @@ def initdb_roles_and_permissions(db_engine):
             "(151, 29, 2, false), (152, 30, 2, false), (153, 31, 2, false), (154, 32, 2, false), "
             "(155, 33, 2, false), (156, 34, 2, false), (157, 35, 2, false), (158, 36, 2, false), "
             "(159, 37, 2, false), (160, 38, 2, false), (161, 39, 2, false), (162, 40, 2, false), "
-            "(163, 41, 2, false), (164, 42, 2, false), (165, 43, 2, false), (166, 44, 2, true), "
+            "(163, 41, 2, false), (164, 42, 2, false), (165, 43, 2, false), (166, 44, 2, false), "
             "(167, 45, 2, false), (168, 46, 2, false), (169, 47, 2, false), "
             "(171, 49, 2, true), (172, 50, 2, false), (173, 51, 2, false), (174, 52, 2, false), "
             "(175, 53, 2, false), (176, 54, 2, false), (177, 55, 2, false), (178, 56, 2, false), "

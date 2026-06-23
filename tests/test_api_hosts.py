@@ -114,6 +114,57 @@ class TestHostAPI:
         assert res.status_code == 200
         assert len(res.json['rows']) == HOSTS_COUNT
 
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_order_by_creator_username_keeps_null_creators(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='no_ws_owner_alice')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+        expected_total = HOSTS_COUNT + 5
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"order_by":[{"field":"creator__username","direction":"desc"}]}',
+        ))
+        assert res.status_code == 200
+        assert res.json['count'] == expected_total
+        assert len(res.json['rows']) == expected_total
+
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_filter_and_order_by_creator_username(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='no_ws_owner_bob')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"filters":[{"name":"creator","op":"eq","val":"no_ws_owner_bob"}],'
+            '"order_by":[{"field":"creator__username","direction":"desc"}]}',
+        ))
+        assert res.status_code == 200
+        assert res.json['count'] == 3
+        assert len(res.json['rows']) == 3
+
+    @pytest.mark.usefixtures('ignore_nplusone')
+    def test_filter_restless_group_by_creator_username(
+            self, test_client, session, workspace, host_factory, user_factory):
+        owner = user_factory.create(username='no_ws_owner_carol')
+        host_factory.create_batch(3, workspace=workspace, creator=owner)
+        host_factory.create_batch(2, workspace=workspace, creator=None)
+        session.commit()
+
+        res = test_client.get(join(
+            self.url(),
+            'filter?q={"group_by":[{"field":"creator__username"}]}',
+        ))
+        assert res.status_code == 200
+        usernames = [row['value']['creator__username'] for row in res.json['rows']]
+        assert 'no_ws_owner_carol' in usernames
+        assert None in usernames
+
     def test_retrieve_one_host(self, test_client, database):
         host = self.workspace.hosts[0]
         assert host.id is not None
@@ -155,6 +206,7 @@ class TestHostAPI:
             session.commit()
             res = test_client.get(self.url(host))
             assert res.json['services'] == len(services)
+            assert res.json['open_services'] == len(services)
 
     @pytest.mark.usefixtures('ignore_nplusone')
     def test_index_shows_service_count(self, test_client, session,
@@ -176,6 +228,7 @@ class TestHostAPI:
         for host in res.json['rows']:
             if host['id'] in ids_map:
                 assert host['value']['services'] == len(ids_map[host['id']])
+                assert host['value']['open_services'] == len(ids_map[host['id']])
 
     @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_os_exact(self, test_client, session, workspace,

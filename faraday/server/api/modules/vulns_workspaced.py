@@ -267,6 +267,13 @@ class VulnerabilityWorkspacedView(
         get:
           tags: ["Vulnerability"]
           summary: "Group vulnerabilities by the field set in the group_by GET parameter."
+          parameters:
+          - in: query
+            name: group_by
+            required: true
+            description: "Field to group vulnerabilities by (e.g. severity, confirmed, status)."
+            schema:
+              type: string
           responses:
             200:
               description: Ok
@@ -313,32 +320,21 @@ class VulnerabilityWorkspacedView(
 
     def put(self, object_id, workspace_name=None, **kwargs):
         """
-                ---
-                  tags: ["Vulnerability"]
-                  summary: Updates Vulnerability
-                  parameters:
-                  - in: path
-                    name: object_id
-                    required: true
-                    schema:
-                      type: integer
-                  - in: path
-                    name: workspace_name
-                    required: true
-                    schema:
-                      type: string
-                  requestBody:
-                    required: true
-                    content:
-                      application/json:
-                        schema: VulnerabilitySchema
-                  responses:
-                    200:
-                      description: Ok
-                      content:
-                        application/json:
-                          schema: VulnerabilitySchema
-                """
+        ---
+          tags: ["Vulnerability"]
+          summary: Updates Vulnerability
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema: {schema_class}
+          responses:
+            200:
+              description: Ok
+              content:
+                application/json:
+                  schema: {schema_class}
+        """
         if workspace_name:
             debounce_workspace_update(workspace_name)
         return super().put(object_id, workspace_name=workspace_name, eagerload=True, **kwargs)

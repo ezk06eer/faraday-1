@@ -60,8 +60,11 @@ def _resolve_workspace_id(parameters: dict) -> int | None:
     return db.session.query(Workspace.id).filter(Workspace.name == workspace_name).scalar()
 
 
-def _debounce_key_for_workspace(action_name: str, workspace_id: int) -> str:
-    return f"faraday:debounce:{action_name}:ws_id:{workspace_id}"
+def _debounce_key_for_workspace(action_name: str, workspace_id: int, discriminator: str = None) -> str:
+    key = f"faraday:debounce:{action_name}:ws_id:{workspace_id}"
+    if discriminator:
+        key = f"{key}:{discriminator}"
+    return key
 
 
 def _app_ctx(app):
@@ -500,7 +503,7 @@ class Debouncer:
         self.wait = wait
         self._redis = get_redis_client()
 
-    def debounce(self, action, parameters):
+    def debounce(self, action, parameters, key_suffix=None):
         from faraday.server.app import logger  # pylint:disable=import-outside-toplevel
         from faraday.server.tasks import execute_debounced_action  # pylint:disable=import-outside-toplevel
 
@@ -518,7 +521,7 @@ class Debouncer:
             )
             return
 
-        debounce_key = _debounce_key_for_workspace(action_name, workspace_id)
+        debounce_key = _debounce_key_for_workspace(action_name, workspace_id, key_suffix)
 
         token_key = f"{debounce_key}:token"
         meta_key = f"{debounce_key}:meta"

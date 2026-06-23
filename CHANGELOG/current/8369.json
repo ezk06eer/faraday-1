@@ -1,0 +1,4 @@
+{
+    "level": "community",
+    "md": "Fixed TypeError during docker-compose up -- @BekTim. #8369"
+}

@@ -33,6 +33,14 @@ class ExportDataView(GenericWorkspacedView):
         get:
           tags: ["File","Workspace"]
           description: Exports all the workspace data in a XML file
+          parameters:
+          - in: query
+            name: format
+            required: true
+            description: "Export format. Currently only 'xml_metasploit' is supported."
+            schema:
+              type: string
+              enum: [xml_metasploit]
           responses:
             200:
               description: Ok

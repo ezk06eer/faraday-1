@@ -1281,34 +1281,37 @@ class Host(Metadata):
     )
 
     creator_command_id = column_property(
-        select([CommandObject.command_id])
+        select(CommandObject.command_id)
         .where(CommandObject.object_type == 'host')
         .where(text('command_object.object_id = host.id'))
         .where(CommandObject.workspace_id == workspace_id)
         .order_by(asc(CommandObject.create_date))
-        .limit(1),
+        .limit(1)
+        .scalar_subquery(),
         deferred=True,
     )
 
     creator_command_tool = column_property(
-        select([Command.tool])
+        select(Command.tool)
         .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
         .where(CommandObject.object_type == 'host')
         .where(text('command_object.object_id = host.id'))
         .where(CommandObject.workspace_id == workspace_id)
         .order_by(asc(CommandObject.create_date))
-        .limit(1),
+        .limit(1)
+        .scalar_subquery(),
         deferred=True,
     )
 
     creator_command_params = column_property(
-        select([Command.params])
+        select(Command.params)
         .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
         .where(CommandObject.object_type == 'host')
         .where(text('command_object.object_id = host.id'))
         .where(CommandObject.workspace_id == workspace_id)
         .order_by(asc(CommandObject.create_date))
-        .limit(1),
+        .limit(1)
+        .scalar_subquery(),
         deferred=True,
     )
 

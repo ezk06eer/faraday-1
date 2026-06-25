@@ -1,7 +1,7 @@
 """add partial index on user_notification for unread count
 
 Revision ID: 5f70ccd6cfb9
-Revises: a9b75b0ddc01
+Revises: b3e7f1a2c904
 Create Date: 2026-04-15 00:00:00.000000+00:00
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '5f70ccd6cfb9'
-down_revision = 'a9b75b0ddc01'
+down_revision = 'b3e7f1a2c904'
 branch_labels = None
 depends_on = None
 

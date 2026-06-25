@@ -700,6 +700,33 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         assert agent.id in ids
         assert agent_other.id not in ids
 
+    def test_filter_by_last_execution_tool_contains(self, test_client, session):
+        now = datetime.utcnow()
+        agent = AgentFactory.create()
+        ex_first = ExecutorFactory.create(agent=agent, name="nmap_scanner")
+        ex_first.last_run = now - timedelta(hours=2)
+        ex_last = ExecutorFactory.create(agent=agent, name="burp_suite")
+        ex_last.last_run = now - timedelta(hours=1)
+
+        agent_other = AgentFactory.create()
+        ex_nmap = ExecutorFactory.create(agent=agent_other, name="nmap_scanner")
+        ex_nmap.last_run = now - timedelta(hours=1)
+        session.commit()
+
+        # "burp" ran last on agent; contains "burp" should match only agent
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "contains", "val": "burp"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent.id in ids
+        assert agent_other.id not in ids
+
+        # "nmap" ran last on agent_other; contains "nmap" should match only agent_other
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "contains", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_other.id in ids
+        assert agent.id not in ids
+
     def test_filter_by_category_eq(self, test_client, session):
         agent_web = AgentFactory.create()
         ex_web = ExecutorFactory.create(agent=agent_web)

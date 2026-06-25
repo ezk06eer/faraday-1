@@ -258,7 +258,7 @@ def _build_agent_conditions(custom_filters):
                 name_cond = Executor.name != tool
             else:
                 tool_escaped = tool.replace('%', r'\%').replace('_', r'\_')
-                name_cond = Executor.name.ilike(f'%{tool_escaped}%', escape='\\')
+                name_cond = Executor.name.ilike(f'%{tool_escaped}%')
             conditions.append(
                 exists().where(and_(Executor.agent_id == Agent.id, Executor.last_run == max_lr, name_cond))
             )

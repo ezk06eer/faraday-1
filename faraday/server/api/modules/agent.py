@@ -239,7 +239,7 @@ def _build_agent_conditions(custom_filters):
                 conditions.append(
                     exists().where(and_(
                         Executor.agent_id == Agent.id,
-                        Executor.name.ilike(f'%{tool_escaped}%', escape='\\'),
+                        Executor.name.ilike(f'%{tool_escaped}%'),
                     ))
                 )
 

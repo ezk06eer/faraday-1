@@ -32,8 +32,8 @@ from marshmallow import EXCLUDE, Schema, fields
 from marshmallow.validate import Length
 from marshmallow_sqlalchemy import ModelConverter
 from marshmallow_sqlalchemy.schema import SQLAlchemyAutoSchemaMeta, SQLAlchemyAutoSchemaOpts
-from sqlalchemy import and_, asc, desc, func, update as sqlalchemy_update
-from sqlalchemy.engine import ResultProxy
+from sqlalchemy import and_, asc, column, desc, func, update as sqlalchemy_update
+from sqlalchemy.engine import CursorResult, MappingResult, Result, ResultProxy
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import joinedload, undefer
@@ -47,6 +47,7 @@ from faraday.server.config import faraday_server
 from faraday.server.models import (
     Command,
     CommandObject,
+    User,
     Workspace,
     WorkspacePermission,
     db,
@@ -332,7 +333,7 @@ class GenericView(FlaskView):
             # username. Do a joinedload to prevent doing one query per object
             # (n+1) problem
             options.append(joinedload(
-                getattr(self.model_class, 'creator')).load_only('username'))
+                getattr(self.model_class, 'creator')).load_only(User.username))
         query = self._get_base_query(*args, **kwargs)
         options += [joinedload(relationship)
                     for relationship in self.get_joinedloads]
@@ -389,8 +390,10 @@ class GenericView(FlaskView):
         try:
             obj = query.filter(self._get_lookup_field().in_(object_ids)).all()
         except AttributeError:
-            # Handle the case where `query` is a ResultProxy, this comes from Workspace query_object_with_count
-            if isinstance(query, ResultProxy):
+            # Handle the case where `query` is a raw-SQL Result (e.g. Workspace.query_with_count
+            # returns a MappingResult from db.session.execute(text(...)).mappings()). Fall back to
+            # a normal ORM query on the model.
+            if isinstance(query, (ResultProxy, CursorResult, MappingResult, Result)):
                 res = db.session.query(self.model_class).filter(self.model_class.name.in_(object_ids)).all()
                 return res
             # If it's another AttributeError, re-raise
@@ -490,7 +493,9 @@ class GenericWorkspacedView(GenericView):
 
     def _get_base_query(self, workspace_name, **kwargs):
         base = super()._get_base_query()
-        return base.join(Workspace).filter(
+        return base.join(
+            Workspace, Workspace.id == self.model_class.workspace_id
+        ).filter(
             Workspace.id == get_workspace(workspace_name).id)
 
     def _get_object(self, object_id, workspace_name=None, eagerload=False, **kwargs):
@@ -784,7 +789,7 @@ class FilterWorkspacedMixin(ListMixin):
                 joinedload(self.model_class.hostnames),
                 joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),
-                joinedload(getattr(self.model_class, 'creator')).load_only('username'),
+                joinedload(getattr(self.model_class, 'creator')).load_only(User.username),
             )
         return filter_query
 
@@ -1854,11 +1859,11 @@ class CountWorkspacedMixin:
         # using format is not a great practice.
         # the user input is group_by, however it's filtered by column name.
         table_name = inspect(self.model_class).tables[0].name
-        group_by = f'{table_name}.{group_by}'
+        group_by = column(f'{table_name}.{group_by}', is_literal=True)
 
         query_count = self._filter_query(
             db.session.query(self.model_class).
-            join(Workspace).
+            join(Workspace, Workspace.id == self.model_class.workspace_id).
             group_by(group_by).
             filter(Workspace.name == workspace_name,
                    *self.count_extra_filters)
@@ -1870,7 +1875,7 @@ class CountWorkspacedMixin:
             query_count = query_count.order_by(desc(order_by))
         else:
             query_count = query_count.order_by(asc(order_by))
-        for key, query_count in query_count.values(group_by, func.count(group_by)):
+        for key, query_count in query_count.with_entities(group_by, func.count(group_by)).all():
             res['groups'].append(
                 {'count': query_count,
                  'name': key,
@@ -2139,9 +2144,12 @@ class ContextMixin(GenericView):
 
     @staticmethod
     def _get_context_workspace_ids(filter):
-        return db.session.query(Workspace.id)\
-            .join(WorkspacePermission, Workspace.id == WorkspacePermission.workspace_id, isouter=True)\
+        return [
+            row[0]
+            for row in db.session.query(Workspace.id)
+            .join(WorkspacePermission, Workspace.id == WorkspacePermission.workspace_id, isouter=True)
             .filter(filter).all()
+        ]
 
     @staticmethod
     def _get_context_workspace_filter():
@@ -2195,7 +2203,7 @@ class ContextMixin(GenericView):
         # using format is not a great practice.
         # the user input is group_by, however it's filtered by column name.
         table_name = inspect(self.model_class).tables[0].name
-        group_by = f'{table_name}.{group_by}'
+        group_by = column(f'{table_name}.{group_by}', is_literal=True)
 
         query_count = self._apply_filter_context(
             self._filter_query(
@@ -2210,7 +2218,7 @@ class ContextMixin(GenericView):
             query_count = query_count.order_by(desc(order_by))
         else:
             query_count = query_count.order_by(asc(order_by))
-        for key, query_count in query_count.values(group_by, func.count(group_by)):
+        for key, query_count in query_count.with_entities(group_by, func.count(group_by)).all():
             res['groups'].append(
                 {'count': query_count,
                  'name': key,

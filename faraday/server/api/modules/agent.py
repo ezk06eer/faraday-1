@@ -218,7 +218,10 @@ def _build_agent_conditions(custom_filters):
                 .correlate(Agent)
                 .as_scalar()
             )
-            conditions.append(OPERATORS[op](max_lr, dval))
+            if 'T' in val:
+                conditions.append(OPERATORS[op](max_lr, dval))
+            else:
+                conditions.append(OPERATORS[op](func.date(max_lr), dval.date()))
 
         elif name == 'tools':
             op_lower = op.lower()

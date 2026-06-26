@@ -171,6 +171,7 @@ rules_attributes = {
         {"name": "resolution", "display_name": "Resolution", "type": "string", "operators": string_operators},
         {"name": "create_date", "display_name": "Create Date", "type": "datetime", "operators": numeric_operators},
         {"name": "update_date", "display_name": "Update Date", "type": "datetime", "operators": numeric_operators},
+        {"name": "last_detected", "display_name": "Last Detected", "type": "datetime", "operators": numeric_operators},
         {"name": "ease_of_resolution", "display_name": "Ease of Resolution", "type": "string", "operators": equals_not_equals, "valid": ('trivial', 'simple', 'moderate', 'difficult', 'infeasible')},
         {"name": "severity", "display_name": "Severity", "type": "string", "operators": equals_not_equals, "valid": ('critical', 'high', 'medium', 'low', 'informational', 'unclassified')},
         {"name": "status", "display_name": "Status", "type": "string", "operators": equals_not_equals, "valid": ('open', 'closed', 're-opened', 'risk-accepted')},
@@ -665,9 +666,20 @@ class JobView(ReadWriteView):
     def import_wf(self):
         """
         ---
-        get:
+        post:
           tags: ["Job"]
           summary: "Import job from json"
+          requestBody:
+            required: true
+            content:
+              multipart/form-data:
+                schema:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                      format: binary
+                      description: "JSON file describing the job to import."
           responses:
             201:
               description: Ok

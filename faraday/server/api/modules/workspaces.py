@@ -287,6 +287,19 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
           ---
           tags: ["Workspace"]
           summary: "Get a list of workspaces."
+          parameters:
+          - in: query
+            name: histogram
+            description: "If 'true', include a per-day severity histogram for each workspace."
+            schema:
+              type: string
+              enum: ["true", "false"]
+          - in: query
+            name: histogram_days
+            description: "Number of days included in the histogram (only when histogram=true). Defaults to the server-configured default."
+            schema:
+              type: integer
+              minimum: 1
           responses:
             200:
               description: Ok
@@ -333,6 +346,8 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
             - in: query
               name: q
               description: recursive json with filters that supports operators. The json could also contain sort and group
+              schema:
+                type: string
 
             responses:
               200:
@@ -402,12 +417,13 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
         }
 
     def _add_to_filter(self, filter_query, **kwargs):
+        # populate_existing: SA 2.0 needs this for with_expression to override identity-map instances.
         filter_query = filter_query.options(
             with_expression(
                 Workspace.last_run_agent_date,
                 _last_run_agent_date(),
             ),
-        )
+        ).execution_options(populate_existing=True)
         return filter_query
 
     @staticmethod

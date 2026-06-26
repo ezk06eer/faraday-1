@@ -275,7 +275,7 @@ def _build_agent_conditions(custom_filters):
             ]
             if cats:
                 combined = or_(*cats)
-                if op_lower in ('is_not_one_of', 'not_in', 'nin'):
+                if op_lower in ('is_not_one_of', 'not_in', 'nin', 'ne', '!=', 'neq'):
                     conditions.append(~combined)
                 else:
                     conditions.append(combined)

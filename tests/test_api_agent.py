@@ -598,6 +598,56 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         assert session.query(Agent).filter(Agent.id == agent_id).count() == 0
         assert session.query(Executor).filter(Executor.id == executor_id).count() == 0
 
+    def _bulk_delete_q(self, *filters):
+        q = json.dumps({"filters": list(filters)})
+        return f'{self.url()}?q={urllib.parse.quote(q)}'
+
+    def test_bulk_delete_by_filter_status_online(self, test_client, session):
+        online_1 = AgentFactory.create(sid="session_a")
+        online_2 = AgentFactory.create(sid="session_b")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "status", "op": "eq", "val": "online"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id.in_([online_1.id, online_2.id])).count() == 0
+        assert session.query(Agent).filter(Agent.id == offline.id).count() == 1
+
+    def test_bulk_delete_by_filter_status_offline(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "status", "op": "eq", "val": "offline"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == offline.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == online.id).count() == 1
+
+    def test_bulk_delete_by_filter_tools(self, test_client, session):
+        agent_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_match, name="nmap")
+        agent_no_match = AgentFactory.create()
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "tools", "op": "eq", "val": "nmap"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == agent_match.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == agent_no_match.id).count() == 1
+
+    def test_bulk_delete_by_filter_blocked(self, test_client, session):
+        blocked = AgentFactory.create(active=False)
+        unblocked = AgentFactory.create(active=True)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "blocked", "op": "eq", "val": "true"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == blocked.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == unblocked.id).count() == 1
+
     def _filter_q(self, *filters):
         q = json.dumps({"filters": list(filters)})
         return f'/v3/agents/filter?q={urllib.parse.quote(q)}'

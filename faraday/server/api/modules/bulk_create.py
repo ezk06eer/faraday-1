@@ -23,11 +23,13 @@ from marshmallow import (
     utils,
     validates_schema,
 )
-from marshmallow.validate import Range
+from marshmallow.validate import OneOf, Range
 from sqlalchemy import (
+    Sequence,
     and_,
     case,
     func,
+    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import insert
@@ -201,6 +203,7 @@ class BulkCommandSchema(AutoSchema):
     I don't need that here, so I'll write a schema from scratch."""
 
     duration = fields.TimeDelta('microseconds', required=False)
+    import_source = fields.String(validate=OneOf(Command.IMPORT_SOURCE), allow_none=True)
 
     class Meta:
         model = Command
@@ -444,33 +447,29 @@ def insert_vulnerabilities(host_vulns_created, processed_data, workspace_id=None
         set_={
             "_tmp_id": stmt.excluded.id,
             "status": case(
-                [
-                    # If the incoming status is closed and existing is open/reopened, close it
-                    (and_(
-                        stmt.excluded.status == 'closed',
-                        Vulnerability.status.in_(['open', 're-opened'])
-                    ), 'closed'),
-                    # If incoming vuln exists and is open and the current status is closed, reopen it
-                    (and_(
-                        stmt.excluded.status.in_(['open', 're-opened']),
-                        Vulnerability.status == 'closed'
-                    ), 're-opened')
-                ],
+                # If the incoming status is closed and existing is open/reopened, close it
+                (and_(
+                    stmt.excluded.status == 'closed',
+                    Vulnerability.status.in_(['open', 're-opened'])
+                ), 'closed'),
+                # If incoming vuln exists and is open and the current status is closed, reopen it
+                (and_(
+                    stmt.excluded.status.in_(['open', 're-opened']),
+                    Vulnerability.status == 'closed'
+                ), 're-opened'),
                 # Keep existing status as default
                 else_=Vulnerability.status
             ),
             "last_detected": case(
-                [
-                    (and_(
-                        stmt.excluded.status.in_(['open', 're-opened']),
-                        Vulnerability.status == 'closed'
-                    ), datetime.utcnow())
-                ],
+                (and_(
+                    stmt.excluded.status.in_(['open', 're-opened']),
+                    Vulnerability.status == 'closed'
+                ), datetime.utcnow()),
                 else_=Vulnerability.last_detected
             ),
             "custom_fields": stmt.excluded.custom_fields
         }
-    ).returning(text('id'), text('_tmp_id'))
+    ).returning(Vulnerability.id, Vulnerability._tmp_id)
     result = db.session.execute(on_update_stmt)
     db.session.commit()
     total_result = manage_relationships(
@@ -498,13 +497,14 @@ def _create_or_update_histogram(histogram: dict = None) -> None:
         logger.error("Workspace with None value. Histogram could not be updated")
         return
     stmt = insert(SeveritiesHistogram).values(histogram)
+    sh = SeveritiesHistogram.__table__
     on_update_stmt = stmt.on_conflict_do_update(
-        index_elements=[text('date'), text('workspace_id')],
+        index_elements=[sh.c.date, sh.c.workspace_id],
         set_={
-            "critical": text("severities_histogram.critical") + stmt.excluded.critical,
-            "high": text("severities_histogram.high") + stmt.excluded.high,
-            "medium": text("severities_histogram.medium") + stmt.excluded.medium,
-            "confirmed": text("severities_histogram.confirmed") + stmt.excluded.confirmed
+            "critical": sh.c.critical + stmt.excluded.critical,
+            "high": sh.c.high + stmt.excluded.high,
+            "medium": sh.c.medium + stmt.excluded.medium,
+            "confirmed": sh.c.confirmed + stmt.excluded.confirmed,
         }
     )
     db.session.execute(on_update_stmt)
@@ -536,8 +536,8 @@ def manage_relationships(processed_data, result, workspace_id=None):
             logger.debug(f"Data On conflict {data}")
             if data['references']:
                 for reference in data['references']:
-                    reference_sequence_id = db.session.execute(
-                        "SELECT nextval('vulnerability_reference_id_seq');").scalar()
+                    reference_sequence_id = db.session.scalar(
+                        select(Sequence('vulnerability_reference_id_seq').next_value()))
                     logger.debug(f"Found reference {reference} for vulnerability {v_id}")
                     reference['id'] = reference_sequence_id
                     reference['vulnerability_id'] = v_id
@@ -565,15 +565,15 @@ def manage_relationships(processed_data, result, workspace_id=None):
             logger.debug(f"Processing references for {v_id}")
             if data['references']:
                 for reference in data['references']:
-                    reference_sequence_id = db.session.execute(
-                        "SELECT nextval('vulnerability_reference_id_seq');").scalar()
+                    reference_sequence_id = db.session.scalar(
+                        select(Sequence('vulnerability_reference_id_seq').next_value()))
                     logger.debug(f"Found reference {reference} for vulnerability {r[0]}")
                     reference['id'] = reference_sequence_id
                     references_created.append(reference)
             logger.debug(f"Processing command for {v_id}")
             if data['command']:
-                command_object_sequence_id = db.session.execute(
-                    "SELECT nextval('command_object_id_seq');").scalar()
+                command_object_sequence_id = db.session.scalar(
+                    select(Sequence('command_object_id_seq').next_value()))
                 data['command']['id'] = command_object_sequence_id
                 command_objects_created.append(data['command'])
             for owasp_object in data['owasp_objects']:
@@ -773,7 +773,7 @@ def _create_vuln(ws, vuln_data, command: dict, **kwargs):
             vuln_data['tool'] = 'Web UI'
 
     try:
-        vuln_data['id'] = db.session.execute("SELECT nextval('vulnerability_id_seq');").scalar()
+        vuln_data['id'] = db.session.scalar(select(Sequence('vulnerability_id_seq').next_value()))
         logger.debug(f"Vulnerability seq id {vuln_data['id']}")
     except Exception as e:
         logger.error("Could not get vulnerability sequence.", exc_info=e)
@@ -1162,17 +1162,17 @@ class BulkCreateView(GenericWorkspacedView):
                 application/json:
                     schema: BulkCreateSchema
           responses:
-            201:tags:
+            201:
               description: Created
               content:
                 application/json:
                   schema: BulkCreateSchema
             401:
-               $ref: "#/components/responses/UnauthorizedError"
+              $ref: "#/components/responses/UnauthorizedError"
             403:
-               description: Disabled workspace
+              description: Disabled workspace
             404:
-               description: Workspace not found
+              description: Workspace not found
         """
         agent = None
 

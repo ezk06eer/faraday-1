@@ -542,7 +542,7 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
 
         return jsonify({"message": "Parameters saved successfully"}), 200
 
-    def _filter(self, filters, extra_alchemy_filters=None, **kwargs):
+    def _translate_filters(self, filters):
         try:
             raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})
         except (ValueError, TypeError):
@@ -582,14 +582,17 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
             else:
                 standard.append(f)
         conditions = _build_agent_conditions(sql_custom)
-        if conditions:
-            new_extra = and_(*conditions)
-            if extra_alchemy_filters is not None:
-                new_extra = and_(extra_alchemy_filters, new_extra)
-        else:
-            new_extra = extra_alchemy_filters
+        extra = and_(*conditions) if conditions else None
         raw['filters'] = standard
-        return super()._filter(json.dumps(raw), extra_alchemy_filters=new_extra, **kwargs)
+        return json.dumps(raw), extra
+
+    def _filter(self, filters, extra_alchemy_filters=None, **kwargs):
+        translated, extra = self._translate_filters(filters)
+        if extra is not None and extra_alchemy_filters is not None:
+            extra = and_(extra_alchemy_filters, extra)
+        elif extra_alchemy_filters is not None:
+            extra = extra_alchemy_filters
+        return super()._filter(translated, extra_alchemy_filters=extra, **kwargs)
 
     @route('/filter')
     def filter(self, **kwargs):

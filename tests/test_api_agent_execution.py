@@ -126,3 +126,33 @@ class TestAgentExecutionFilter:
         assert ex_c.id in ids
         assert ex_a.id not in ids
         assert ex_b.id not in ids
+
+    def _bulk_delete_url(self, *filters):
+        q = json.dumps({"filters": list(filters)})
+        return f'/v3/agent_executions?q={urllib.parse.quote(q)}'
+
+    def test_bulk_delete_by_filter_name(self, test_client, session):
+        ex_match = self._make_execution(session, agent_name="target_agent")
+        ex_no_match = self._make_execution(session, agent_name="other_agent")
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_url({"name": "name", "op": "eq", "val": "target_agent"}))
+
+        assert res.status_code == 200
+        assert AgentExecution.query.filter_by(id=ex_match.id).count() == 0
+        assert AgentExecution.query.filter_by(id=ex_no_match.id).count() == 1
+
+    def test_bulk_delete_by_filter_workspaces(self, test_client, session):
+        ws_target = factories.WorkspaceFactory.create(name="ae_target_ws")
+        ws_other = factories.WorkspaceFactory.create(name="ae_other_ws")
+        ex_match = self._make_execution(session, workspace=ws_target)
+        ex_no_match = self._make_execution(session, workspace=ws_other)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_url({
+            "name": "workspaces", "op": "is_one_of", "val": ["ae_target_ws"]
+        }))
+
+        assert res.status_code == 200
+        assert AgentExecution.query.filter_by(id=ex_match.id).count() == 0
+        assert AgentExecution.query.filter_by(id=ex_no_match.id).count() == 1

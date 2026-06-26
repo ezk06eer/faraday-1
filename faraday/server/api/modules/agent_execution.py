@@ -55,7 +55,7 @@ class AgentExecutionView(BulkDeleteMixin, PaginatedMixin, ReadOnlyView, FilterMi
     schema_class = AgentExecutionSchema
     order_field = AgentExecution.id.desc()
 
-    def _filter(self, filters, extra_alchemy_filters=None, **kwargs):
+    def _translate_filters(self, filters):
         """
         Groups AgentExecutions by run_uuid, returning only one representative row per group.
 
@@ -120,12 +120,15 @@ class AgentExecutionView(BulkDeleteMixin, PaginatedMixin, ReadOnlyView, FilterMi
             .subquery()
         )
 
-        new_extra = and_(AgentExecution.id.in_(subquery), *custom_conditions)
-        if extra_alchemy_filters is not None:
-            new_extra = and_(extra_alchemy_filters, new_extra)
-
+        extra = and_(AgentExecution.id.in_(subquery), *custom_conditions)
         raw['filters'] = standard
-        return super()._filter(json.dumps(raw), extra_alchemy_filters=new_extra, **kwargs)
+        return json.dumps(raw), extra
+
+    def _filter(self, filters, extra_alchemy_filters=None, *args, **kwargs):
+        translated, extra = self._translate_filters(filters)
+        if extra_alchemy_filters is not None:
+            extra = and_(extra_alchemy_filters, extra)
+        return super()._filter(translated, extra_alchemy_filters=extra, **kwargs)
 
     def _paginate(self, query, hard_limit=0):
         # TODO: Duplicated code. Fix.

@@ -118,6 +118,7 @@ OBJECT_TYPES = [
     'task',
     'report_logo',
     'report_template',
+    'template_logo',
 ]
 
 REFERENCE_TYPES = [

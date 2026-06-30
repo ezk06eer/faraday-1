@@ -29,7 +29,6 @@ import pyotp
 import requests
 from depot.manager import DepotManager
 from flask import Flask, session, g, request
-from flask.json import JSONEncoder
 from flask_kvsession import KVSessionExtension
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -42,11 +41,13 @@ from flask_security.utils import (
     verify_and_update_password,
     verify_hash,
 )
-from flask_sqlalchemy import get_debug_queries
+from flask_sqlalchemy.record_queries import get_recorded_queries as get_debug_queries
 from simplekv.decorator import PrefixDecorator
 from simplekv.fs import FilesystemStore
+from sqlalchemy.orm import Query as _SAQuery
 from sqlalchemy.pool import QueuePool
-from wtforms import ValidationError
+from wtforms import StringField, ValidationError
+from wtforms.validators import DataRequired
 
 # Local application imports
 import faraday.server.config
@@ -77,6 +78,24 @@ from faraday.server.debouncer import Debouncer
 
 # Don't move this import from here
 from nplusone.ext.flask_sqlalchemy import NPlusOne
+
+
+def _patch_nplusone_for_sqlalchemy_14():
+    """Restore Query._offset / _limit attributes that nplusone reads;
+    SQLAlchemy 1.4 replaced them with _offset_clause / _limit_clause."""
+    if not hasattr(_SAQuery, "_offset"):
+        def _offset(self):
+            clause = getattr(self, "_offset_clause", None)
+            return clause.value if clause is not None else None
+
+        def _limit(self):
+            clause = getattr(self, "_limit_clause", None)
+            return clause.value if clause is not None else None
+        _SAQuery._offset = property(_offset)
+        _SAQuery._limit = property(_limit)
+
+
+_patch_nplusone_for_sqlalchemy_14()
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +241,8 @@ def register_handlers(app):
             return None  # valid token, but expired
         except jwt.InvalidSignatureError:
             return None  # invalid token
+        except jwt.InvalidTokenError:
+            return None  # malformed / otherwise undecodable token
 
     @app.login_manager.request_loader
     def load_user_from_request(request):
@@ -559,8 +580,10 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         logger.info('Missing connection_string on [database] section on server.ini. '
                     'Please configure the database before running the server.')
 
-    from faraday.server.models import db  # pylint:disable=import-outside-toplevel
+    from faraday.server.models import db, register_sqlite_isolation_events  # pylint:disable=import-outside-toplevel
     db.init_app(app)
+    with app.app_context():
+        register_sqlite_isolation_events(db.engine)
     # Session(app)
 
     # Setup Flask-Security
@@ -664,11 +687,8 @@ def register_extensions(app):
 
 
 def minify_json_output(app):
-    class MiniJSONEncoder(JSONEncoder):
-        item_separator = ','
-        key_separator = ':'
-
-    app.json_encoder = MiniJSONEncoder
+    # Flask 2.3+: configure the JSONProvider instead of subclassing JSONEncoder.
+    app.json.compact = True
     app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 
@@ -680,14 +700,17 @@ class CustomLoginForm(LoginForm):
     so it is possible for an attacker to enumerate usernames
     """
 
-    def validate(self):
+    # Override parent EmailField — Faraday logs in by username, not email.
+    email = StringField('Email', validators=[DataRequired()])
+
+    def validate(self, extra_validators=None):
 
         user_ip = request_user_ip()
         time_now = datetime.datetime.utcnow()
 
         # Use super of LoginForm, not super of CustomLoginForm, since I
         # want to skip the LoginForm validate logic
-        if not super(LoginForm, self).validate():
+        if not super(LoginForm, self).validate(extra_validators=extra_validators):
             audit_logger.warning(f"Invalid Login - User [{self.email.data}] from IP [{user_ip}] at [{time_now}]")
             logger.warning(f"Invalid Login - User [{self.email.data}] from IP [{user_ip}] at [{time_now}]")
             return False

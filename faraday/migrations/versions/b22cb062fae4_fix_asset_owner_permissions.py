@@ -1,7 +1,7 @@
 """fix asset owner permissions
 
 Revision ID: b22cb062fae4
-Revises: b3e7f1a2c904
+Revises: 5f70ccd6cfb9
 Create Date: 2026-06-23 19:44:41.732691+00:00
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = 'b22cb062fae4'
-down_revision = 'b3e7f1a2c904'
+down_revision = '5f70ccd6cfb9'
 branch_labels = None
 depends_on = None
 

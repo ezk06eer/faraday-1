@@ -4,6 +4,9 @@ Copyright (C) 2019  Infobyte LLC (http://www.infobytesec.com/)
 See the file 'doc/LICENSE' for the license information
 """
 
+import json
+import urllib.parse
+from datetime import datetime, timedelta
 from unittest import mock
 
 from posixpath import join
@@ -594,3 +597,322 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         assert response.json['deleted'] == 1
         assert session.query(Agent).filter(Agent.id == agent_id).count() == 0
         assert session.query(Executor).filter(Executor.id == executor_id).count() == 0
+
+    def _bulk_delete_q(self, *filters):
+        q = json.dumps({"filters": list(filters)})
+        return f'{self.url()}?q={urllib.parse.quote(q)}'
+
+    def test_bulk_delete_by_filter_status_online(self, test_client, session):
+        online_1 = AgentFactory.create(sid="session_a")
+        online_2 = AgentFactory.create(sid="session_b")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "status", "op": "eq", "val": "online"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id.in_([online_1.id, online_2.id])).count() == 0
+        assert session.query(Agent).filter(Agent.id == offline.id).count() == 1
+
+    def test_bulk_delete_by_filter_status_offline(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "status", "op": "eq", "val": "offline"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == offline.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == online.id).count() == 1
+
+    def test_bulk_delete_by_filter_tools(self, test_client, session):
+        agent_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_match, name="nmap")
+        agent_no_match = AgentFactory.create()
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "tools", "op": "eq", "val": "nmap"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == agent_match.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == agent_no_match.id).count() == 1
+
+    def test_bulk_delete_by_filter_blocked(self, test_client, session):
+        blocked = AgentFactory.create(active=False)
+        unblocked = AgentFactory.create(active=True)
+        session.commit()
+
+        res = test_client.delete(self._bulk_delete_q({"name": "blocked", "op": "eq", "val": "true"}))
+
+        assert res.status_code == 200
+        assert session.query(Agent).filter(Agent.id == blocked.id).count() == 0
+        assert session.query(Agent).filter(Agent.id == unblocked.id).count() == 1
+
+    def _filter_q(self, *filters):
+        q = json.dumps({"filters": list(filters)})
+        return f'/v3/agents/filter?q={urllib.parse.quote(q)}'
+
+    def test_filter_by_status_online(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "status", "op": "eq", "val": "online"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert online.id in ids
+        assert offline.id not in ids
+
+    def test_filter_by_status_offline(self, test_client, session):
+        online = AgentFactory.create(sid="active_session")
+        offline = AgentFactory.create(sid=None)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "status", "op": "eq", "val": "offline"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert offline.id in ids
+        assert online.id not in ids
+
+    def test_filter_by_tools_eq(self, test_client, session):
+        agent_with = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_with, name="nmap")
+        agent_without = AgentFactory.create()
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "eq", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_with.id in ids
+        assert agent_without.id not in ids
+
+    def test_filter_by_tools_ne(self, test_client, session):
+        agent_nmap = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_nmap, name="nmap")
+        agent_burp = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_burp, name="burp")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "ne", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_burp.id in ids
+        assert agent_nmap.id not in ids
+
+    def test_filter_by_tools_contains(self, test_client, session):
+        agent_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_match, name="nmap_scanner")
+        agent_no_match = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_no_match, name="burp")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "like", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_match.id in ids
+        assert agent_no_match.id not in ids
+
+    def test_filter_by_last_execution_date_le(self, test_client, session):
+        now = datetime.utcnow()
+        agent_old = AgentFactory.create()
+        ex_old = ExecutorFactory.create(agent=agent_old)
+        ex_old.last_run = now - timedelta(days=10)
+
+        agent_new = AgentFactory.create()
+        ex_new = ExecutorFactory.create(agent=agent_new)
+        ex_new.last_run = now - timedelta(days=1)
+        session.commit()
+
+        cutoff = (now - timedelta(days=5)).isoformat()
+        res = test_client.get(self._filter_q({"name": "last_execution_date", "op": "le", "val": cutoff}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_old.id in ids
+        assert agent_new.id not in ids
+
+    def test_filter_by_last_execution_tool(self, test_client, session):
+        now = datetime.utcnow()
+        agent = AgentFactory.create()
+        ex_first = ExecutorFactory.create(agent=agent, name="nmap")
+        ex_first.last_run = now - timedelta(hours=2)
+        ex_last = ExecutorFactory.create(agent=agent, name="burp")
+        ex_last.last_run = now - timedelta(hours=1)
+
+        agent_other = AgentFactory.create()
+        ex_nmap = ExecutorFactory.create(agent=agent_other, name="nmap")
+        ex_nmap.last_run = now - timedelta(hours=1)
+        session.commit()
+
+        # "burp" ran last on agent; only agent should match
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "eq", "val": "burp"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent.id in ids
+        assert agent_other.id not in ids
+
+    def test_filter_by_last_execution_tool_contains(self, test_client, session):
+        now = datetime.utcnow()
+        agent = AgentFactory.create()
+        ex_first = ExecutorFactory.create(agent=agent, name="nmap_scanner")
+        ex_first.last_run = now - timedelta(hours=2)
+        ex_last = ExecutorFactory.create(agent=agent, name="burp_suite")
+        ex_last.last_run = now - timedelta(hours=1)
+
+        agent_other = AgentFactory.create()
+        ex_nmap = ExecutorFactory.create(agent=agent_other, name="nmap_scanner")
+        ex_nmap.last_run = now - timedelta(hours=1)
+        session.commit()
+
+        # "burp" ran last on agent; contains "burp" should match only agent
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "contains", "val": "burp"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent.id in ids
+        assert agent_other.id not in ids
+
+        # "nmap" ran last on agent_other; contains "nmap" should match only agent_other
+        res = test_client.get(self._filter_q({"name": "last_execution_tool", "op": "contains", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_other.id in ids
+        assert agent.id not in ids
+
+    def test_filter_by_category_eq(self, test_client, session):
+        agent_web = AgentFactory.create()
+        ex_web = ExecutorFactory.create(agent=agent_web)
+        ex_web.category = ["web", "network"]
+
+        agent_mobile = AgentFactory.create()
+        ex_mobile = ExecutorFactory.create(agent=agent_mobile)
+        ex_mobile.category = ["mobile"]
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "category", "op": "eq", "val": "web"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_web.id in ids
+        assert agent_mobile.id not in ids
+
+    def test_filter_by_category_is_not_one_of(self, test_client, session):
+        agent_web = AgentFactory.create()
+        ex_web = ExecutorFactory.create(agent=agent_web)
+        ex_web.category = ["web"]
+
+        agent_network = AgentFactory.create()
+        ex_network = ExecutorFactory.create(agent=agent_network)
+        ex_network.category = ["network"]
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "category", "op": "is_not_one_of", "val": "web"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_network.id in ids
+        assert agent_web.id not in ids
+
+    def test_filter_by_blocked_true(self, test_client, session):
+        active = AgentFactory.create(active=True)
+        blocked = AgentFactory.create(active=False)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "blocked", "op": "eq", "val": "true"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert blocked.id in ids
+        assert active.id not in ids
+
+    def test_filter_by_blocked_false(self, test_client, session):
+        active = AgentFactory.create(active=True)
+        blocked = AgentFactory.create(active=False)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "blocked", "op": "eq", "val": "false"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert active.id in ids
+        assert blocked.id not in ids
+
+    def test_filter_by_blocked_ne(self, test_client, session):
+        active = AgentFactory.create(active=True)
+        blocked = AgentFactory.create(active=False)
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "blocked", "op": "ne", "val": "true"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert active.id in ids
+        assert blocked.id not in ids
+
+    def test_filter_by_name_contains(self, test_client, session):
+        agent_match = AgentFactory.create(name="nmap_agent")
+        agent_no_match = AgentFactory.create(name="burp_agent")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "name", "op": "contains", "val": "nmap"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_match.id in ids
+        assert agent_no_match.id not in ids
+
+    def test_filter_by_description_contains(self, test_client, session):
+        agent_match = AgentFactory.create(description="scans open ports")
+        agent_no_match = AgentFactory.create(description="web vulnerability scanner")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "description", "op": "contains", "val": "open ports"}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_match.id in ids
+        assert agent_no_match.id not in ids
+
+    def test_filter_by_tools_is_one_of(self, test_client, session):
+        agent_nmap = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_nmap, tool="nmap")
+        agent_burp = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_burp, tool="burp")
+        agent_other = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_other, tool="zap")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "is_one_of", "val": ["nmap", "burp"]}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_nmap.id in ids
+        assert agent_burp.id in ids
+        assert agent_other.id not in ids
+
+    def test_filter_by_tools_is_not_one_of(self, test_client, session):
+        agent_nmap = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_nmap, tool="nmap")
+        agent_burp = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_burp, tool="burp")
+        agent_other = AgentFactory.create()
+        ExecutorFactory.create(agent=agent_other, tool="zap")
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "tools", "op": "is_not_one_of", "val": ["nmap", "burp"]}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_other.id in ids
+        assert agent_nmap.id not in ids
+        assert agent_burp.id not in ids
+
+    def test_filter_by_category_is_one_of(self, test_client, session):
+        agent_web = AgentFactory.create()
+        ex_web = ExecutorFactory.create(agent=agent_web)
+        ex_web.category = ["web"]
+
+        agent_network = AgentFactory.create()
+        ex_network = ExecutorFactory.create(agent=agent_network)
+        ex_network.category = ["network"]
+
+        agent_mobile = AgentFactory.create()
+        ex_mobile = ExecutorFactory.create(agent=agent_mobile)
+        ex_mobile.category = ["mobile"]
+        session.commit()
+
+        res = test_client.get(self._filter_q({"name": "category", "op": "is_one_of", "val": ["web", "network"]}))
+        assert res.status_code == 200
+        ids = {r['id'] for r in res.json['rows']}
+        assert agent_web.id in ids
+        assert agent_network.id in ids
+        assert agent_mobile.id not in ids

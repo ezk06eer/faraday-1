@@ -6,6 +6,7 @@ Create Date: 2026-06-23 19:44:41.732691+00:00
 
 """
 from alembic import op
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -16,24 +17,31 @@ depends_on = None
 
 
 def upgrade():
-    result = op.get_bind().execute(
-        "SELECT id FROM faraday_role WHERE name = 'asset_owner';"
-    )
-    role_id = result.scalar()
+    bind = op.get_bind()
 
-    result = op.get_bind().execute(
-        "SELECT id FROM permissions_unit WHERE name = 'web_help_desk';"
-    )
-    whd_unit_id = result.scalar()
+    role_id = bind.execute(
+        sa.text("SELECT id FROM faraday_role WHERE name = 'asset_owner'")
+    ).scalar()
+
+    whd_unit_id = bind.execute(
+        sa.text("SELECT id FROM permissions_unit WHERE name = 'web_help_desk'")
+    ).scalar()
 
     if whd_unit_id:
-        result = op.get_bind().execute(
-            f"SELECT id FROM permissions_unit_action WHERE action_type = 'update' AND permissions_unit_id = {whd_unit_id};"  # nosec B608
-        )
-        unit_action_id = result.scalar()
+        unit_action_id = bind.execute(
+            sa.text(
+                "SELECT id FROM permissions_unit_action"
+                " WHERE action_type = 'update' AND permissions_unit_id = :uid"
+            ),
+            {"uid": whd_unit_id},
+        ).scalar()
 
-        op.execute(
-            f"UPDATE role_permission SET allowed = false WHERE unit_action_id = {unit_action_id} AND role_id = {role_id};"  # nosec B608
+        bind.execute(
+            sa.text(
+                "UPDATE role_permission SET allowed = false"
+                " WHERE unit_action_id = :uaid AND role_id = :rid"
+            ),
+            {"uaid": unit_action_id, "rid": role_id},
         )
 
 

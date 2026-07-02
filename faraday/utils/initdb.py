@@ -93,7 +93,9 @@ def _exec_initdb(_exec):
             "(1, 'admin', 10, false, 'Full control over Faraday including user management, workspaces, vulnerabilities, reports, automation and system settings.'), "
             "(2, 'asset_owner', 20, false, 'Can access assigned workspaces, review vulnerabilities, update their status, and add comments & tags.'), "
             "(3, 'pentester', 30, false, 'Can access assigned workspaces, create/edit vulnerabilities, execute agents, and generate executive reports.'), "
-            "(4, 'client', 40, false, 'Read-only access to permitted workspaces; cannot make any modifications.');"
+            "(4, 'client', 40, false, 'Read-only access to permitted workspaces; cannot make any modifications.'), "
+            "(5, 'workspace_admin', 15, false, 'Full control over assigned workspaces, including their creation and deletion; "
+            "cannot manage users or instance settings.');"
         )
 
         # Insert rows into the 'permissions_group' table
@@ -354,6 +356,26 @@ def _exec_initdb(_exec):
 
         _exec(
             "SELECT setval('role_permission_id_seq', (SELECT MAX(id) FROM role_permission));"
+        )
+
+        # Insert rows into the 'role_permission' table for the WORKSPACE ADMIN role.
+        # Same default profile as the other roles plus CREATE/DELETE on workspaces,
+        # resolving unit/action ids by name. Runs after the setval above so generated
+        # ids don't collide with the explicit ones.
+        _exec(
+            f"INSERT INTO role_permission (unit_action_id, role_id, allowed) "  # nosec B608
+            f"SELECT pua.id, 5, "  # nosec B608
+            f"CASE "  # nosec B608
+            f"WHEN pg.name = '{GROUP_ALL}' THEN true "  # nosec B608
+            f"WHEN pu.name = '{UNIT_WORKSPACES}' AND pua.action_type IN ('{CREATE}', '{READ}', '{UPDATE}', '{DELETE}') THEN true "  # nosec B608
+            f"WHEN pu.name IN ('{UNIT_ADMIN}', '{UNIT_USERS}') AND pua.action_type IN ('{READ}', '{UPDATE}') THEN true "  # nosec B608
+            f"WHEN pu.name = '{UNIT_BASE}' AND pua.action_type = '{READ}' THEN true "  # nosec B608
+            f"ELSE false "  # nosec B608
+            f"END "  # nosec B608
+            f"FROM permissions_unit_action pua "  # nosec B608
+            f"JOIN permissions_unit pu ON pua.permissions_unit_id = pu.id "  # nosec B608
+            f"JOIN permissions_group pg ON pu.permissions_group_id = pg.id "  # nosec B608
+            f"WHERE pg.name IN ('{GROUP_ADMIN}', '{GROUP_ALL}');"  # nosec B608
         )
 
         _exec(

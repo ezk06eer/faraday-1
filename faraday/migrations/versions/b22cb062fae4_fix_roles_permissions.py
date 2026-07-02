@@ -44,6 +44,24 @@ def upgrade():
             {"uaid": unit_action_id, "rid": role_id},
         )
 
+    ws_update_id = bind.execute(
+        sa.text("""
+            SELECT pua.id
+            FROM permissions_unit_action pua
+            JOIN permissions_unit pu ON pu.id = pua.permissions_unit_id
+            WHERE pu.name = 'workspaces' AND pua.action_type = 'update'
+        """)
+    ).scalar()
+    if ws_update_id:
+        bind.execute(
+            sa.text(
+                "UPDATE role_permission SET allowed = false "
+                "WHERE unit_action_id = :uid "
+                "AND role_id != (SELECT id FROM faraday_role WHERE name = 'admin')"
+            ),
+            {"uid": ws_update_id},
+        )
+
 
 def downgrade():
     pass

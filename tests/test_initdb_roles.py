@@ -1,16 +1,21 @@
-"""Tests for the default roles seeded by initdb."""
+"""Tests for the default roles seeded by initdb, focused on workspace_admin.
+
+workspace_admin mirrors the pentester role over every permission unit (so it has
+full access to workspace contents: vulnerabilities, hosts, services, comments,
+credentials, agents, reports, ...), plus full CRUD on UNIT_WORKSPACES so it can
+create/delete/edit/activate/lock/group workspaces. The generic per-assignee check
+scopes all of that to the workspaces where the user is an allowed_user.
+"""
 
 import pytest
 from sqlalchemy import text
 
 from faraday.server.models import PermissionsUnitAction, User
 from faraday.server.utils.permissions import (
-    UNIT_ADMIN,
-    UNIT_BASE,
-    UNIT_PREFERENCES,
-    UNIT_ROLES,
+    UNIT_COMMENTS,
+    UNIT_HOSTS,
+    UNIT_SERVICES,
     UNIT_SETTINGS,
-    UNIT_TOKENS,
     UNIT_USERS,
     UNIT_VULNERABILITIES,
     UNIT_WORKSPACES,
@@ -21,9 +26,10 @@ CREATE = PermissionsUnitAction.CREATE_ACTION
 READ = PermissionsUnitAction.READ_ACTION
 UPDATE = PermissionsUnitAction.UPDATE_ACTION
 DELETE = PermissionsUnitAction.DELETE_ACTION
-TAG = PermissionsUnitAction.TAG_ACTION
 
 CRUD = [CREATE, READ, UPDATE, DELETE]
+# workspace contents workspace_admin must be able to fully manage (pentester-level)
+CONTENT_UNITS = [UNIT_VULNERABILITIES, UNIT_HOSTS, UNIT_SERVICES, UNIT_COMMENTS]
 
 
 def _allowed(session, role_name, unit_name, action):
@@ -69,10 +75,17 @@ class TestInitdbWorkspaceAdmin:
         ).scalars().all()
         assert set(names) == set(User.ROLES)
 
-    def test_full_workspace_permissions(self, session):
+    def test_can_create_and_delete_workspaces(self, session):
+        # workspaces is elevated above pentester (which lacks create/update/delete)
         for action in CRUD:
             assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_WORKSPACES, action) is True
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_WORKSPACES, TAG) is False
+
+    def test_has_workspace_content_access(self, session):
+        # The regression this guards: workspace_admin previously had NO rows for these
+        # units and was denied (403) on vulns/hosts/services inside its own workspaces.
+        for unit in CONTENT_UNITS:
+            for action in CRUD:
+                assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, unit, action) is True, (unit, action)
 
     def test_cannot_manage_users(self, session):
         assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_USERS, READ) is True
@@ -84,19 +97,23 @@ class TestInitdbWorkspaceAdmin:
         for action in CRUD:
             assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_SETTINGS, action) is False
 
-    def test_default_admin_group_profile(self, session):
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_ADMIN, READ) is True
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_ADMIN, UPDATE) is True
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_ADMIN, CREATE) is False
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_ADMIN, DELETE) is False
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_BASE, READ) is True
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_BASE, CREATE) is False
-        for action in CRUD:
-            assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_ROLES, action) is False
-
-    def test_group_all_allowed(self, session):
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_PREFERENCES, READ) is True
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_TOKENS, READ) is True
-
-    def test_no_rows_outside_admin_and_all_groups(self, session):
-        assert _allowed(session, User.WORKSPACE_ADMIN_ROLE, UNIT_VULNERABILITIES, READ) is None
+    def test_mirrors_pentester_except_workspaces(self, session):
+        rows = session.execute(text(
+            "SELECT pu.name AS unit, pua.action_type AS action, "
+            "wsa.allowed AS wsa_allowed, pent.allowed AS pent_allowed "
+            "FROM permissions_unit_action pua "
+            "JOIN permissions_unit pu ON pua.permissions_unit_id = pu.id "
+            "LEFT JOIN role_permission wsa ON wsa.unit_action_id = pua.id "
+            "  AND wsa.role_id = (SELECT id FROM faraday_role WHERE name = 'workspace_admin') "
+            "LEFT JOIN role_permission pent ON pent.unit_action_id = pua.id "
+            "  AND pent.role_id = (SELECT id FROM faraday_role WHERE name = 'pentester')"
+        )).fetchall()
+        assert rows
+        for r in rows:
+            # workspace_admin has a row for every unit_action (complete profile)
+            assert r.wsa_allowed is not None, ('missing row', r.unit, r.action)
+            if r.unit == UNIT_WORKSPACES:
+                assert r.wsa_allowed is True, (r.unit, r.action)
+            else:
+                expected = r.pent_allowed if r.pent_allowed is not None else False
+                assert r.wsa_allowed == expected, (r.unit, r.action, r.wsa_allowed, expected)

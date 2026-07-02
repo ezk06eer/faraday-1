@@ -7,15 +7,8 @@ Create Date: 2026-07-02 00:00:00.000000+00:00
 """
 from alembic import op
 
-from faraday.server.models import PermissionsUnitAction, User
-from faraday.server.utils.permissions import (
-    GROUP_ADMIN,
-    GROUP_ALL,
-    UNIT_ADMIN,
-    UNIT_BASE,
-    UNIT_USERS,
-    UNIT_WORKSPACES,
-)
+from faraday.server.models import User
+from faraday.server.utils.permissions import UNIT_WORKSPACES
 
 # revision identifiers, used by Alembic.
 revision = 'c81b3d92f4a7'
@@ -24,15 +17,11 @@ branch_labels = None
 depends_on = None
 
 WORKSPACE_ADMIN_ROLE = User.WORKSPACE_ADMIN_ROLE
+PENTESTER_ROLE = User.PENTESTER_ROLE
 DESCRIPTION = (
     'Full control over assigned workspaces, including their creation and deletion; '
     'cannot manage users or instance settings.'
 )
-
-CREATE = PermissionsUnitAction.CREATE_ACTION
-READ = PermissionsUnitAction.READ_ACTION
-UPDATE = PermissionsUnitAction.UPDATE_ACTION
-DELETE = PermissionsUnitAction.DELETE_ACTION
 
 
 def upgrade():
@@ -40,23 +29,26 @@ def upgrade():
         f"INSERT INTO faraday_role (name, weight, custom, description) "
         f"VALUES ('{WORKSPACE_ADMIN_ROLE}', 15, false, '{DESCRIPTION}')"
     )
-    # Same default profile as the other roles plus CREATE/DELETE on workspaces.
-    # Units and actions are resolved by name since their ids vary between environments.
+    # workspace_admin mirrors the pentester role over every permission unit (so it has
+    # full access to workspace contents: vulnerabilities, hosts, services, comments,
+    # credentials, agents, reports, ...), and additionally gets full CRUD on
+    # UNIT_WORKSPACES so it can create/delete/edit/activate/lock/group workspaces.
+    # The generic per-assignee check (enforce_workspace_permission_check) keeps all of
+    # this scoped to the workspaces where the user is an allowed_user. pentester already
+    # withholds user management and instance settings, so those stay denied.
     op.execute(
-        f"INSERT INTO role_permission (unit_action_id, role_id, allowed) "
-        f"SELECT pua.id, "
-        f"(SELECT id FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}'), "
-        f"CASE "
-        f"WHEN pg.name = '{GROUP_ALL}' THEN true "
-        f"WHEN pu.name = '{UNIT_WORKSPACES}' AND pua.action_type IN ('{CREATE}', '{READ}', '{UPDATE}', '{DELETE}') THEN true "
-        f"WHEN pu.name IN ('{UNIT_ADMIN}', '{UNIT_USERS}') AND pua.action_type IN ('{READ}', '{UPDATE}') THEN true "
-        f"WHEN pu.name = '{UNIT_BASE}' AND pua.action_type = '{READ}' THEN true "
-        f"ELSE false "
-        f"END "
-        f"FROM permissions_unit_action pua "
-        f"JOIN permissions_unit pu ON pua.permissions_unit_id = pu.id "
-        f"JOIN permissions_group pg ON pu.permissions_group_id = pg.id "
-        f"WHERE pg.name IN ('{GROUP_ADMIN}', '{GROUP_ALL}')"
+        f"INSERT INTO role_permission (unit_action_id, role_id, allowed) "  # nosec B608
+        f"SELECT pua.id, "  # nosec B608
+        f"(SELECT id FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}'), "  # nosec B608
+        f"CASE "  # nosec B608
+        f"WHEN pu.name = '{UNIT_WORKSPACES}' THEN true "  # nosec B608
+        f"ELSE COALESCE(pentester_rp.allowed, false) "  # nosec B608
+        f"END "  # nosec B608
+        f"FROM permissions_unit_action pua "  # nosec B608
+        f"JOIN permissions_unit pu ON pua.permissions_unit_id = pu.id "  # nosec B608
+        f"LEFT JOIN role_permission pentester_rp "  # nosec B608
+        f"ON pentester_rp.unit_action_id = pua.id "  # nosec B608
+        f"AND pentester_rp.role_id = (SELECT id FROM faraday_role WHERE name = '{PENTESTER_ROLE}')"  # nosec B608
     )
 
 

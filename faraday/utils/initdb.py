@@ -358,24 +358,26 @@ def _exec_initdb(_exec):
             "SELECT setval('role_permission_id_seq', (SELECT MAX(id) FROM role_permission));"
         )
 
-        # Insert rows into the 'role_permission' table for the WORKSPACE ADMIN role.
-        # Same default profile as the other roles plus CREATE/DELETE on workspaces,
-        # resolving unit/action ids by name. Runs after the setval above so generated
-        # ids don't collide with the explicit ones.
+        # Insert rows into the 'role_permission' table for the WORKSPACE ADMIN role (id 5).
+        # It mirrors the pentester role (id 3) over every permission unit, so it has full
+        # access to workspace contents (vulnerabilities, hosts, services, comments,
+        # credentials, agents, reports, ...), and additionally gets full CRUD on
+        # UNIT_WORKSPACES so it can create/delete/edit/activate/lock/group workspaces.
+        # The generic per-assignee check keeps all of this scoped to the workspaces where
+        # the user is an allowed_user. pentester already withholds user management and
+        # instance settings, so those stay denied.
+        # Runs after the setval above so generated ids don't collide with the explicit ones.
         _exec(
             f"INSERT INTO role_permission (unit_action_id, role_id, allowed) "  # nosec B608
             f"SELECT pua.id, 5, "  # nosec B608
             f"CASE "  # nosec B608
-            f"WHEN pg.name = '{GROUP_ALL}' THEN true "  # nosec B608
-            f"WHEN pu.name = '{UNIT_WORKSPACES}' AND pua.action_type IN ('{CREATE}', '{READ}', '{UPDATE}', '{DELETE}') THEN true "  # nosec B608
-            f"WHEN pu.name IN ('{UNIT_ADMIN}', '{UNIT_USERS}') AND pua.action_type IN ('{READ}', '{UPDATE}') THEN true "  # nosec B608
-            f"WHEN pu.name = '{UNIT_BASE}' AND pua.action_type = '{READ}' THEN true "  # nosec B608
-            f"ELSE false "  # nosec B608
+            f"WHEN pu.name = '{UNIT_WORKSPACES}' THEN true "  # nosec B608
+            f"ELSE COALESCE(pentester_rp.allowed, false) "  # nosec B608
             f"END "  # nosec B608
             f"FROM permissions_unit_action pua "  # nosec B608
             f"JOIN permissions_unit pu ON pua.permissions_unit_id = pu.id "  # nosec B608
-            f"JOIN permissions_group pg ON pu.permissions_group_id = pg.id "  # nosec B608
-            f"WHERE pg.name IN ('{GROUP_ADMIN}', '{GROUP_ALL}');"  # nosec B608
+            f"LEFT JOIN role_permission pentester_rp "  # nosec B608
+            f"ON pentester_rp.unit_action_id = pua.id AND pentester_rp.role_id = 3;"  # nosec B608
         )
 
         _exec(

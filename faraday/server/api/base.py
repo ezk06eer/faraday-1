@@ -842,8 +842,15 @@ class FilterWorkspacedMixin(ListMixin):
 
 class FilterObjects:
 
+    def _translate_filters(self, filters):
+        """Hook for subclasses to translate pseudo-filters before query execution.
+        Returns (translated_filters_json, extra_alchemy_filters).
+        """
+        return filters, None
+
     def _process_filter_data(self, filters, workspace_name=None, **kwargs):
-        return self._filter_standalone(filters, None, workspace_name, **kwargs)
+        translated, extra = self._translate_filters(filters)
+        return self._filter_standalone(translated, extra, workspace_name, **kwargs)
 
     def _generate_filter_query_standalone(self, filters, workspace=None, delete=False):
 
@@ -1039,7 +1046,7 @@ class FilterMixin(ListMixin):
                 abort(HTTP_BAD_REQUEST, e)
 
             if extra_alchemy_filters is not None:
-                filter_query += filter_query.filter(extra_alchemy_filters)
+                filter_query = filter_query.filter(extra_alchemy_filters)
 
             data, rows_count = get_filtered_data(filters, filter_query)
             return data, rows_count

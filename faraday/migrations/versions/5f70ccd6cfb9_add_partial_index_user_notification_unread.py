@@ -16,15 +16,15 @@ depends_on = None
 
 
 def upgrade():
-    op.get_bind().execution_options(isolation_level="AUTOCOMMIT")
-    op.execute(
-        "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_user_notification_user_id_unread "
-        "ON user_notification (user_id) WHERE read = false"
-    )
+    with op.get_context().autocommit_block():
+        op.execute(
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_user_notification_user_id_unread "
+            "ON user_notification (user_id) WHERE read = false"
+        )
 
 
 def downgrade():
-    op.get_bind().execution_options(isolation_level="AUTOCOMMIT")
-    op.execute(
-        "DROP INDEX CONCURRENTLY IF EXISTS ix_user_notification_user_id_unread"
-    )
+    with op.get_context().autocommit_block():
+        op.execute(
+            "DROP INDEX CONCURRENTLY IF EXISTS ix_user_notification_user_id_unread"
+        )

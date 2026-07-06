@@ -1,7 +1,7 @@
 """add workspace_admin default role
 
 Revision ID: c81b3d92f4a7
-Revises: 5f70ccd6cfb9
+Revises: b22cb062fae4
 Create Date: 2026-07-02 00:00:00.000000+00:00
 
 """
@@ -12,7 +12,7 @@ from faraday.server.utils.permissions import UNIT_WORKSPACES
 
 # revision identifiers, used by Alembic.
 revision = 'c81b3d92f4a7'
-down_revision = '5f70ccd6cfb9'
+down_revision = 'b22cb062fae4'
 branch_labels = None
 depends_on = None
 

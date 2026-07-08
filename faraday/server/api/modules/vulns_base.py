@@ -1026,8 +1026,8 @@ class VulnerabilityView(
                 cols = raw.get('columns') if isinstance(raw, dict) else None
                 if isinstance(cols, list) and all(isinstance(c, str) for c in cols):
                     selected_columns_for_export = cols
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not parse columns from filters query param: {e}")
 
         if is_full_export:
             exclude_list = ('_attachments', 'desc')

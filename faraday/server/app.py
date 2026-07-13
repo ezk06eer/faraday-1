@@ -569,10 +569,11 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     }
     check_testing_configuration(testing, app)
 
+    _db_configured = False
     try:
-        app.config[
-            'SQLALCHEMY_DATABASE_URI'] = db_connection_string or faraday.server.config.database.connection_string.strip(
-            "'")
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_connection_string or \
+                                                faraday.server.config.database.connection_string.strip("'")
+        _db_configured = True
     except AttributeError:
         logger.info(
             'Missing [database] section on server.ini. Please configure the database before running the server.')
@@ -582,8 +583,9 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
 
     from faraday.server.models import db, register_sqlite_isolation_events  # pylint:disable=import-outside-toplevel
     db.init_app(app)
-    with app.app_context():
-        register_sqlite_isolation_events(db.engine)
+    if _db_configured:
+        with app.app_context():
+            register_sqlite_isolation_events(db.engine)
     # Session(app)
 
     # Setup Flask-Security

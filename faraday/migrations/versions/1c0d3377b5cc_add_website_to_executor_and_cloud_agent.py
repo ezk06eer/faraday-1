@@ -1,7 +1,7 @@
 """add_website_to_executor_and_cloud_agent
 
 Revision ID: 1c0d3377b5cc
-Revises: b3e7f1a2c904
+Revises: b22cb062fae4
 Create Date: 2026-06-11 13:08:53.685908+00:00
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '1c0d3377b5cc'
-down_revision = 'b3e7f1a2c904'
+down_revision = 'b22cb062fae4'
 branch_labels = None
 depends_on = None
 

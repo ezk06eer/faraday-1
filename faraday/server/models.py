@@ -3468,6 +3468,7 @@ class Executor(Metadata):
     last_run = Column(DateTime)
     category = Column(JSONType, nullable=True)
     tool = Column(String(50), nullable=True)
+    website = Column(Text, nullable=True)
     # workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
     # workspace = relationship('Workspace', backref=backref('executors', cascade="all, delete-orphan"))
 
@@ -3587,6 +3588,7 @@ class Agent(Metadata):
     id = Column(Integer, primary_key=True)
     token = Column(Text, unique=True, nullable=False, default=lambda: "".
                    join([SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(64)]))
+
     name = NonBlankColumn(Text)
     description = BlankColumn(Text)
     active = Column(Boolean, default=True)
@@ -3674,6 +3676,7 @@ class CloudAgent(Metadata):
     category = Column(JSONType, nullable=True)
     description = BlankColumn(Text)
     tools_count = Column(Integer, nullable=False, default=1)
+    website = Column(Text, nullable=True)
 
     @property
     def last_run(self):

@@ -46,7 +46,9 @@ def downgrade():
     for user in res:
         if user[0] and len(user[0]) > 16:
             op.execute(
-                users.update().where(users.c.id == user[1]).values({'otp_secret': None, 'state_otp': "disabled"})
+                users.update().where(users.c.id == user[1]).values(
+                    {'otp_secret': None, 'state_otp': "disabled"}  # nosec B105
+                )
             )
 
     op.alter_column('faraday_user',

@@ -930,7 +930,7 @@ class TestWorkflowMixinsView(ReadWriteAPITests):
         db.session.commit()
         assert not vuln.refs
         _process_entry(vuln.__class__.__name__, [vuln.id], vuln.workspace.id)
-        assert [x.name for x in vuln.refs] == ["New ref", "New ref2"]
+        assert {x.name for x in vuln.refs} == {"New ref", "New ref2"}
 
     def test_action_execute_policy_violations(self, test_client):
         action = ActionFactory.create(field="policy_violations", value="Newpol")

@@ -26,7 +26,7 @@ DESCRIPTION = (
 
 def upgrade():
     op.execute(
-        f"INSERT INTO faraday_role (name, weight, custom, description) "
+        f"INSERT INTO faraday_role (name, weight, custom, description) "  # nosec B608
         f"VALUES ('{WORKSPACE_ADMIN_ROLE}', 15, false, '{DESCRIPTION}')"
     )
     # workspace_admin mirrors the pentester role over every permission unit (so it has
@@ -69,4 +69,4 @@ def downgrade():
             f"DELETE FROM {table} WHERE {column} = "  # nosec B608
             f"(SELECT id FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}')"
         )
-    op.execute(f"DELETE FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}'")
+    op.execute(f"DELETE FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}'")  # nosec B608

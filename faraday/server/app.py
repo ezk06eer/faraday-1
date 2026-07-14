@@ -67,8 +67,6 @@ from faraday.server.models import (
 from faraday.server.utils.ping import ping_home_background_task
 
 from faraday.server.utils.reports_processor import reports_manager_background_task
-from faraday.server.utils.command import schedule_update_failed_command_stats
-from faraday.server.tasks import schedule_cleanup_stuck_pipelines
 from faraday.server.utils.invalid_chars import remove_null_characters
 from faraday.server.utils.logger import LOGGING_HANDLERS
 from faraday.server.websockets.dispatcher import remove_sid
@@ -535,7 +533,20 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         },
         'CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS': {
             'global_keyprefix': '' if not faraday_server.celery_queue_prefix else faraday_server.celery_queue_prefix,
-        }
+        },
+        # Periodic maintenance tasks are emitted by a single Celery Beat process (faraday-beat),
+        # not by a self-rescheduling ETA chain. Beat fires them at run time so nothing sits unacked
+        # in the broker long enough to be redelivered (the cause of the previous task storm).
+        'CELERYBEAT_SCHEDULE': {
+            'cleanup-stuck-pipelines': {
+                'task': 'faraday.server.tasks.cleanup_stuck_pipelines',
+                'schedule': datetime.timedelta(minutes=30),
+            },
+            'update-failed-command-stats': {
+                'task': 'faraday.server.tasks.update_failed_command_stats',
+                'schedule': datetime.timedelta(hours=1),
+            },
+        },
     })
 
     store = FilesystemStore(app.config['SESSION_FILE_DIR'])
@@ -636,9 +647,6 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         from faraday.server.threads.crontab import CronTab  # pylint: disable=import-outside-toplevel
         agents_crontab = CronTab(app=app)
         agents_crontab.start()
-
-        schedule_update_failed_command_stats()
-        schedule_cleanup_stuck_pipelines()
     return app
 
 

@@ -23,14 +23,11 @@ def main():
     elif args.loglevel:
         loglevel = args.loglevel
 
-    # Beat tracks last-run times in this shelve file. Losing it only causes tasks to fire once
-    # on restart, which is harmless for idempotent maintenance tasks.
     schedule = args.schedule or str(CONST_FARADAY_HOME_PATH / 'celerybeat-schedule')
 
     setup_celery_logging()
 
-    # NOTE: exactly one faraday-beat process must run per deployment. Running more than one
-    # (or embedding beat in a worker via `-B`) re-introduces duplicate scheduling.
+    # Run exactly one beat process per deployment.
     celery.start(
         argv=[
             'beat',

@@ -12,6 +12,7 @@ import sys
 import socket
 import argparse
 import logging
+import subprocess
 
 import psycopg2
 from alembic.runtime.migration import MigrationContext
@@ -30,7 +31,6 @@ from faraday.server.config import faraday_server as server_config
 from faraday.server.utils.ping import stop_ping_event
 from faraday.server.tasks import update_failed_command_stats
 from faraday.server.utils.reports_processor import stop_reports_event
-import sh
 
 logger = logging.getLogger(__name__)
 
@@ -56,29 +56,35 @@ def run_server(args):
     app = create_app(register_extensions_flag=True, remove_sids=True, start_scheduler=True)
     daemonize.create_pid_file(args.port)
     try:
-        if args.with_workers or args.with_workers_gevent:
+        if args.with_workers or args.with_workers_gevent or args.with_beat:
             if not server_config.celery_enabled:
                 print("In order to run faraday workers you must set `celery_enabled=True` in your server.ini")
                 sys.exit()
         if args.with_workers:
-            options = {}
+            worker_cmd = ['faraday-worker']
             if args.workers_queue:
-                options['queue'] = args.workers_queue
+                worker_cmd += ['--queue', args.workers_queue]
 
             if args.workers_concurrency:
-                options['concurrency'] = args.workers_concurrency
+                worker_cmd += ['--concurrency', args.workers_concurrency]
 
             if args.workers_loglevel:
-                options['loglevel'] = args.workers_loglevel
+                worker_cmd += ['--loglevel', args.workers_loglevel]
 
-            sh.faraday_worker(**options, _bg=True, _out=sys.stdout)
+            subprocess.Popen(worker_cmd)
 
         elif args.with_workers_gevent:
-            options = {}
+            worker_cmd = ['faraday-worker-gevent']
             if args.workers_concurrency:
-                options['concurrency'] = args.workers_concurrency
+                worker_cmd += ['--concurrency', args.workers_concurrency]
 
-            sh.faraday_worker_gevent(**options, _bg=True, _out=sys.stdout)
+            subprocess.Popen(worker_cmd)
+
+        if args.with_beat:
+            beat_cmd = ['faraday-beat']
+            if args.workers_loglevel:
+                beat_cmd += ['--loglevel', args.workers_loglevel]
+            subprocess.Popen(beat_cmd)
 
         socketio.run(app=app,
                      port=server_config.port,
@@ -179,6 +185,8 @@ def main():
     parser.add_argument('-v', '--version', action='version', version=f'Faraday v{faraday.__version__}')
     parser.add_argument('--with-workers', action='store_true', help='Starts a celery workers')
     parser.add_argument('--with-workers-gevent', action='store_true', help='Run workers in gevent mode')
+    parser.add_argument('--with-beat', action='store_true',
+                        help='Starts the celery beat scheduler (must run on exactly one node)')
     parser.add_argument('--workers-queue', help='Celery queue')
     parser.add_argument('--workers-concurrency', help='Celery concurrency')
     parser.add_argument('--workers-loglevel', help='Celery loglevel')

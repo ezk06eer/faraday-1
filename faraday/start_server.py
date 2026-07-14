@@ -12,7 +12,7 @@ import sys
 import socket
 import argparse
 import logging
-import subprocess
+import subprocess  # nosec B404
 
 import psycopg2
 from alembic.runtime.migration import MigrationContext
@@ -71,20 +71,20 @@ def run_server(args):
             if args.workers_loglevel:
                 worker_cmd += ['--loglevel', args.workers_loglevel]
 
-            subprocess.Popen(worker_cmd)
+            subprocess.Popen(worker_cmd)  # nosec B603
 
         elif args.with_workers_gevent:
             worker_cmd = ['faraday-worker-gevent']
             if args.workers_concurrency:
                 worker_cmd += ['--concurrency', args.workers_concurrency]
 
-            subprocess.Popen(worker_cmd)
+            subprocess.Popen(worker_cmd)  # nosec B603
 
         if args.with_beat:
             beat_cmd = ['faraday-beat']
             if args.workers_loglevel:
                 beat_cmd += ['--loglevel', args.workers_loglevel]
-            subprocess.Popen(beat_cmd)
+            subprocess.Popen(beat_cmd)  # nosec B603
 
         socketio.run(app=app,
                      port=server_config.port,

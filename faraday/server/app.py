@@ -542,7 +542,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
             },
             'update-failed-command-stats': {
                 'task': 'faraday.server.tasks.update_failed_command_stats',
-                'schedule': datetime.timedelta(hours=1),
+                'schedule': datetime.timedelta(hours=2),
             },
         },
     })

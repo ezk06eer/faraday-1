@@ -1,7 +1,7 @@
 """add workspace_admin default role
 
 Revision ID: c81b3d92f4a7
-Revises: b22cb062fae4
+Revises: 1c0d3377b5cc
 Create Date: 2026-07-02 00:00:00.000000+00:00
 
 """
@@ -12,7 +12,7 @@ from faraday.server.utils.permissions import UNIT_WORKSPACES
 
 # revision identifiers, used by Alembic.
 revision = 'c81b3d92f4a7'
-down_revision = 'b22cb062fae4'
+down_revision = '1c0d3377b5cc'
 branch_labels = None
 depends_on = None
 
@@ -53,6 +53,13 @@ def upgrade():
 
 
 def downgrade():
+    # Deactivate users assigned the workspace_admin role before dropping it, so the
+    # downgrade doesn't leave them roleless yet still able to authenticate.
+    op.execute(
+        f"UPDATE faraday_user SET active = false WHERE id IN ("  # nosec B608
+        f"SELECT user_id FROM roles_users WHERE role_id = "  # nosec B608
+        f"(SELECT id FROM faraday_role WHERE name = '{WORKSPACE_ADMIN_ROLE}'))"
+    )
     for table, column in (
         ('role_permission', 'role_id'),
         ('roles_users', 'role_id'),

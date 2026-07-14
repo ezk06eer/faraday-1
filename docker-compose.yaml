@@ -53,6 +53,23 @@ services:
     depends_on:
       faraday-server:
         condition: service_healthy
+  # Single Celery Beat scheduler that emits the periodic maintenance tasks. Must run exactly
+  # once across the whole deployment; do not scale this service to more than one replica.
+  faraday-beat:
+    image: *faraday-image
+    restart: always
+    container_name: faraday_beat
+    command: [ "faraday-beat" ]
+    volumes: *faraday-volumes
+    environment:
+      - PGSQL_USER=postgres
+      - PGSQL_PASSWD=postgres
+      - PGSQL_HOST=db
+      - PGSQL_DBNAME=faraday
+      - REDIS_SERVER=redis
+    depends_on:
+      faraday-server:
+        condition: service_healthy
   faraday-server:
     build:
       context: .

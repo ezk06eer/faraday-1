@@ -534,9 +534,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         'CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS': {
             'global_keyprefix': '' if not faraday_server.celery_queue_prefix else faraday_server.celery_queue_prefix,
         },
-        # Periodic maintenance tasks are emitted by a single Celery Beat process (faraday-beat),
-        # not by a self-rescheduling ETA chain. Beat fires them at run time so nothing sits unacked
-        # in the broker long enough to be redelivered (the cause of the previous task storm).
+        # Periodic tasks, emitted by the faraday-beat scheduler.
         'CELERYBEAT_SCHEDULE': {
             'cleanup-stuck-pipelines': {
                 'task': 'faraday.server.tasks.cleanup_stuck_pipelines',

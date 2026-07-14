@@ -53,8 +53,7 @@ services:
     depends_on:
       faraday-server:
         condition: service_healthy
-  # Single Celery Beat scheduler that emits the periodic maintenance tasks. Must run exactly
-  # once across the whole deployment; do not scale this service to more than one replica.
+  # Celery Beat scheduler. Run exactly one; do not scale this service.
   faraday-beat:
     image: *faraday-image
     restart: always

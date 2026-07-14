@@ -485,8 +485,8 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
             backend_url = f"redis://{faraday.server.config.faraday_server.celery_backend_url}"
 
     app.config.update({
-        'SECURITY_BACKWARDS_COMPAT_AUTH_TOKEN': True,
-        'SECURITY_PASSWORD_SINGLE_HASH': True,
+        'SECURITY_BACKWARDS_COMPAT_AUTH_TOKEN': True,  # nosec B105
+        'SECURITY_PASSWORD_SINGLE_HASH': True,  # nosec B105
         'WTF_CSRF_ENABLED': False,
         'SECURITY_USER_IDENTITY_ATTRIBUTES': [{'username': {'mapper': uia_username_mapper}}],
         'SECURITY_URL_PREFIX': app.config['APPLICATION_PREFIX'],
@@ -495,15 +495,15 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         # 'SECURITY_URL_PREFIX': '/_api',
         # 'SECURITY_POST_LOGIN_VIEW': '/_api/session',
         # 'SECURITY_POST_CHANGE_VIEW': '/_api/change',
-        'SECURITY_RESET_PASSWORD_TEMPLATE': '/security/reset.html',
+        'SECURITY_RESET_PASSWORD_TEMPLATE': '/security/reset.html',  # nosec B105
         'SECURITY_POST_RESET_VIEW': '/',
-        'SECURITY_SEND_PASSWORD_RESET_EMAIL': True,
+        'SECURITY_SEND_PASSWORD_RESET_EMAIL': True,  # nosec B105
         # For testing purpose
         'SECURITY_EMAIL_SENDER': "noreply@infobytesec.com",
         'SECURITY_CHANGEABLE': True,
-        'SECURITY_SEND_PASSWORD_CHANGE_EMAIL': False,
+        'SECURITY_SEND_PASSWORD_CHANGE_EMAIL': False,  # nosec B105
         'SECURITY_MSG_USER_DOES_NOT_EXIST': login_failed_message,
-        'SECURITY_TOKEN_AUTHENTICATION_HEADER': 'Authorization',
+        'SECURITY_TOKEN_AUTHENTICATION_HEADER': 'Authorization',  # nosec B105
 
         # The line bellow should not be necessary because of the
         # CustomLoginForm, but i'll include it anyway.
@@ -569,10 +569,11 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     }
     check_testing_configuration(testing, app)
 
+    _db_configured = False
     try:
-        app.config[
-            'SQLALCHEMY_DATABASE_URI'] = db_connection_string or faraday.server.config.database.connection_string.strip(
-            "'")
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_connection_string or \
+                                                faraday.server.config.database.connection_string.strip("'")
+        _db_configured = True
     except AttributeError:
         logger.info(
             'Missing [database] section on server.ini. Please configure the database before running the server.')
@@ -582,8 +583,9 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
 
     from faraday.server.models import db, register_sqlite_isolation_events  # pylint:disable=import-outside-toplevel
     db.init_app(app)
-    with app.app_context():
-        register_sqlite_isolation_events(db.engine)
+    if _db_configured:
+        with app.app_context():
+            register_sqlite_isolation_events(db.engine)
     # Session(app)
 
     # Setup Flask-Security

@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Creating a user with an existing username now returns 409 instead of 500. #7776"
+}

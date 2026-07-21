@@ -16,8 +16,13 @@ import pyotp
 import pytest
 
 from faraday.server.api.modules.agent import AgentView
-from faraday.server.models import Agent, Command, Executor, db
-from tests.factories import AgentFactory, WorkspaceFactory, ExecutorFactory
+from faraday.server.models import Agent, AgentExecution, Command, Executor, db
+from tests.factories import (
+    AgentFactory,
+    AgentExecutionFactory,
+    WorkspaceFactory,
+    ExecutorFactory,
+)
 from tests.test_api_non_workspaced_base import ReadWriteAPITests
 from tests import factories
 from tests.test_api_workspaced_base import API_PREFIX
@@ -597,6 +602,24 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         assert response.json['deleted'] == 1
         assert session.query(Agent).filter(Agent.id == agent_id).count() == 0
         assert session.query(Executor).filter(Executor.id == executor_id).count() == 0
+
+    def test_bulk_delete_agents_with_execution_logs(self, test_client, session):
+        agent = AgentFactory.create()
+        executor = ExecutorFactory.create(agent=agent)
+        execution = AgentExecutionFactory.create(executor=executor)
+        session.commit()
+        agent_id = agent.id
+        executor_id = executor.id
+        execution_id = execution.id
+
+        response = test_client.delete(self.url(), data={'ids': [agent_id]})
+
+        assert response.status_code == 200
+        assert response.json['deleted'] == 1
+        assert session.query(Agent).filter(Agent.id == agent_id).count() == 0
+        assert session.query(Executor).filter(Executor.id == executor_id).count() == 0
+        assert session.query(AgentExecution).filter(
+            AgentExecution.id == execution_id).count() == 0
 
     def _bulk_delete_q(self, *filters):
         q = json.dumps({"filters": list(filters)})

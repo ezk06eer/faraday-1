@@ -2752,9 +2752,7 @@ class UserToken(Metadata):
     @expired.expression
     def expired(cls):
         return case(
-            [
-                (cls.expires_at != None, cls.expires_at < datetime.utcnow())  # noqa E711
-            ],
+            (cls.expires_at != None, cls.expires_at < datetime.utcnow()),  # noqa E711
             else_=False
         )
 

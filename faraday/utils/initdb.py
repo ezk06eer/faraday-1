@@ -1,4 +1,5 @@
 # Related third party imports
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 # Local application imports
@@ -78,9 +79,16 @@ TAG = PermissionsUnitAction.TAG_ACTION
 
 
 def initdb_roles_and_permissions(db_engine):
+    with db_engine.begin() as conn:
+        def _exec(stmt):
+            return conn.execute(text(stmt))
+        _exec_initdb(_exec)
+
+
+def _exec_initdb(_exec):
     try:
         # Insert rows into the 'faraday_role' table
-        db_engine.execute(
+        _exec(
             "INSERT INTO faraday_role(id, name, weight, custom, description) VALUES "
             "(1, 'admin', 10, false, 'Full control over Faraday including user management, workspaces, vulnerabilities, reports, automation and system settings.'), "
             "(2, 'asset_owner', 20, false, 'Can access assigned workspaces, review vulnerabilities, update their status, and add comments & tags.'), "
@@ -89,14 +97,14 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'permissions_group' table
-        db_engine.execute(
+        _exec(
             f"INSERT INTO permissions_group (id, name) VALUES (1, '{GROUP_ADMIN}'), (2, '{GROUP_ALL}'), (3, '{GROUP_INTEGRATIONS}'), (4, '{GROUP_AGENTS}'), (5, '{GROUP_ANALYTICS}'), "  # nosec B608
             f"(6, '{GROUP_VULNERABILITIES}'), (7, '{GROUP_COMMENTS}'), (8, '{GROUP_ASSETS}'), (9, '{GROUP_PLANNERS}'), (10, '{GROUP_EXECUTIVE_REPORTS}'), "  # nosec B608
             f"(13, '{GROUP_PIPELINES}'), (15, '{GROUP_CREDENTIALS}'), (17, '{GROUP_WS_SUM_REPORTS}');"  # nosec B608
         )
 
         # Insert rows into the 'permissions_unit' table
-        db_engine.execute(  # nosec
+        _exec(  # nosec
             f"INSERT INTO permissions_unit (id, name, permissions_group_id) VALUES (1, '{UNIT_USERS}', 1), (2, '{UNIT_LOGS}', 1), "  # nosec B608
             f"(3, '{UNIT_TOKENS}', 2), (4, '{UNIT_WHOAMI}', 2), (5, '{UNIT_SWAGGER}', 2), (6, '{UNIT_EXPLOITS}', 2), (7, '{UNIT_NOTIFICATIONS}', 2), (8, '{UNIT_INFO}', 2), "  # nosec B608
             f"(9, '{UNIT_PREFERENCES}', 2), (10, '{UNIT_SEARCH_FILTERS}', 2), (11, '{UNIT_TAGS}', 2), (12, '{UNIT_SESSIONS}', 2), (13, '{UNIT_COMMANDS}', 2), (42, '{UNIT_2FA}', 2), (43, '{UNIT_FORGOT_PASSWORD}', 2), "  # nosec B608
@@ -110,7 +118,7 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'permissions_unit_action' table
-        db_engine.execute(  # nosec
+        _exec(  # nosec
             f"INSERT INTO permissions_unit_action (id, action_type, permissions_unit_id) VALUES "
             f"(1, '{CREATE}', 1), (2, '{READ}', 1), (3, '{UPDATE}', 1), (4, '{DELETE}', 1), "  # nosec B608
             f"(5, '{READ}', 2), (6, '{READ}', 3), (7, '{READ}', 4), (8, '{READ}', 5), (9, '{READ}', 6), "  # nosec B608
@@ -157,7 +165,7 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'role_permission' table for the ADMIN role
-        db_engine.execute(
+        _exec(
             "INSERT INTO role_permission (id, unit_action_id, role_id, allowed) VALUES "
             "(1, 1, 1, true), (2, 2, 1, true), (3, 3, 1, true), (4, 4, 1, true), "
             "(5, 5, 1, true), (6, 6, 1, true), (7, 7, 1, true), (8, 8, 1, true), "
@@ -204,7 +212,7 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'role_permission' table for the ASSET OWNER role
-        db_engine.execute(
+        _exec(
             "INSERT INTO role_permission (id, unit_action_id, role_id, allowed) VALUES "
             "(123, 1, 2, false), (124, 2, 2, true), (125, 3, 2, true), (126, 4, 2, false), "
             "(127, 5, 2, false), (128, 6, 2, true), (129, 7, 2, true), (130, 8, 2, true), "
@@ -216,7 +224,7 @@ def initdb_roles_and_permissions(db_engine):
             "(151, 29, 2, false), (152, 30, 2, false), (153, 31, 2, false), (154, 32, 2, false), "
             "(155, 33, 2, false), (156, 34, 2, false), (157, 35, 2, false), (158, 36, 2, false), "
             "(159, 37, 2, false), (160, 38, 2, false), (161, 39, 2, false), (162, 40, 2, false), "
-            "(163, 41, 2, false), (164, 42, 2, false), (165, 43, 2, false), (166, 44, 2, true), "
+            "(163, 41, 2, false), (164, 42, 2, false), (165, 43, 2, false), (166, 44, 2, false), "
             "(167, 45, 2, false), (168, 46, 2, false), (169, 47, 2, false), "
             "(171, 49, 2, true), (172, 50, 2, false), (173, 51, 2, false), (174, 52, 2, false), "
             "(175, 53, 2, false), (176, 54, 2, false), (177, 55, 2, false), (178, 56, 2, false), "
@@ -251,7 +259,7 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'role_permission' table for the PENTESTER role
-        db_engine.execute(
+        _exec(
             "INSERT INTO role_permission (id, unit_action_id, role_id, allowed) VALUES "
             "(245, 1, 3, false), (246, 2, 3, true), (247, 3, 3, true), (248, 4, 3, false), "
             "(249, 5, 3, false), (250, 6, 3, true), (251, 7, 3, true), (252, 8, 3, true), "
@@ -298,7 +306,7 @@ def initdb_roles_and_permissions(db_engine):
         )
 
         # Insert rows into the 'role_permission' table for the CLIENT role
-        db_engine.execute(
+        _exec(
             "INSERT INTO role_permission (id, unit_action_id, role_id, allowed) VALUES "
             "(367, 1, 4, false), (368, 2, 4, true), (369, 3, 4, true), (370, 4, 4, false), "
             "(371, 5, 4, false), (372, 6, 4, true), (373, 7, 4, true), (374, 8, 4, true), "
@@ -344,23 +352,23 @@ def initdb_roles_and_permissions(db_engine):
             "(682, 169, 4, true), (683, 170, 4, true), (684, 171, 4, true);"
         )
 
-        db_engine.execute(
+        _exec(
             "SELECT setval('role_permission_id_seq', (SELECT MAX(id) FROM role_permission));"
         )
 
-        db_engine.execute(
+        _exec(
             "SELECT setval('faraday_role_id_seq', (SELECT MAX(id) FROM faraday_role));"
         )
 
-        db_engine.execute(
+        _exec(
             "SELECT setval('permissions_unit_action_id_seq', (SELECT MAX(id) FROM permissions_unit_action));"
         )
 
-        db_engine.execute(
+        _exec(
             "SELECT setval('permissions_unit_id_seq', (SELECT MAX(id) FROM permissions_unit));"
         )
 
-        db_engine.execute(
+        _exec(
             "SELECT setval('permissions_group_id_seq', (SELECT MAX(id) FROM permissions_group));"
         )
     except IntegrityError as e:

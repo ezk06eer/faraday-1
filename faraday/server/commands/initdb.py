@@ -104,8 +104,7 @@ class InitDB:
     def _create_roles(conn_string):
         engine = create_engine(conn_string)
         try:
-            connection = engine.connect()
-            initdb_roles_and_permissions(connection)
+            initdb_roles_and_permissions(engine)
         except IntegrityError as ex:
             if is_unique_constraint_violation(ex):
                 # when re using database user could be created previously
@@ -418,7 +417,7 @@ class InitDB:
 
         # Check if the alembic_version exists
         # Taken from https://stackoverflow.com/a/24089729
-        (result,) = list(db.session.execute("select to_regclass('alembic_version')"))
+        (result,) = list(db.session.execute(text("select to_regclass('alembic_version')")))
         exists = result[0] is not None
 
         if exists:

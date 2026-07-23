@@ -666,7 +666,11 @@ class VulnerabilityView(
     sort_model_class = VulnerabilityWeb  # It has all the fields
     sort_pass_silently = True  # For compatibility with the Web UI
     order_field = desc(VulnerabilityGeneric.confirmed), VulnerabilityGeneric.severity, VulnerabilityGeneric.create_date
-    get_joinedloads = [Vulnerability.evidence, Vulnerability.creator]
+    # NOTE: Vulnerability.evidence is intentionally NOT in get_joinedloads because
+    # subclasses choose between joinedload(evidence) and noload(evidence) based on
+    # the ``get_evidence`` query param. Having both options on the same path is an
+    # error in SQLAlchemy 2.0.
+    get_joinedloads = [Vulnerability.creator]
 
     model_class_dict = {
         'Vulnerability': Vulnerability,
@@ -1022,8 +1026,8 @@ class VulnerabilityView(
                 cols = raw.get('columns') if isinstance(raw, dict) else None
                 if isinstance(cols, list) and all(isinstance(c, str) for c in cols):
                     selected_columns_for_export = cols
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not parse columns from filters query param: {e}")
 
         if is_full_export:
             exclude_list = ('_attachments', 'desc')
@@ -1135,26 +1139,26 @@ class VulnerabilityView(
 
         if 'group_by' not in filters:
             options = [
-                selectinload('cve_instances'),
-                selectinload('owasp'),
-                selectinload('cwe'),
+                selectinload(VulnerabilityGeneric.cve_instances),
+                selectinload(VulnerabilityGeneric.owasp),
+                selectinload(VulnerabilityGeneric.cwe),
                 selectinload(VulnerabilityGeneric.tags),
-                joinedload('host').selectinload(Host.hostnames),
-                joinedload('service').joinedload(Service.host).selectinload(Host.hostnames),
-                joinedload('creator'),
-                joinedload('update_user'),
+                joinedload(VulnerabilityGeneric.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.service).joinedload(Service.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.creator),
+                joinedload(VulnerabilityGeneric.update_user),
                 joinedload(VulnerabilityGeneric.group),
-                undefer('target'),
-                undefer('target_host_os'),
-                undefer('target_host_ip'),
-                undefer('creator_command_tool'),
-                undefer('creator_command_id'),
-                noload('evidence')
+                undefer(VulnerabilityGeneric.target),
+                undefer(VulnerabilityGeneric.target_host_os),
+                undefer(VulnerabilityGeneric.target_host_ip),
+                undefer(VulnerabilityGeneric.creator_command_tool),
+                undefer(VulnerabilityGeneric.creator_command_id),
+                noload(VulnerabilityGeneric.evidence)
             ]
             if is_csv:
                 options = options + [
-                    selectinload('policy_violation_instances'),
-                    selectinload('refs')
+                    selectinload(VulnerabilityGeneric.policy_violation_instances),
+                    selectinload(VulnerabilityGeneric.refs)
                 ]
 
             vulns = vulns.options(selectin_polymorphic(

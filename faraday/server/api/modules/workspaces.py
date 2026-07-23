@@ -417,12 +417,13 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
         }
 
     def _add_to_filter(self, filter_query, **kwargs):
+        # populate_existing: SA 2.0 needs this for with_expression to override identity-map instances.
         filter_query = filter_query.options(
             with_expression(
                 Workspace.last_run_agent_date,
                 _last_run_agent_date(),
             ),
-        )
+        ).execution_options(populate_existing=True)
         return filter_query
 
     @staticmethod

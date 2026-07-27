@@ -28,13 +28,14 @@ import jwt
 import pyotp
 import requests
 from depot.manager import DepotManager
-from flask import Flask, session, g, request
+from flask import Flask, session, g, request, after_this_request
 from flask_kvsession import KVSessionExtension
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import user_logged_out, user_logged_in
-from flask_security import Security, SQLAlchemyUserDatastore
+from flask_security import Security, SQLAlchemyUserDatastore, logout_user
 from flask_security.forms import LoginForm, ChangePasswordForm
+from flask_security.signals import password_changed
 from flask_security.utils import (
     _datastore,
     get_message,
@@ -371,6 +372,18 @@ def expire_session(app, user):
     logger.info(f"User [{user.username}] logged out from IP [{user_ip}] at [{user_logout_at}]")
 
 
+def force_logout_on_password_change(app, user):
+    # flask-security rotates fs_uniquifier on a successful change (invalidating
+    # every other session and token) but re-logs-in the current one. Tear that
+    # session down too so the user must re-authenticate with the new password.
+    # Deferred to after_this_request so current_user stays intact while the
+    # change view renders its response.
+    @after_this_request
+    def _logout(response):
+        logout_user()
+        return response
+
+
 def user_logged_in_successful(app, user):
     user_agent = request.headers.get('User-Agent')
     if user_agent.startswith('faraday-client/'):
@@ -552,6 +565,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     KVSessionExtension(prefixed_store, app)
     user_logged_in.connect(user_logged_in_successful, app)
     user_logged_out.connect(expire_session, app)
+    password_changed.connect(force_logout_on_password_change, app)
 
     storage_path = faraday.server.config.storage.path
     if not storage_path:

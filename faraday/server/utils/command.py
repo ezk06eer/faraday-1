@@ -38,3 +38,22 @@ def set_command_id(session, obj, created, command_id):
 
     session.add(command)
     session.add(command_object)
+
+
+def run_failed_command_stats_inline(app):
+    """Run update_failed_command_stats without celery.
+
+    Celery Beat schedules this task on celery deployments; when celery is
+    disabled there is no scheduler, so the server runs it once on boot.
+    The app context has to be pushed explicitly: celery only wraps tasks with
+    one through ContextTask, which is installed by init_app and therefore
+    missing when celery is disabled.
+    """
+    from faraday.server.tasks import update_failed_command_stats  # pylint: disable=import-outside-toplevel
+
+    logger.info("Celery disabled, running update_failed_command_stats inline")
+    try:
+        with app.app_context():
+            update_failed_command_stats()
+    except Exception as e:
+        logger.error(f"Failed to run update_failed_command_stats: {e}")

@@ -67,6 +67,7 @@ from faraday.server.models import (
 )
 from faraday.server.utils.ping import ping_home_background_task
 
+from faraday.server.utils.command import run_failed_command_stats_inline
 from faraday.server.utils.reports_processor import reports_manager_background_task
 from faraday.server.utils.invalid_chars import remove_null_characters
 from faraday.server.utils.logger import LOGGING_HANDLERS
@@ -659,6 +660,9 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         from faraday.server.threads.crontab import CronTab  # pylint: disable=import-outside-toplevel
         agents_crontab = CronTab(app=app)
         agents_crontab.start()
+
+        if not faraday.server.config.faraday_server.celery_enabled:
+            run_failed_command_stats_inline(app)
     return app
 
 

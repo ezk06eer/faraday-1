@@ -60,6 +60,12 @@ def run_server(args):
             if not server_config.celery_enabled:
                 print("In order to run faraday workers you must set `celery_enabled=True` in your server.ini")
                 sys.exit()
+            if not args.with_beat:
+                logger.warning(
+                    "Starting workers without a beat scheduler. Periodic maintenance tasks "
+                    "(cleanup_stuck_pipelines, update_failed_command_stats) will not run. "
+                    "Start `faraday-beat` on exactly one node of the deployment, or pass --with-beat."
+                )
         if args.with_workers:
             worker_cmd = ['faraday-worker']
             if args.workers_queue:

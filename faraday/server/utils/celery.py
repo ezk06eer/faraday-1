@@ -82,6 +82,9 @@ def spawn_celery_processes(commands: List[List[str]]) -> List[subprocess.Popen]:
     for command in commands:
         logger.info("Starting %s", command[0])
         processes.append(
+            # _die_with_parent only calls prctl, and gevent turns the server's threads
+            # into greenlets, so the fork/threads hazard of preexec_fn does not apply.
+            # pylint: disable-next=subprocess-popen-preexec-fn
             subprocess.Popen(command, preexec_fn=_die_with_parent)  # nosec B603
         )
     return processes

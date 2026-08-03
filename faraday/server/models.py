@@ -3636,7 +3636,7 @@ class AgentExecution(Metadata):
     running = Column(Boolean, nullable=True)
     successful = Column(Boolean, nullable=True)
     message = Column(String, nullable=True)
-    executor_id = Column(Integer, ForeignKey('executor.id'), index=True, nullable=False)
+    executor_id = Column(Integer, ForeignKey('executor.id', ondelete='CASCADE'), index=True, nullable=False)
     executor = relationship('Executor', foreign_keys=[executor_id],
                             backref=backref('executions', cascade="all, delete-orphan"))
 

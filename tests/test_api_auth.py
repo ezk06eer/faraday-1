@@ -5,11 +5,13 @@ See the file 'doc/LICENSE' for the license information
 
 '''
 import base64
+from datetime import datetime, timedelta
 
 import pytest
 from tests import factories
 from flask_security.utils import hash_password
 from faraday.server.api.modules.websocket_auth import decode_agent_websocket_token
+from faraday.server.models import UserToken, db
 
 
 class TestWebsocketAuthEndpoint:
@@ -155,3 +157,37 @@ class TestTokenAuth:
         res = test_client.get('/v3/agents', headers=headers)
         assert res.status_code != 500
         assert res.status_code in (401, 403)
+
+
+class TestUserTokenExpiredExpression:
+    def test_filter_by_expired_does_not_raise(self, session):
+        """The `expired` hybrid expression must build a valid SQL query.
+
+        This is the code path behind GET /_api/v3/user_token/filter with an
+        `expired` filter; a broken case() expression raises ArgumentError and
+        surfaces as a 500.
+        """
+        user = factories.UserFactory.create()
+        session.add(UserToken(
+            user=user, token='expired-tok', alias='expired',
+            scope='global', expires_at=datetime.utcnow() - timedelta(days=1),
+        ))
+        session.add(UserToken(
+            user=user, token='valid-tok', alias='valid',
+            scope='global', expires_at=datetime.utcnow() + timedelta(days=1),
+        ))
+        session.add(UserToken(
+            user=user, token='no-expiry-tok', alias='no-expiry',
+            scope='global', expires_at=None,
+        ))
+        session.commit()
+
+        expired = db.session.query(UserToken).filter(
+            UserToken.expired == True  # noqa E712
+        ).all()
+        not_expired = db.session.query(UserToken).filter(
+            UserToken.expired == False  # noqa E712
+        ).all()
+
+        assert {t.alias for t in expired} == {'expired'}
+        assert {t.alias for t in not_expired} == {'valid', 'no-expiry'}

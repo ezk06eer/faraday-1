@@ -118,6 +118,7 @@ OBJECT_TYPES = [
     'task',
     'report_logo',
     'report_template',
+    'template_logo',
 ]
 
 REFERENCE_TYPES = [
@@ -2751,9 +2752,7 @@ class UserToken(Metadata):
     @expired.expression
     def expired(cls):
         return case(
-            [
-                (cls.expires_at != None, cls.expires_at < datetime.utcnow())  # noqa E711
-            ],
+            (cls.expires_at != None, cls.expires_at < datetime.utcnow()),  # noqa E711
             else_=False
         )
 
@@ -3097,7 +3096,7 @@ class ExecutiveReport(Metadata):
     border_size = Column(Integer, default=3, nullable=True)
     advanced_filter = Column(Boolean, default=False, nullable=False)
     advanced_filter_parsed = Column(Text, nullable=False, default="")
-    is_preview = Column(Boolean, default=False, nullable=False)
+    sections_metadata = Column(JSONType, nullable=False, default=dict)
 
     workspaces = relationship(
         'Workspace',
@@ -3638,7 +3637,7 @@ class AgentExecution(Metadata):
     running = Column(Boolean, nullable=True)
     successful = Column(Boolean, nullable=True)
     message = Column(String, nullable=True)
-    executor_id = Column(Integer, ForeignKey('executor.id'), index=True, nullable=False)
+    executor_id = Column(Integer, ForeignKey('executor.id', ondelete='CASCADE'), index=True, nullable=False)
     executor = relationship('Executor', foreign_keys=[executor_id],
                             backref=backref('executions', cascade="all, delete-orphan"))
 

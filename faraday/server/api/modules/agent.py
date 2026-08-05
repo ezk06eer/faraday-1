@@ -542,6 +542,12 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
 
         return jsonify({"message": "Parameters saved successfully"}), 200
 
+    def _generate_filter_query(self, filters, severity_count=None):
+        if 'group_by' not in filters:
+            order_by = filters.get('order_by', [])
+            filters['order_by'] = [{'field': 'active', 'direction': 'desc'}] + order_by
+        return super()._generate_filter_query(filters, severity_count=severity_count)
+
     def _translate_filters(self, filters):
         try:
             raw = json.loads(filters) if isinstance(filters, str) else dict(filters or {})

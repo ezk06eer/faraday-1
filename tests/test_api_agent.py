@@ -220,6 +220,28 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
             assert res.status_code == 200
             assert res.json.get("count", 0) == agent_names[filter_name]
 
+    def test_filter_agents_paginates_active_before_inactive(self, test_client, session):
+        inactive_1 = AgentFactory.create(active=False, name="ZZZ_inactive")
+        active_1 = AgentFactory.create(active=True, name="AAA_active")
+        inactive_2 = AgentFactory.create(active=False, name="YYY_inactive")
+        active_2 = AgentFactory.create(active=True, name="BBB_active")
+        session.commit()
+
+        agent_ids = {inactive_1.id, active_1.id, inactive_2.id, active_2.id}
+        query = (
+            '/v3/agents/filter?q={"filters":[],"limit":10,"offset":0}'
+        )
+        res = test_client.get(query)
+        assert res.status_code == 200
+
+        rows = [row for row in res.json["rows"] if row["id"] in agent_ids]
+        actives = [active_1.id, active_2.id]
+        inactives = [inactive_1.id, inactive_2.id]
+        active_positions = [i for i, row in enumerate(rows) if row["id"] in actives]
+        inactive_positions = [i for i, row in enumerate(rows) if row["id"] in inactives]
+
+        assert max(active_positions) < min(inactive_positions)
+
     def test_delete_agent(self, test_client, session):
         initial_agent_count = len(session.query(Agent).all())
         agent = AgentFactory.create()

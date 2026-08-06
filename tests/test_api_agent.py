@@ -242,6 +242,30 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
 
         assert max(active_positions) < min(inactive_positions)
 
+    def test_filter_agents_paginates_online_before_offline_within_active(self, test_client, session):
+        offline_active = AgentFactory.create(active=True, sid=None, name="wordpress-runner-06")
+        online_active_1 = AgentFactory.create(active=True, sid="session_a", name="AAA_online")
+        online_active_2 = AgentFactory.create(active=True, sid="session_b", name="ZZZ_online")
+        inactive = AgentFactory.create(active=False, name="inactive_agent")
+        session.commit()
+
+        agent_ids = {offline_active.id, online_active_1.id, online_active_2.id, inactive.id}
+        query = '/v3/agents/filter?q={"filters":[],"limit":10,"offset":0}'
+        res = test_client.get(query)
+        assert res.status_code == 200
+
+        rows = [row for row in res.json["rows"] if row["id"] in agent_ids]
+        online_ids = [online_active_1.id, online_active_2.id]
+        offline_active_ids = [offline_active.id]
+        inactive_ids = [inactive.id]
+
+        online_positions = [i for i, row in enumerate(rows) if row["id"] in online_ids]
+        offline_active_positions = [i for i, row in enumerate(rows) if row["id"] in offline_active_ids]
+        inactive_positions = [i for i, row in enumerate(rows) if row["id"] in inactive_ids]
+
+        assert max(online_positions) < min(offline_active_positions)
+        assert max(offline_active_positions) < min(inactive_positions)
+
     def test_delete_agent(self, test_client, session):
         initial_agent_count = len(session.query(Agent).all())
         agent = AgentFactory.create()

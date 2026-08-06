@@ -1,4 +1,4 @@
 {
   "level": "community",
-  "md": "[FIX] Runners list now shows active runners before inactive ones when paginating. #8453"
+  "md": "[FIX] Runners list now shows active runners before inactive ones when paginating, sorted by online status first within each group. #8453"
 }

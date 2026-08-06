@@ -4087,6 +4087,7 @@ class WorkspaceSummaryReport(Metadata):
         nullable=False,
         default='weekly',
     )
+    active = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         UniqueConstraint('creator_id', 'workspace_id', name='uix_workspace_summary_report_creator_workspace'),

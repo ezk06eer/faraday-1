@@ -13,16 +13,18 @@ Create Date: 2026-08-07 00:00:00.000000+00:00
 """
 from alembic import op
 
-from faraday.server.models import PermissionsUnitAction
-from faraday.server.utils.permissions import GROUP_AGENTS, UNIT_AGENTS_TOKENS
-
 # revision identifiers, used by Alembic.
 revision = '2b45cf202f3f'
 down_revision = 'c81b3d92f4a7'
 branch_labels = None
 depends_on = None
 
-READ = PermissionsUnitAction.READ_ACTION
+# Hardcoded instead of imported from faraday.server.utils.permissions: this
+# migration documents the removal of that unit/group, so it must keep working
+# even after the constants themselves are deleted from the live module.
+GROUP_AGENTS = 'agents'
+UNIT_AGENTS_TOKENS = 'agents_tokens'
+READ = 'read'
 
 _UNIT_ACTION_SUBQUERY = (
     f"(SELECT pua.id FROM permissions_unit_action pua "  # nosec B608

@@ -21,13 +21,17 @@ Create Date: 2026-08-07 00:00:00.000000+00:00
 """
 from alembic import op
 
-from faraday.server.utils.permissions import GROUP_ADMIN, GROUP_WORKSPACES, UNIT_WORKSPACES
-
 # revision identifiers, used by Alembic.
 revision = '8c6dad31e650'
 down_revision = '2b45cf202f3f'
 branch_labels = None
 depends_on = None
+
+# Hardcoded instead of imported from faraday.server.utils.permissions: migrations
+# must keep working even if those constants are later renamed or removed.
+GROUP_ADMIN = 'admin'
+GROUP_WORKSPACES = 'workspaces'
+UNIT_WORKSPACES = 'workspaces'
 
 
 def upgrade():

@@ -203,19 +203,6 @@ def cleanup_stuck_pipelines():
     except Exception as e:
         db.session.rollback()
         logger.exception(f"Failed to cleanup stuck pipelines: {e}")
-    schedule_cleanup_stuck_pipelines()
-
-
-def schedule_cleanup_stuck_pipelines():
-    import random  # pylint: disable=import-outside-toplevel
-    delta_minutes = random.randint(30, 120)
-    run_time = datetime.utcnow() + timedelta(minutes=delta_minutes)
-    try:
-        if faraday_server.celery_enabled:
-            cleanup_stuck_pipelines.apply_async(eta=run_time)
-            logger.info(f"Scheduled cleanup_stuck_pipelines at {run_time}")
-    except Exception as e:
-        logger.exception(f"Failed to schedule cleanup_stuck_pipelines: {e}")
 
 
 @celery.task(ignore_result=False, acks_late=True)

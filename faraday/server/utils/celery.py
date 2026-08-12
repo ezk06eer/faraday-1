@@ -5,9 +5,11 @@ See the file 'doc/LICENSE' for the license information
 """
 import ctypes
 import logging
+import os
 import signal
 import subprocess  # nosec B404
 import sys
+from functools import partial
 from typing import List, Optional
 
 from faraday.server.config import faraday_server
@@ -26,14 +28,19 @@ else:
     _libc = None
 
 
-def _die_with_parent() -> None:
+def _die_with_parent(parent_pid: int) -> None:
     """Ask the kernel to signal us when the server that spawned us dies.
 
     Covers what the shutdown path cannot: a crash or a SIGKILL on the server
     would otherwise leave its workers running.
     """
-    if _libc is not None:
-        _libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    if _libc is None:
+        return
+    _libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    # The signal is not retroactive: if the server died before the call above we
+    # were already reparented and it will never arrive, so exit right away.
+    if os.getppid() != parent_pid:
+        os._exit(1)  # pylint: disable=protected-access
 
 
 def build_celery_commands(with_workers: bool = False,
@@ -79,13 +86,15 @@ def spawn_celery_processes(commands: List[List[str]]) -> List[subprocess.Popen]:
     never sees EOF and the server hangs before it starts serving.
     """
     processes = []
+    server_pid = os.getpid()
     for command in commands:
         logger.info("Starting %s", command[0])
         processes.append(
-            # _die_with_parent only calls prctl, and gevent turns the server's threads
-            # into greenlets, so the fork/threads hazard of preexec_fn does not apply.
+            # _die_with_parent only calls prctl and getppid, and gevent turns the server's
+            # threads into greenlets, so the fork/threads hazard of preexec_fn does not apply.
             # pylint: disable-next=subprocess-popen-preexec-fn
-            subprocess.Popen(command, preexec_fn=_die_with_parent)  # nosec B603
+            subprocess.Popen(command,  # nosec B603
+                             preexec_fn=partial(_die_with_parent, server_pid))
         )
     return processes
 

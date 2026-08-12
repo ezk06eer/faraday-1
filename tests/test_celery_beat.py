@@ -15,6 +15,7 @@ import pytest
 
 from faraday.server.config import faraday_server
 from faraday.server.utils.celery import (
+    _die_with_parent,
     build_celery_commands,
     require_celery_enabled,
     spawn_celery_processes,
@@ -135,6 +136,25 @@ class TestCeleryProcessLifecycle:
             time.sleep(0.1)
 
         assert not alive, f'process {child_pid} outlived the server that spawned it'
+
+    @pytest.mark.skipif(not sys.platform.startswith('linux'),
+                        reason='PR_SET_PDEATHSIG is linux only')
+    def test_child_gives_up_when_the_server_died_before_pdeathsig_was_set(self):
+        # PR_SET_PDEATHSIG is not retroactive: a child that gets reparented before
+        # registering it never receives the signal, so it has to check by itself.
+        never_our_parent = os.getpid() + 1
+
+        pid = os.fork()
+        if pid == 0:
+            try:
+                _die_with_parent(never_our_parent)
+            finally:
+                os._exit(0)  # pylint: disable=protected-access
+
+        _, status = os.waitpid(pid, 0)
+
+        assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 1, \
+            'child kept running with a parent that can no longer signal it'
 
 
 class TestRunFailedCommandStatsInline:

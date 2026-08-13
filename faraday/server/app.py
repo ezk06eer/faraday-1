@@ -108,6 +108,10 @@ audit_logger = logging.getLogger('audit')
 FARADAY_APP = None
 DEBOUNCER = None
 
+# Intervals of the periodic tasks emitted by the faraday-beat scheduler.
+CLEANUP_STUCK_PIPELINES_INTERVAL = datetime.timedelta(minutes=30)
+UPDATE_FAILED_COMMAND_STATS_INTERVAL = datetime.timedelta(hours=2)
+
 PASSWORD_REGEX = re.compile(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[~!@#$%^&*_\-+=|(){}\[\]:";\'<>,.?/]).{8,}$')
 
 
@@ -552,11 +556,11 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         'CELERYBEAT_SCHEDULE': {
             'cleanup-stuck-pipelines': {
                 'task': 'faraday.server.tasks.cleanup_stuck_pipelines',
-                'schedule': datetime.timedelta(minutes=30),
+                'schedule': CLEANUP_STUCK_PIPELINES_INTERVAL,
             },
             'update-failed-command-stats': {
                 'task': 'faraday.server.tasks.update_failed_command_stats',
-                'schedule': datetime.timedelta(hours=2),
+                'schedule': UPDATE_FAILED_COMMAND_STATS_INTERVAL,
             },
         },
     })

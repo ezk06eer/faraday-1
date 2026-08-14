@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Fix `faraday-manage` failing on a clean installation after the SQLAlchemy 2 upgrade, which left `initdb` unable to create the database. #8465"
+}

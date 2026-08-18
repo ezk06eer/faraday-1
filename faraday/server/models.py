@@ -4110,6 +4110,11 @@ class WorkspaceSummaryReportRun(Metadata):
         backref=backref('runs', cascade="all, delete-orphan", passive_deletes=True),
     )
 
+    # Denormalized copy of the generated File's filename: set once at
+    # creation and never updated afterwards, so listing runs doesn't need to
+    # join the polymorphic File table.
+    filename = NonBlankColumn(Text)
+
     @property
     def attachments(self):
         return db.session.query(File).filter_by(

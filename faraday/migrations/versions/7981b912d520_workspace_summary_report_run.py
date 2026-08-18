@@ -21,6 +21,7 @@ def upgrade():
         sa.Column('update_date', sa.DateTime(), nullable=True),
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('workspace_summary_report_id', sa.Integer(), nullable=False),
+        sa.Column('filename', sa.Text(), nullable=False),
         sa.Column('creator_id', sa.Integer(), nullable=True),
         sa.Column('update_user_id', sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(['creator_id'], ['faraday_user.id'], ondelete='SET NULL'),

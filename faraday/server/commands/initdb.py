@@ -65,6 +65,9 @@ class InitDB:
                  * creates tables.
         """
         try:
+            # Seed server.ini from default.ini (no-op if it already exists) before reading it,
+            # so the [faraday_server]/[logger] defaults survive being overwritten by _save_config().
+            faraday.server.config.copy_default_config_to_local()
             config = ConfigParser()
             config.read(LOCAL_CONFIG_FILE)
             if not self._check_current_config(config):

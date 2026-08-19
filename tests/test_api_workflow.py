@@ -311,8 +311,7 @@ class TestPipelineMixinsView(ReadWriteAPITests):
         pipeline.running_since = datetime.utcnow() - timedelta(hours=7)
         db.session.commit()
 
-        with mock.patch('faraday.server.tasks.schedule_cleanup_stuck_pipelines'):
-            cleanup_stuck_pipelines()
+        cleanup_stuck_pipelines()
 
         updated = db.session.query(Pipeline).get(pipeline_id)
         assert updated.running is False
@@ -327,8 +326,7 @@ class TestPipelineMixinsView(ReadWriteAPITests):
         pipeline.running_since = None
         db.session.commit()
 
-        with mock.patch('faraday.server.tasks.schedule_cleanup_stuck_pipelines'):
-            cleanup_stuck_pipelines()
+        cleanup_stuck_pipelines()
 
         updated = db.session.query(Pipeline).get(pipeline_id)
         assert updated.running is False

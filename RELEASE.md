@@ -1,6 +1,12 @@
 New features in the latest update
 =====================================
 
+5.23.2 [August 19th, 2026]:
+---
+ * [FIX] Periodic maintenance tasks now run via Celery Beat instead of a self-rescheduling ETA chain, preventing task-storm redelivery. #8399
+ * [FIX] Fix `faraday-manage` failing on a clean installation after the SQLAlchemy 2 upgrade, which left `initdb` unable to create the database. #8465
+
+
 5.23.0 [July 23rd, 2026]:
 ---
  * [ADD] Runners table now supports filtering by Status, Tools, Last Execution Date, Last Execution Tool, and Category. #8279

@@ -67,9 +67,8 @@ from faraday.server.models import (
 )
 from faraday.server.utils.ping import ping_home_background_task
 
+from faraday.server.utils.command import run_failed_command_stats_inline
 from faraday.server.utils.reports_processor import reports_manager_background_task
-from faraday.server.utils.command import schedule_update_failed_command_stats
-from faraday.server.tasks import schedule_cleanup_stuck_pipelines
 from faraday.server.utils.invalid_chars import remove_null_characters
 from faraday.server.utils.logger import LOGGING_HANDLERS
 from faraday.server.websockets.dispatcher import remove_sid
@@ -108,6 +107,10 @@ audit_logger = logging.getLogger('audit')
 
 FARADAY_APP = None
 DEBOUNCER = None
+
+# Intervals of the periodic tasks emitted by the faraday-beat scheduler.
+CLEANUP_STUCK_PIPELINES_INTERVAL = datetime.timedelta(hours=1)
+UPDATE_FAILED_COMMAND_STATS_INTERVAL = datetime.timedelta(hours=2)
 
 PASSWORD_REGEX = re.compile(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])(?=.*[~!@#$%^&*_\-+=|(){}\[\]:";\'<>,.?/]).{8,}$')
 
@@ -548,7 +551,18 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         },
         'CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS': {
             'global_keyprefix': '' if not faraday_server.celery_queue_prefix else faraday_server.celery_queue_prefix,
-        }
+        },
+        # Periodic tasks, emitted by the faraday-beat scheduler.
+        'CELERYBEAT_SCHEDULE': {
+            'cleanup-stuck-pipelines': {
+                'task': 'faraday.server.tasks.cleanup_stuck_pipelines',
+                'schedule': CLEANUP_STUCK_PIPELINES_INTERVAL,
+            },
+            'update-failed-command-stats': {
+                'task': 'faraday.server.tasks.update_failed_command_stats',
+                'schedule': UPDATE_FAILED_COMMAND_STATS_INTERVAL,
+            },
+        },
     })
 
     store = FilesystemStore(app.config['SESSION_FILE_DIR'])
@@ -651,8 +665,8 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
         agents_crontab = CronTab(app=app)
         agents_crontab.start()
 
-        schedule_update_failed_command_stats()
-        schedule_cleanup_stuck_pipelines()
+        if not faraday.server.config.faraday_server.celery_enabled:
+            run_failed_command_stats_inline(app)
     return app
 
 

@@ -544,11 +544,12 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
 
     def _generate_filter_query(self, filters, severity_count=None):
         if 'group_by' not in filters:
-            order_by = filters.get('order_by', [])
-            filters['order_by'] = [
-                {'field': 'active', 'direction': 'desc'},
-                {'field': 'sid', 'direction': 'desc'},
-            ] + order_by
+            order_by = filters.get('order_by') or []
+            filters['order_by'] = (
+                [{'field': 'active', 'direction': 'desc'}]
+                + (order_by or [{'field': 'sid', 'direction': 'desc'}])
+                + [{'field': 'id', 'direction': 'asc'}]
+            )
         return super()._generate_filter_query(filters, severity_count=severity_count)
 
     def _translate_filters(self, filters):

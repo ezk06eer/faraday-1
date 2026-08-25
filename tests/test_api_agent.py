@@ -278,9 +278,9 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
 
     def test_filter_agents_respects_client_order_by(self, test_client, session):
         # Regression test: a client-provided order_by must not be silently overridden
-        # by the internal "online first" default tiebreaker.
+        # by the internal "active first, online first" defaults.
         agent_c = AgentFactory.create(active=True, sid="sid_3", name="orderby_test_CCC")
-        agent_b = AgentFactory.create(active=True, sid="sid_2", name="orderby_test_BBB")
+        agent_b = AgentFactory.create(active=False, sid=None, name="orderby_test_BBB")
         agent_a = AgentFactory.create(active=True, sid="sid_1", name="orderby_test_AAA")
         session.commit()
 
@@ -293,7 +293,28 @@ class TestAgentAPIGeneric(ReadWriteAPITests):
         res = test_client.get(f'/v3/agents/filter?q={urllib.parse.quote(q)}')
         assert res.status_code == 200
         ids = [row["id"] for row in res.json["rows"]]
+        # agent_b is inactive but sorts second by name — active is not forced to the front
+        # when the client asks for an explicit order.
         assert ids == [agent_a.id, agent_b.id, agent_c.id]
+
+    def test_filter_agents_active_and_sid_break_ties_in_client_order_by(self, test_client, session):
+        # active/sid are appended as tiebreakers after the client's requested field,
+        # so ties on that field still resolve active-first, online-first.
+        inactive_tied = AgentFactory.create(active=False, sid=None, name="tied_orderby_name")
+        offline_active_tied = AgentFactory.create(active=True, sid=None, name="tied_orderby_name")
+        online_active_tied = AgentFactory.create(active=True, sid="tied_session", name="tied_orderby_name")
+        session.commit()
+
+        q = json.dumps({
+            "filters": [{"name": "name", "op": "contains", "val": "tied_orderby_name"}],
+            "order_by": [{"field": "name", "direction": "asc"}],
+            "limit": 10,
+            "offset": 0,
+        })
+        res = test_client.get(f'/v3/agents/filter?q={urllib.parse.quote(q)}')
+        assert res.status_code == 200
+        ids = [row["id"] for row in res.json["rows"]]
+        assert ids == [online_active_tied.id, offline_active_tied.id, inactive_tied.id]
 
     def test_filter_agents_pagination_limit_two_is_disjoint_and_active_first(self, test_client, session):
         actives = [

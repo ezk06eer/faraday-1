@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Removed N+1 queries from the workspace, vulnerability, host and service listing endpoints. #7815"
+}

@@ -2763,7 +2763,8 @@ class User(db.Model, UserMixin):
     PENTESTER_ROLE = 'pentester'
     ASSET_OWNER_ROLE = 'asset_owner'
     CLIENT_ROLE = 'client'
-    ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE]
+    WORKSPACE_ADMIN_ROLE = 'workspace_admin'
+    ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE, WORKSPACE_ADMIN_ROLE]
     OTP_STATES = ["disabled", "requested", "confirmed"]
     USER_TYPES = [LDAP_TYPE, LOCAL_TYPE, SAML_TYPE]
 

@@ -1,7 +1,7 @@
 """workspace summary report run
 
 Revision ID: 7981b912d520
-Revises: bfc51a8857b6
+Revises: 2b45cf202f3f
 Create Date: 2026-07-31 00:00:00.000000+00:00
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '7981b912d520'
-down_revision = 'bfc51a8857b6'
+down_revision = '2b45cf202f3f'
 branch_labels = None
 depends_on = None
 

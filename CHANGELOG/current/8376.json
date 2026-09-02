@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] Bulk deleting a runner that has execution logs no longer returns a 500. #8376"
+}

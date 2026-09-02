@@ -1,0 +1,4 @@
+{
+  "level": "prof",
+  "md": "[ADD] New workspace_admin default role with full workspace management permissions over assigned workspaces. #8380"
+}

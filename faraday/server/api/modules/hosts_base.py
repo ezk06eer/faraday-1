@@ -34,7 +34,7 @@ from faraday.server.debouncer import (
     debounce_workspace_vulns_count_update,
     debounce_workspace_service_count,
 )
-from faraday.server.models import Command, CommandObject, Host, Hostname, Service, Workspace, db
+from faraday.server.models import Command, CommandObject, Host, Hostname, Service, User, Workspace, db
 from faraday.server.schemas import (
     MetadataSchema,
     MutableField,
@@ -186,6 +186,14 @@ class HostView(
                    ]
     get_joinedloads = [Host.hostnames, Host.services, Host.update_user]
 
+    def _filter_eagerload_options(self):
+        return [
+            joinedload(Host.creator).load_only(User.username),
+            joinedload(Host.workspace).load_only(Workspace.name),
+            *[joinedload(relationship) for relationship in self.get_joinedloads],
+            *[undefer(column) for column in self.get_undefer],
+        ]
+
     def _get_eagerloaded_query(self, *args, **kwargs):
         """
         Overrides _get_eagerloaded_query of GenericView
@@ -201,7 +209,7 @@ class HostView(
             # username. Do a joinedload to prevent doing one query per object
             # (n+1) problem
             options.append(joinedload(
-                getattr(self.model_class, 'creator')).load_only('username'))
+                getattr(self.model_class, 'creator')).load_only(User.username))
         query = self._get_base_query(*args, **kwargs)
         options += [joinedload(relationship)
                     for relationship in self.get_joinedloads]
@@ -246,6 +254,8 @@ class HostView(
 
         filter_query = search(db.session, self.model_class, filters)
 
+        if 'group_by' not in filters:
+            filter_query = filter_query.options(*self._filter_eagerload_options())
         if severity_count and 'group_by' not in filters:
             filter_query = filter_query.options(
                 undefer(self.model_class.vulnerability_critical_generic_count),
@@ -261,7 +271,7 @@ class HostView(
                 joinedload(self.model_class.hostnames),
                 joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),
-                joinedload(getattr(self.model_class, 'creator')).load_only('username'),
+                joinedload(getattr(self.model_class, 'creator')).load_only(User.username),
             )
         filter_query = (self._apply_filter_context(filter_query).
                         filter(Host.workspace.has(active=True)))  # only hosts from active workspaces

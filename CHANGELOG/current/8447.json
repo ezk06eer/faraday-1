@@ -1,0 +1,4 @@
+{
+  "level": "community",
+  "md": "[FIX] `faraday-server --with-workers` no longer hangs on startup, and the workers and beat it starts now stop with the server. #8447"
+}

@@ -119,6 +119,7 @@ OBJECT_TYPES = [
     'report_logo',
     'report_template',
     'template_logo',
+    'ws_sum_report',
 ]
 
 REFERENCE_TYPES = [
@@ -2763,7 +2764,8 @@ class User(db.Model, UserMixin):
     PENTESTER_ROLE = 'pentester'
     ASSET_OWNER_ROLE = 'asset_owner'
     CLIENT_ROLE = 'client'
-    ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE]
+    WORKSPACE_ADMIN_ROLE = 'workspace_admin'
+    ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE, WORKSPACE_ADMIN_ROLE]
     OTP_STATES = ["disabled", "requested", "confirmed"]
     USER_TYPES = [LDAP_TYPE, LOCAL_TYPE, SAML_TYPE]
 
@@ -3636,7 +3638,7 @@ class AgentExecution(Metadata):
     running = Column(Boolean, nullable=True)
     successful = Column(Boolean, nullable=True)
     message = Column(String, nullable=True)
-    executor_id = Column(Integer, ForeignKey('executor.id'), index=True, nullable=False)
+    executor_id = Column(Integer, ForeignKey('executor.id', ondelete='CASCADE'), index=True, nullable=False)
     executor = relationship('Executor', foreign_keys=[executor_id],
                             backref=backref('executions', cascade="all, delete-orphan"))
 
@@ -3871,6 +3873,11 @@ class UserNotificationSettings(Metadata):
     reports_email = Column(Boolean, default=False)
     reports_slack = Column(Boolean, default=False)
 
+    ws_sum_reports_enabled = Column(Boolean, default=True)
+    ws_sum_reports_app = Column(Boolean, default=True)
+    ws_sum_reports_email = Column(Boolean, default=False)
+    ws_sum_reports_slack = Column(Boolean, default=False)
+
     vulnerabilities_enabled = Column(Boolean, default=True)
     vulnerabilities_app = Column(Boolean, default=True)
     vulnerabilities_email = Column(Boolean, default=False)
@@ -4081,10 +4088,40 @@ class WorkspaceSummaryReport(Metadata):
         nullable=False,
         default='weekly',
     )
+    active = Column(Boolean, nullable=False, default=True)
 
     __table_args__ = (
         UniqueConstraint('creator_id', 'workspace_id', name='uix_workspace_summary_report_creator_workspace'),
     )
+
+
+class WorkspaceSummaryReportRun(Metadata):
+    __tablename__ = 'workspace_summary_report_run'
+    id = Column(Integer, primary_key=True)
+
+    workspace_summary_report_id = Column(
+        Integer,
+        ForeignKey('workspace_summary_report.id', ondelete='CASCADE'),
+        index=True,
+        nullable=False,
+    )
+    workspace_summary_report = relationship(
+        'WorkspaceSummaryReport',
+        foreign_keys=[workspace_summary_report_id],
+        backref=backref('runs', cascade="all, delete-orphan", passive_deletes=True),
+    )
+
+    # Denormalized copy of the generated File's filename: set once at
+    # creation and never updated afterwards, so listing runs doesn't need to
+    # join the polymorphic File table.
+    filename = NonBlankColumn(Text)
+
+    @property
+    def attachments(self):
+        return db.session.query(File).filter_by(
+            object_id=self.id,
+            object_type='ws_sum_report',
+        )
 
 
 # Indexes to speed up queries

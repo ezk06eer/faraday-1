@@ -769,6 +769,10 @@ class VulnerabilityView(
             joinedload(VulnerabilityGeneric.owasp),
             joinedload(Vulnerability.owasp),
             joinedload(VulnerabilityWeb.owasp),
+            joinedload(VulnerabilityGeneric.workspace).load_only(Workspace.name),
+            selectinload(VulnerabilityGeneric.cve_instances),
+            selectinload(VulnerabilityGeneric.refs),
+            selectinload(VulnerabilityGeneric.policy_violation_instances),
         ]
 
         if request.args.get('get_evidence'):
@@ -1144,10 +1148,14 @@ class VulnerabilityView(
                 selectinload(VulnerabilityGeneric.cwe),
                 selectinload(VulnerabilityGeneric.tags),
                 joinedload(VulnerabilityGeneric.host).selectinload(Host.hostnames),
-                joinedload(VulnerabilityGeneric.service).joinedload(Service.host).selectinload(Host.hostnames),
+                # service is declared on each subclass, so the relationship on
+                # VulnerabilityGeneric is not the one the loaded instances use.
+                joinedload(Vulnerability.service).joinedload(Service.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityWeb.service).joinedload(Service.host).selectinload(Host.hostnames),
                 joinedload(VulnerabilityGeneric.creator),
                 joinedload(VulnerabilityGeneric.update_user),
                 joinedload(VulnerabilityGeneric.group),
+                joinedload(VulnerabilityGeneric.workspace).load_only(Workspace.name),
                 undefer(VulnerabilityGeneric.target),
                 undefer(VulnerabilityGeneric.target_host_os),
                 undefer(VulnerabilityGeneric.target_host_ip),

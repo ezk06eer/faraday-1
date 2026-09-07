@@ -633,71 +633,64 @@ class SortableMixin:
     sort_model_class = None  # Override to use a model with more fields
 
     def _get_order_field(self, **kwargs):
+        # Delegates to SortingService (ponytail composition, keeps contract)
+        # Lazy import avoids circular dependency with faraday.services.sorting
         try:
-            order_field = request.args[self.sort_field_parameter_name]
-        except KeyError:
-            # Sort field not specified, return the default
-            return self.order_field
-        # Check that the field is in the schema to prevent unwanted fields
-        # value leaking
-        schema = self._get_schema_instance(kwargs)
+            from faraday.services.sorting import SortingService  # pylint: disable=import-outside-toplevel
 
-        # Add metadata nested field
-        try:
-            metadata_field = schema.fields.pop('metadata')
-        except KeyError:
-            pass
-        else:
-            for (key, value) in metadata_field.target_schema.fields.items():
-                schema.fields['metadata.' + key] = value
-                schema.fields[key] = value
-
-        try:
-            field_instance = schema.fields[order_field]
-        except KeyError as e:
-            if self.sort_pass_silently:
-                logger.warning(f"Unknown field: {order_field}")
+            return SortingService.get_order_field(self, **kwargs)
+        except ImportError:
+            # Fallback to legacy implementation if services not available (tests without deps)
+            try:
+                order_field = request.args[self.sort_field_parameter_name]
+            except KeyError:
                 return self.order_field
-            raise InvalidUsage(f"Unknown field: {order_field}") from e
-        # Translate from the field name in the schema to the database field
-        # name
-        order_field = field_instance.attribute or order_field
-
-        # TODO migration: improve this checking or use a whitelist.
-        # Handle PrimaryKeyRelatedField
-        model_class = self.sort_model_class or self.model_class
-        if order_field not in inspect(model_class).attrs:
-            if self.sort_pass_silently:
-                logger.warning(f"Field not in the DB: {order_field}")
-                return self.order_field
-            # It could be something like fields.Method
-            raise InvalidUsage(f"Field not in the DB: {order_field}")
-
-        if hasattr(model_class, order_field + '_id'):
-            # Ugly hack to allow sorting by a parent
-            field = getattr(model_class, order_field + '_id')
-        else:
-            field = getattr(model_class, order_field)
-        sort_dir = request.args.get(self.sort_direction_parameter_name,
-                                          self.default_sort_direction)
-        if sort_dir not in ('asc', 'desc'):
-            if self.sort_pass_silently:
-                logger.warning(f"Invalid value for sorting direction: {sort_dir}")
-                return self.order_field
-            raise InvalidUsage(f"Invalid value for sorting direction: {sort_dir}")
-        try:
-            if self.order_field is not None:
-                if not isinstance(self.order_field, tuple):
-                    self.order_field = (self.order_field,)
-                return (getattr(field, sort_dir)(),) + self.order_field
+            schema = self._get_schema_instance(kwargs)
+            try:
+                metadata_field = schema.fields.pop('metadata')
+            except KeyError:
+                pass
             else:
-                return getattr(field, sort_dir)()
-        except NotImplementedError as e:
-            if self.sort_pass_silently:
-                logger.warning(f"field {order_field} doesn't support sorting")
-                return self.order_field
-            # There are some fields that can't be used for sorting
-            raise InvalidUsage(f"field {order_field} doesn't support sorting") from e
+                for (key, value) in metadata_field.target_schema.fields.items():
+                    schema.fields['metadata.' + key] = value
+                    schema.fields[key] = value
+            try:
+                field_instance = schema.fields[order_field]
+            except KeyError as e:
+                if self.sort_pass_silently:
+                    logger.warning(f"Unknown field: {order_field}")
+                    return self.order_field
+                raise InvalidUsage(f"Unknown field: {order_field}") from e
+            order_field = field_instance.attribute or order_field
+            model_class = self.sort_model_class or self.model_class
+            if order_field not in inspect(model_class).attrs:
+                if self.sort_pass_silently:
+                    logger.warning(f"Field not in the DB: {order_field}")
+                    return self.order_field
+                raise InvalidUsage(f"Field not in the DB: {order_field}")
+            if hasattr(model_class, order_field + '_id'):
+                field = getattr(model_class, order_field + '_id')
+            else:
+                field = getattr(model_class, order_field)
+            sort_dir = request.args.get(self.sort_direction_parameter_name,
+                                               self.default_sort_direction)
+            if sort_dir not in ('asc', 'desc'):
+                if self.sort_pass_silently:
+                    logger.warning(f"Invalid value for sorting direction: {sort_dir}")
+                    return self.order_field
+                raise InvalidUsage(f"Invalid value for sorting direction: {sort_dir}")
+            try:
+                if self.order_field is not None:
+                    if not isinstance(self.order_field, tuple):
+                        self.order_field = (self.order_field,)
+                    return (getattr(field, sort_dir)(),) + self.order_field
+                else:
+                    return getattr(field, sort_dir)()
+            except NotImplementedError as e:
+                if self.sort_pass_silently:
+                    logger.warning(f"field {order_field} doesn't support sorting")
+                    return self.order_field
+                raise InvalidUsage(f"field {order_field} doesn't support sorting") from e
 
 
 class PaginatedMixin:
@@ -706,28 +699,34 @@ class PaginatedMixin:
     page_number_parameter_name = 'page'
 
     def _paginate(self, query, hard_limit=0):
-        page, per_page = None, None
-        if self.per_page_parameter_name in request.args:
+        # Delegates to PaginationService (ponytail composition)
+        try:
+            from faraday.services.pagination import PaginationService  # pylint: disable=import-outside-toplevel
 
-            try:
-                page = int(request.args.get(
-                    self.page_number_parameter_name, 1))
-            except (TypeError, ValueError):
-                abort(HTTP_NOT_FOUND, 'Invalid page number')
-
-            try:
-                per_page = int(request.args[
-                                   self.per_page_parameter_name])
-            except (TypeError, ValueError):
-                abort(HTTP_NOT_FOUND, 'Invalid per_page value')
-
-            pagination_metadata = query.paginate(page=page, per_page=per_page, error_out=False)
-            return pagination_metadata.items, pagination_metadata
-        elif hard_limit != 0:
-            pagination_metadata = query.paginate(page=1, per_page=hard_limit, error_out=False)
-            return pagination_metadata.items, pagination_metadata
-
-        return super()._paginate(query)
+            result = PaginationService.paginate(query, hard_limit=hard_limit)
+            # Service returns (query, None) when no pagination; fall back to super for chain
+            if result[1] is None and result[0] is query and self.per_page_parameter_name not in request.args and hard_limit == 0:
+                return super()._paginate(query)
+            return result
+        except ImportError:
+            page, per_page = None, None
+            if self.per_page_parameter_name in request.args:
+                try:
+                    page = int(request.args.get(
+                        self.page_number_parameter_name, 1))
+                except (TypeError, ValueError):
+                    abort(HTTP_NOT_FOUND, 'Invalid page number')
+                try:
+                    per_page = int(request.args[
+                                       self.per_page_parameter_name])
+                except (TypeError, ValueError):
+                    abort(HTTP_NOT_FOUND, 'Invalid per_page value')
+                pagination_metadata = query.paginate(page=page, per_page=per_page, error_out=False)
+                return pagination_metadata.items, pagination_metadata
+            elif hard_limit != 0:
+                pagination_metadata = query.paginate(page=1, per_page=hard_limit, error_out=False)
+                return pagination_metadata.items, pagination_metadata
+            return super()._paginate(query)
 
 
 class FilterAlchemyMixin:

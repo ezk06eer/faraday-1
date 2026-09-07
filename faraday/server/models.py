@@ -2639,28 +2639,46 @@ class Workspace(Metadata):
         return db.session.execute(text(query), params).mappings()
 
     def set_scope(self, new_scope):
-        return set_children_objects(self, new_scope,
-                                    parent_field='scope',
-                                    child_field='name',
-                                    workspaced=False)
+        # Delegates to domain service (ponytail YAGNI, keeps contract)
+        try:
+            from faraday.domain.workspace.service import set_workspace_scope  # pylint: disable=import-outside-toplevel
+
+            return set_workspace_scope(self, new_scope)
+        except ImportError:
+            return set_children_objects(self, new_scope,
+                                        parent_field='scope',
+                                        child_field='name',
+                                        workspaced=False)
 
     def activate(self):
-        # if Checks active count
-        if not self.active:
-            self.active = True
-            return True
-        return False
-        # else:
-        # raise Cannot exceed or return false
+        try:
+            from faraday.domain.workspace.service import activate_workspace  # pylint: disable=import-outside-toplevel
+
+            return activate_workspace(self)
+        except ImportError:
+            if not self.active:
+                self.active = True
+                return True
+            return False
 
     def deactivate(self):
-        if self.active is not False:
-            self.active = False
-            return True
-        return False
+        try:
+            from faraday.domain.workspace.service import deactivate_workspace  # pylint: disable=import-outside-toplevel
+
+            return deactivate_workspace(self)
+        except ImportError:
+            if self.active is not False:
+                self.active = False
+                return True
+            return False
 
     def change_readonly(self):
-        self.readonly = not self.readonly
+        try:
+            from faraday.domain.workspace.service import toggle_readonly  # pylint: disable=import-outside-toplevel
+
+            return toggle_readonly(self)
+        except ImportError:
+            self.readonly = not self.readonly
 
 
 class Scope(Metadata):

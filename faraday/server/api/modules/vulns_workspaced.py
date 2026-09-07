@@ -25,8 +25,11 @@ from faraday.server.api.base import (
 from faraday.server.api.modules.vulns_base import VulnerabilityFilterSet, VulnerabilityView
 from faraday.server.config import faraday_server
 from faraday.server.debouncer import debounce_workspace_update, debounce_workspace_vulns_count_update
+try:
+    from faraday.domain.vulnerability.models import VulnerabilityGeneric
+except ImportError:
+    from faraday.server.models import VulnerabilityGeneric
 from faraday.server.models import (
-    VulnerabilityGeneric,
     db,
 )
 from faraday.server.utils.command import set_command_id

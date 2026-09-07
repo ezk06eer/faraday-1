@@ -63,6 +63,10 @@ from faraday.server.api.modules.services_base import ServiceSchema
 from faraday.server.config import faraday_server
 from faraday.server.debouncer import debounce_workspace_update
 from faraday.server.fields import FaradayUploadedFile
+try:
+    from faraday.domain.vulnerability.models import VulnerabilityGeneric
+except ImportError:
+    from faraday.server.models import VulnerabilityGeneric
 from faraday.server.models import (
     CustomFieldsSchema,
     File,
@@ -73,7 +77,6 @@ from faraday.server.models import (
     User,
     Vulnerability,
     VulnerabilityABC,
-    VulnerabilityGeneric,
     VulnerabilityReference,
     VulnerabilityWeb,
     Workspace,

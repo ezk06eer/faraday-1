@@ -1357,9 +1357,14 @@ class Host(Metadata):
         This function was thought to update existing objects, it shouldn't
         be used when creating!
         """
-        return set_children_objects(self, new_hostnames,
-                                    parent_field='hostnames',
-                                    child_field='name')
+        try:
+            from faraday.domain.host_service.service import set_host_hostnames  # pylint: disable=import-outside-toplevel
+
+            return set_host_hostnames(self, new_hostnames)
+        except ImportError:
+            return set_children_objects(self, new_hostnames,
+                                        parent_field='hostnames',
+                                        child_field='name')
 
 
 cve_vulnerability_association = db.Table(

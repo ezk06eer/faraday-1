@@ -886,7 +886,15 @@ class VulnerabilityView(
             description: Ok
         """
         vuln_permission_check = self._apply_filter_context(
-            db.session.query(VulnerabilityGeneric).filter(VulnerabilityGeneric.id == vuln_id),
+            db.session.query(VulnerabilityGeneric).options(
+                joinedload(VulnerabilityGeneric.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.service).joinedload(Service.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.workspace).load_only(Workspace.name),
+                joinedload(VulnerabilityGeneric.creator).load_only(User.username),
+                selectinload(VulnerabilityGeneric.cve_instances),
+                selectinload(VulnerabilityGeneric.refs),
+                noload(VulnerabilityGeneric.evidence),
+            ).filter(VulnerabilityGeneric.id == vuln_id),
             operation="write"
         ).first()
 
@@ -953,7 +961,9 @@ class VulnerabilityView(
               description: Validation error
         """
         vuln_permission_check = self._apply_filter_context(
-            db.session.query(VulnerabilityGeneric).filter(VulnerabilityGeneric.id == vuln_id),
+            db.session.query(VulnerabilityGeneric).options(
+                joinedload(VulnerabilityGeneric.workspace).load_only(Workspace.name),
+            ).filter(VulnerabilityGeneric.id == vuln_id),
             operation="write"
         ).first()
 

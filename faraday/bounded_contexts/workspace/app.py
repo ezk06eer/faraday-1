@@ -10,13 +10,23 @@ Uso:
 """
 def create_workspace_app(db_connection_string=None, testing=None):
     """Crea Flask app solo con workspace BC (para tests y futuro microservicio)."""
-    from faraday.server.app import create_app as _create_app  # lazy
+    from flask import Flask
 
-    # Por ahora delega a create_app completo (monolito) — YAGNI: no duplicar lógica
-    # Futuro: registrar solo workspace_api + repo/workspace_repo sin vuln/host
-    # Mantiene contracts.md: APPLICATION_PREFIX /_api, workspace routes /v3/ws
-    app = _create_app(db_connection_string=db_connection_string, testing=testing, register_extensions_flag=False)
+    app = Flask(__name__, static_folder=None)
+    app.config['APPLICATION_PREFIX'] = '/_api' if not testing else ''
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_connection_string or "sqlite:///:memory:"
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    if testing:
+        app.config['TESTING'] = True
+
+    from faraday.server.models import db
+    db.init_app(app)
+
+    from faraday.server.api.modules.workspaces import workspace_api
+    app.register_blueprint(workspace_api, url_prefix=app.config['APPLICATION_PREFIX'])
+
     return app
+
 
 # Re-export para compat
 __all__ = ["create_workspace_app"]

@@ -21,12 +21,13 @@ from sqlalchemy.orm.exc import NoResultFound
 
 # Local application imports
 from faraday.server.models import (
-    db,
+    User,
     Workspace,
     SeveritiesHistogram,
     Vulnerability,
     _last_run_agent_date,
     _make_generic_count_property,
+    db,
 )
 from faraday.server.schemas import (
     JSTimestampField,
@@ -463,6 +464,8 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
                 Workspace.last_run_agent_date,
                 _last_run_agent_date(),
             ),
+            joinedload(Workspace.scope),
+            joinedload(Workspace.creator).load_only(User.username),
         )
         try:
             obj = query.one()

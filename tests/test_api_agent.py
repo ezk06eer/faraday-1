@@ -80,7 +80,6 @@ class TestAgentAuthTokenAPIGeneric:
 class TestAgentCreationAPI:
 
     @mock.patch('faraday.server.api.modules.agent.faraday_server')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_create_agent_valid_token(self, faraday_server_config, test_client,
                                       session):
         secret = pyotp.random_base32()

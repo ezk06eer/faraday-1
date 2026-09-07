@@ -35,14 +35,12 @@ class TestListCommandView(ReadWriteAPITests):
     view_class = CommandView
     patchable_fields = ["ip"]
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.usefixtures('mock_envelope_list')
     def test_list_retrieves_all_items_from_workspace(self, test_client,
                                                      second_workspace,
                                                      session):
         super().test_list_retrieves_all_items_from_workspace(test_client, second_workspace, session)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_backwards_compatibility_list(self, test_client, second_workspace, session):
         self.factory.create(workspace=second_workspace)
         session.commit()
@@ -70,7 +68,6 @@ class TestListCommandView(ReadWriteAPITests):
             assert command['value']['workspace'] == self.workspace.name
             assert set(object_properties) == set(command['value'].keys())
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_can_list_readonly(self, test_client, session):
         super().test_can_list_readonly(test_client, session)
 
@@ -312,7 +309,6 @@ class TestListCommandView(ReadWriteAPITests):
                                           'vulnerabilities_count': 1,
                                           'criticalIssue': 0}
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_sub_second_command_returns_correct_duration_value(self, test_client):
         command = self.factory(
             start_date=datetime.datetime(2017, 11, 14, 12, 29, 21, 248433),
@@ -322,7 +318,6 @@ class TestListCommandView(ReadWriteAPITests):
         assert res.status_code == 200
         assert res.json['commands'][0]['value']['duration'] == 0.442406
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_more_than_one_second_command_returns_correct_duration_value(self, test_client):
         command = self.factory(
             start_date=datetime.datetime(2017, 11, 14, 12, 29, 20, 248433),
@@ -332,7 +327,6 @@ class TestListCommandView(ReadWriteAPITests):
         assert res.status_code == 200
         assert res.json['commands'][0]['value']['duration'] == 1.442406
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_more_than_one_minute_command_returns_correct_duration_value(self, test_client):
         command = self.factory(
             start_date=datetime.datetime(2017, 11, 14, 12, 28, 20, 248433),
@@ -342,7 +336,6 @@ class TestListCommandView(ReadWriteAPITests):
         assert res.status_code == 200
         assert res.json['commands'][0]['value']['duration'] == 61.442406
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_less_than_one_day_none_end_date_command_returns_msg(self, test_client):
         command = self.factory(
             start_date=datetime.datetime.now(),

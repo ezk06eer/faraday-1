@@ -50,7 +50,6 @@ class GenericAPITest:
 @pytest.mark.usefixtures('logged_user')
 class ListTestsMixin:
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_list_retrieves_all_items_from(self, test_client, logged_user):
         res = test_client.get(self.url())
         assert res.status_code == 200
@@ -247,7 +246,6 @@ class DeleteTestsMixin:
 @pytest.mark.usefixtures('logged_user')
 class BulkDeleteTestsMixin:
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_bulk_delete(self, test_client):
 
         all_objs = self.model.query.all()

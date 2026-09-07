@@ -30,7 +30,6 @@ class TestListServiceView(ReadOnlyAPITests, BulkUpdateTestsMixin, BulkDeleteTest
             data['parent'] = self.first_object.host_id
         return data
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_service_list_backwards_compatibility(self, test_client,
                                                   second_workspace, session):
         self.factory.create(workspace=second_workspace)
@@ -77,13 +76,11 @@ class TestListServiceView(ReadOnlyAPITests, BulkUpdateTestsMixin, BulkDeleteTest
             raw_data['parent'] = parent
         return raw_data
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_list_retrieves_all_items_from(self, test_client, logged_user):
         res = test_client.get(self.url())
         assert res.status_code == 200
         assert len(res.json['services']) == OBJECT_COUNT
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_list_retrieves_items_from_active_workspaces(self, test_client, logged_user, session, second_workspace,
                                                          service_factory):
         service_factory.create(workspace=second_workspace)

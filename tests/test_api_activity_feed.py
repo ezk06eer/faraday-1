@@ -19,7 +19,6 @@ from tests.factories import (WorkspaceFactory,
 @pytest.mark.usefixtures('logged_user')
 class TestActivityFeed:
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_activity_feed(self, test_client, session):
         ws = WorkspaceFactory.create(name="abc")
         command = CommandFactory.create(workspace=ws, tool="nessus")
@@ -60,7 +59,6 @@ class TestActivityFeed:
         assert res.status_code == 200
         assert datetime.datetime.fromtimestamp(res_itime) == new_start_date
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_verify_correct_severities_sum_values(self, session, test_client):
         workspace = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=workspace)
@@ -173,7 +171,7 @@ class TestActivityFeedEnvelopeFilter:
         )
         return vuln
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_error_is_excluded(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws, command='error')
@@ -183,7 +181,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.status_code == 200
         assert res.json['activities'] == []
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_no_data_is_excluded(self, test_client, session):
         ws = WorkspaceFactory.create()
         EmptyCommandFactory.create(workspace=ws)
@@ -193,7 +191,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.status_code == 200
         assert res.json['activities'] == []
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_error_and_data_is_excluded(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws, command='error')
@@ -204,7 +202,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.status_code == 200
         assert res.json['activities'] == []
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_only_host_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -218,7 +216,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['services_count'] == 0
         assert res.json['activities'][0]['vulnerabilities_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_only_service_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -232,7 +230,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['hosts_count'] == 0
         assert res.json['activities'][0]['vulnerabilities_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_only_vuln_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -246,7 +244,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['hosts_count'] == 0
         assert res.json['activities'][0]['services_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_host_and_service_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -261,7 +259,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['services_count'] == 1
         assert res.json['activities'][0]['vulnerabilities_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_host_and_vuln_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -276,7 +274,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['vulnerabilities_count'] == 1
         assert res.json['activities'][0]['services_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_service_and_vuln_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -291,7 +289,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['vulnerabilities_count'] == 1
         assert res.json['activities'][0]['hosts_count'] == 0
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_command_with_all_data_is_included(self, test_client, session):
         ws = WorkspaceFactory.create()
         command = EmptyCommandFactory.create(workspace=ws)
@@ -307,7 +305,7 @@ class TestActivityFeedEnvelopeFilter:
         assert res.json['activities'][0]['services_count'] == 1
         assert res.json['activities'][0]['vulnerabilities_count'] == 1
 
-    @pytest.mark.usefixtures('logged_user', 'ignore_nplusone')
+    @pytest.mark.usefixtures('logged_user')
     def test_mixed_commands_only_valid_ones_returned(self, test_client, session):
         ws = WorkspaceFactory.create()
 

@@ -132,7 +132,6 @@ class TestVulnerabilitySearch:
         assert res.json['vulnerabilities'][0]['id'] == vuln.id
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit_mixed_vulns_type_bug(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -167,7 +166,6 @@ class TestVulnerabilitySearch:
         assert expected_vulns == paginated_vulns
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit_page_size_10(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -196,7 +194,6 @@ class TestVulnerabilitySearch:
         assert expected_vulns == paginated_vulns
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -291,7 +288,6 @@ class TestVulnerabilitySearch:
         assert len(res.json['vulnerabilities']) == limit[1]
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip(reason="We need a better solution for searching in the model.")
     def test_search_by_host_os_with_vulnerability_web_bug(self, test_client, session):
         """
@@ -328,7 +324,6 @@ class TestVulnerabilitySearch:
         assert res.json['vulnerabilities'][0]['id'] == vuln.id
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_by_date_equals(self, test_client, session):
         """
             When searching by the host os an error was raised when a vuln web exists in the ws
@@ -525,7 +520,6 @@ class TestVulnerabilitySearch:
         )
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_count(self, test_client, session, workspace):
         vulns_web = VulnerabilityWebFactory.create_batch(10, workspace=workspace, severity='high')
         vulns = VulnerabilityFactory.create_batch(10, workspace=workspace, severity='high')
@@ -543,7 +537,6 @@ class TestVulnerabilitySearch:
         assert res.status_code == 200
         assert res.json['count'] == 20
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_group_and_sort(self, test_client, session, workspace):
         vulns_web = VulnerabilityWebFactory.create_batch(10, workspace=workspace, severity='high')
         vulns = VulnerabilityFactory.create_batch(10, workspace=workspace, severity='high')
@@ -773,7 +766,6 @@ class TestVulnerabilitySearch:
 
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.parametrize("column", VALID_FILTER_VULN_COLUMNS)
     def test_custom_columns_with_filter(self, test_client, session, column):
         # Test that each valid vulnerability column can be used in filter requests
@@ -800,7 +792,6 @@ class TestVulnerabilitySearch:
         # Verify that the requested column is included in the response
         assert column in res.json['vulnerabilities'][0]["value"]
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_custom_columns_with_filter_invalid_column(self, test_client, session):
         # Test that using an invalid column name returns an error
         workspace = WorkspaceFactory.create()
@@ -824,7 +815,6 @@ class TestVulnerabilitySearch:
         # Should return 400 Bad Request when an invalid column is specified
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_export_csv_limited(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -862,7 +852,6 @@ class TestVulnerabilitySearch:
         assert set(rows[0].keys()) == set(VALID_FILTER_VULN_COLUMNS)
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_float_custom_field(self, test_client, session, workspace):
         CustomFieldsSchemaFactory.create(
             table_name='vulnerability',
@@ -928,7 +917,6 @@ class TestVulnerabilitySearch:
         assert res.json['count'] == 2
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_large_fields_truncated_in_table_view(self, test_client, session, workspace):
         long_text = 'a' * 200
         host = HostFactory.create(workspace=workspace)
@@ -968,7 +956,6 @@ class TestVulnerabilitySearch:
                         assert value[field].endswith('...')
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_large_fields_full_content_in_csv_export(self, test_client, session, workspace):
         long_text = 'a' * 200
         host = HostFactory.create(workspace=workspace)
@@ -1019,7 +1006,6 @@ class TestVulnerabilitySearch:
         assert response.status_code == 400
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.parametrize('column', VALID_FILTER_VULN_COLUMNS)
     def test_export_csv_limited_single_column(self, test_client, session, workspace, column):
         host = HostFactory.create(workspace=workspace)
@@ -1040,7 +1026,6 @@ class TestVulnerabilitySearch:
         assert csv_reader.fieldnames == [column]
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_csv_limited_all_columns(self, test_client, session, workspace):
         host = HostFactory.create(workspace=workspace)
         vuln = VulnerabilityFactory.create(

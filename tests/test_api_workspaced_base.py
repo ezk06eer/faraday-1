@@ -500,7 +500,6 @@ class BulkDeleteTestsMixin:
         all_objs_id = [obj.__getattribute__(self.view_class.lookup_field) for obj in all_objs]
         return all_objs, all_objs_id
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_bulk_delete(self, test_client):
         all_objs, all_objs_id = self.get_all_objs_and_ids()
         ignored_obj = all_objs[-1]

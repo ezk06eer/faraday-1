@@ -85,7 +85,6 @@ class TestHostAPI:
         hosts_in_response = {host['id'] for host in response.json['rows']}
         assert hosts_in_list == hosts_in_response
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_list_retrieves_all_items_from_all_workspace(self, test_client,
                                                      second_workspace,
                                                      session,
@@ -96,7 +95,6 @@ class TestHostAPI:
         assert res.status_code == 200
         assert len(res.json['rows']) == HOSTS_COUNT + 1
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_list_retrieves_all_items_from_only_active_workspace(self, test_client,
                                                      second_workspace,
                                                      session,
@@ -114,7 +112,6 @@ class TestHostAPI:
         assert res.status_code == 200
         assert len(res.json['rows']) == HOSTS_COUNT
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_order_by_creator_username_keeps_null_creators(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='no_ws_owner_alice')
@@ -131,7 +128,6 @@ class TestHostAPI:
         assert res.json['count'] == expected_total
         assert len(res.json['rows']) == expected_total
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_filter_and_order_by_creator_username(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='no_ws_owner_bob')
@@ -148,7 +144,6 @@ class TestHostAPI:
         assert res.json['count'] == 3
         assert len(res.json['rows']) == 3
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_group_by_creator_username(
             self, test_client, session, workspace, host_factory, user_factory):
         owner = user_factory.create(username='no_ws_owner_carol')
@@ -208,7 +203,6 @@ class TestHostAPI:
             assert res.json['services'] == len(services)
             assert res.json['open_services'] == len(services)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_index_shows_service_count(self, test_client, session,
                                        host_services, service_factory):
         ids_map = {host.id: services
@@ -230,7 +224,6 @@ class TestHostAPI:
                 assert host['value']['services'] == len(ids_map[host['id']])
                 assert host['value']['open_services'] == len(ids_map[host['id']])
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_os_exact(self, test_client, session, workspace,
                                 second_workspace, host_factory):
         # The hosts that should be shown
@@ -248,7 +241,6 @@ class TestHostAPI:
         assert res.status_code == 200
         self.compare_results(hosts, res)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_by_os_exact(self, test_client, session, workspace,
                                          second_workspace, host_factory):
         # The hosts that should be shown
@@ -272,7 +264,6 @@ class TestHostAPI:
         assert res.status_code == 200
         self.compare_results(hosts + hosts_2, res)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_count(self, test_client, session, workspace,
                                    second_workspace, host_factory):
         # The hosts that should be shown
@@ -287,7 +278,6 @@ class TestHostAPI:
         assert res.status_code == 200
         assert res.json['count'] == 35
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_filter_and_group_by_os(self, test_client, session, workspace, host_factory):
         host_factory.create_batch(10, workspace=workspace, os='Unix')
         host_factory.create_batch(1, workspace=workspace, os='unix')
@@ -300,7 +290,6 @@ class TestHostAPI:
         assert 'unix' in [row['value']['os'] for row in res.json['rows']]
         assert 'Unix' in [row['value']['os'] for row in res.json['rows']]
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_os_like_ilike(self, test_client, session, workspace,
                                      second_workspace, host_factory):
         # The hosts that should be shown
@@ -326,7 +315,6 @@ class TestHostAPI:
         assert res.status_code == 200
         self.compare_results(hosts + [case_insensitive_host], res)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_by_os_like_ilike(self, test_client, session, workspace,
                                               second_workspace, host_factory):
         # The hosts that should be shown
@@ -360,7 +348,6 @@ class TestHostAPI:
         assert res.status_code == 200
         self.compare_results(hosts + [case_insensitive_host], res)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_service(self, test_client, session, workspace,
                                service_factory, host_factory):
         services = service_factory.create_batch(10, workspace=workspace,
@@ -377,7 +364,6 @@ class TestHostAPI:
         expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_by_service_name(self, test_client, session, workspace,
                                              service_factory, host_factory):
         services = service_factory.create_batch(10, workspace=workspace,
@@ -400,7 +386,6 @@ class TestHostAPI:
         expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_by_service_port(self, test_client, session, workspace,
                                     service_factory, host_factory):
         services = service_factory.create_batch(10, workspace=workspace, port=25)
@@ -416,7 +401,6 @@ class TestHostAPI:
         expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_by_service_port(self, test_client, session, workspace,
                                              service_factory, host_factory):
         services = service_factory.create_batch(10, workspace=workspace, port=25)
@@ -437,7 +421,6 @@ class TestHostAPI:
         expected_host_ids = {host.id for host in hosts}
         assert shown_hosts_ids == expected_host_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_verify_severity_counts(self, test_client, session, workspace, host_factory, vulnerability_factory):
         host = host_factory.create(workspace=workspace)
         vulnerability_factory.create(service=None, host=host, workspace=workspace, severity='critical')
@@ -486,7 +469,6 @@ class TestHostAPI:
         assert res.status_code == 200
         assert res.json['count'] == 0
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_by_invalid_service_port(self, test_client, session, workspace,
                                                      service_factory, host_factory):
         services = service_factory.create_batch(10, workspace=workspace, port=25)
@@ -513,18 +495,15 @@ class TestHostAPI:
         )
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_with_no_q_param(self, test_client, session, workspace, host_factory):
         res = test_client.get(join(self.url(), 'filter'))
         assert res.status_code == 200
         assert len(res.json['rows']) == HOSTS_COUNT
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_restless_with_empty_q_param(self, test_client, session, workspace, host_factory):
         res = test_client.get(join(self.url(), 'filter?q'))
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_ip(self, test_client, session, workspace, host_factory):
         host = host_factory.create(ip="longname",
                                    workspace=workspace)
@@ -534,7 +513,6 @@ class TestHostAPI:
         assert len(res.json['rows']) == 1
         assert res.json['rows'][0]['id'] == host.id
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.usefixtures('host_services')
     def test_search_service_name(self, test_client, session, workspace,
                                  service_factory):
@@ -550,7 +528,6 @@ class TestHostAPI:
         assert shown_hosts_ids == expected_host_ids
 
     @pytest.mark.usefixtures('host_with_hostnames')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_by_hostname(self, test_client, session, workspace):
         expected_hosts = [self.hosts[2], self.hosts[4]]
         for host in expected_hosts:
@@ -562,7 +539,6 @@ class TestHostAPI:
         expected_host_ids = {host.id for host in expected_hosts}
         assert shown_hosts_ids == expected_host_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_host_with_open_vuln_count_verification(self, test_client, session,
                                                     workspace, host_factory,
                                                     vulnerability_factory,
@@ -786,7 +762,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
         assert res.json['tools'][0]['user'] == command.user
 
     @pytest.mark.usefixtures("mock_envelope_list")
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_sort_by_description(self, test_client, session):
         for host in Host.query.all():
             # I don't want to test case-sensitive sorting
@@ -805,7 +780,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
         assert [host['_id'] for host in res.json['data']] == expected_ids
 
     @pytest.mark.usefixtures("mock_envelope_list")
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_sort_by_services(self, test_client, session, second_workspace,
                               host_factory, service_factory):
         expected_ids = []
@@ -822,7 +796,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
         assert [h['_id'] for h in res.json['data'] if h['_id'] in expected_ids] == expected_ids
 
     @pytest.mark.usefixtures("mock_envelope_list")
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_sort_by_update_time(self, test_client, session, second_workspace,
                                  host_factory):
         """
@@ -939,7 +912,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
 
             assert index_in_sorted_host == index_in_response_hosts
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_hosts_order_without_vulns(self, session, test_client):
         # If a host has no vulns, it should be ordered by IP in ascending order
         ws = WorkspaceFactory.create()
@@ -964,7 +936,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
 
                 assert index_in_hosts_ids == index_in_response_hosts
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_bulk_update_host_with_hostnames(self, test_client, session,
                                         host_with_hostnames):
         session.commit()
@@ -983,7 +954,6 @@ class TestHostAPIGeneric(ReadOnlyAPITests, PaginationTestsMixin, BulkUpdateTests
         assert {hn.name for hn in host_with_hostnames.hostnames} == expected
         assert {hn.name for hn in first_object.hostnames} == expected
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_bulk_update_host_without_hostnames(self, test_client, session,
                                                 host_with_hostnames):
         session.commit()

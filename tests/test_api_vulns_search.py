@@ -71,7 +71,6 @@ class TestVulnerabilitySearch:
         assert res.json['vulnerabilities'][0]['id'] == vuln.id
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip(reason="We need a better solution for searching by hostnames.")
     def test_search_hostname_web_vulns(self, test_client, session):
         workspace = WorkspaceFactory.create()
@@ -145,7 +144,6 @@ class TestVulnerabilitySearch:
         assert res.json['vulnerabilities'][0]['id'] == vuln.id
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit_mixed_vulns_type_bug(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -183,7 +181,6 @@ class TestVulnerabilitySearch:
         assert expected_vulns == paginated_vulns
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit_page_size_10(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -215,7 +212,6 @@ class TestVulnerabilitySearch:
         assert expected_vulns == paginated_vulns
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_filter_offset_and_limit(self, test_client, session):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -313,7 +309,6 @@ class TestVulnerabilitySearch:
         assert len(res.json['vulnerabilities']) == limit[1]
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip(reason="We need a better solution for searching in the model.")
     def test_search_by_host_os_with_vulnerability_web_bug(self, test_client, session):
         """
@@ -353,7 +348,6 @@ class TestVulnerabilitySearch:
         assert res.json['vulnerabilities'][0]['id'] == vuln.id
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_search_by_date_equals(self, test_client, session):
         """
             When searching by the host os an error was raised when a vuln web exists in the ws
@@ -598,7 +592,6 @@ class TestVulnerabilitySearch:
         )
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_count(self, test_client, session, workspace):
         vulns_web = VulnerabilityWebFactory.create_batch(10, workspace=workspace, severity='high')
         vulns = VulnerabilityFactory.create_batch(10, workspace=workspace, severity='high')
@@ -625,7 +618,6 @@ class TestVulnerabilitySearch:
         assert res.status_code == 200
         assert res.json['count'] == 20
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_group_and_sort(self, test_client, session, workspace):
         vulns_web = VulnerabilityWebFactory.create_batch(10, workspace=workspace, severity='high')
         vulns = VulnerabilityFactory.create_batch(10, workspace=workspace, severity='high')
@@ -812,7 +804,6 @@ class TestVulnerabilitySearch:
 
         assert attachment['description'] == 'Attachment description'
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_with_workspace_name_column(self, test_client, session):
         workspace_1 = WorkspaceFactory.create()
         workspace_2 = WorkspaceFactory.create()
@@ -836,7 +827,6 @@ class TestVulnerabilitySearch:
         workspace_names = {vuln['value']['workspace_name'] for vuln in res.json['vulnerabilities']}
         assert workspace_names == {workspace_1.name, workspace_2.name}
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_filter_export_csv_limited_with_workspace_name(self, test_client, session):
         workspace_1 = WorkspaceFactory.create()
         workspace_2 = WorkspaceFactory.create()
@@ -868,7 +858,6 @@ class TestVulnerabilitySearch:
         assert {row['workspace_name'] for row in rows} == {workspace_1.name, workspace_2.name}
 
     @pytest.mark.skip_sql_dialect('sqlite')
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_large_fields_truncated_in_table_view_no_workspace(self, test_client, session):
         long_text = 'a' * 200
         workspace = WorkspaceFactory.create()

@@ -1136,7 +1136,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
             assert vuln['target'] == '9.9.9.9'
         assert {vuln['_id'] for vuln in res.json['data']} == expected_ids
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.parametrize('filter_params', [
         {
             'test_name': 'filter_by_target',
@@ -1377,7 +1376,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert ''.join(v['method'] for v in res.json['data']
                        if v['method']) == 'abcdefghij'[::-1]
 
-    @pytest.mark.usefixtures("ignore_nplusone")
     def test_filter_vulns_not_contains_cve(self, test_client, session, host, vulnerability_factory,
                                            vulnerability_web_factory):
         VulnerabilityGeneric.query.delete()
@@ -2038,7 +2036,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         expected_order = ['critical', 'critical', 'med', 'med', 'med', 'med', 'med', 'med', 'med', 'med', 'med', 'med']
         assert expected_order == [vuln['value']['severity'] for vuln in res.json['vulnerabilities']]
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_vuln_filter_by_creator_username(self, session, workspace, test_client):
         vuln = VulnerabilityWebFactory.create(workspace=workspace, severity="medium")
         session.add(vuln)
@@ -2132,7 +2129,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         assert self._verify_csv(res.data, confirmed=True)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_vuln_csv_unicode_bug(self, test_client, session):
         Vulnerability.query.delete()
         workspace = WorkspaceFactory.create()
@@ -2147,7 +2143,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         assert self._verify_csv(res.data, confirmed=True)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_vuln_csv_filters_confirmed_using_filters_query_severity(self, test_client, session):
         Vulnerability.query.delete()
         workspace = WorkspaceFactory.create()
@@ -2163,7 +2158,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         assert self._verify_csv(res.data, confirmed=True, severity='critical')
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_vulns_confirmed(self, session, test_client):
         self.first_object.confirmed = True
         session.add(self.first_object)
@@ -2174,7 +2168,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         self._verify_csv(res.data, confirmed=True)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_vulns_check_update_time(self, session, test_client):
         Vulnerability.query.delete()
         workspace = WorkspaceFactory.create()
@@ -2218,7 +2211,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
             update_date = parser.parse(line['service_update_date'])
             assert create_date < update_date
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_vulns_csv_with_custom_fields(self, session, test_client):
 
         custom_field_schema = CustomFieldsSchemaFactory(
@@ -2292,7 +2284,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
 
         return True
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip("POST not implemented yet")
     def test_update_vuln_cant_change_tool(self, test_client, session):
         host = HostFactory.create(workspace=self.workspace)
@@ -2335,7 +2326,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert new_attach.filename in res.json
         assert 'image/png' in res.json[new_attach.filename]['content_type']
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip("POST not implemented yet")
     def test_bulk_update_vuln_cant_change_tool_type_or_attachments(self, test_client, session):
         host = HostFactory.create(workspace=self.workspace)
@@ -2432,7 +2422,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         assert expected_headers == res.data.decode('utf-8').strip('\r\n').split(',')
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_csv_unicode_bug(self, test_client, session):
         workspace = WorkspaceFactory.create()
         desc = 'Latin-1 Supplement \xa1 \xa2 \xa3 \xa4 \xa5 \xa6 \xa7 \xa8'
@@ -2448,7 +2437,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
         assert res.status_code == 200
         assert self._verify_csv(res.data, confirmed=True)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_csv_check_update_time(self, session, test_client):
         workspace = WorkspaceFactory.create()
         host = HostFactory.create(workspace=workspace)
@@ -2493,7 +2481,6 @@ class TestListVulnerabilityContextView(ReadOnlyAPITests, BulkUpdateTestsMixin, B
             update_date = parser.parse(line['service_update_date'])
             assert create_date < update_date
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     def test_export_csv_with_custom_fields(self, session, test_client, workspace):
 
         custom_field_schema = CustomFieldsSchemaFactory(
@@ -2704,7 +2691,6 @@ class TestCustomFieldVulnerabilityContext(ReadOnlyAPITests):
         res = test_client.post(self.url(), data=raw_data)
         assert res.status_code == 400
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip(reason='POST methods not supported')
     def test_bulk_delete_vuln_id(self, host_with_hostnames, test_client, session):
         """
@@ -2750,7 +2736,6 @@ class TestCustomFieldVulnerabilityContext(ReadOnlyAPITests):
         assert vuln_count_previous == vuln_count_after
         assert deleted_vulns == len(vulns_to_delete)
 
-    @pytest.mark.usefixtures('ignore_nplusone')
     @pytest.mark.skip(reason="To be reimplemented")
     def test_bulk_delete_vuln_severity(self, host_with_hostnames, test_client, session):
         """
@@ -3176,7 +3161,6 @@ def filter_json():
 
 @pytest.mark.usefixtures('logged_user')
 @pytest.mark.hypothesis
-@pytest.mark.usefixtures('ignore_nplusone')
 def test_filter_hypothesis(host_with_hostnames, test_client, session):
     vuln = VulnerabilityFactory.create(workspace=host_with_hostnames.workspace)
     vulns_web = VulnerabilityWebFactory.create_batch(10, workspace=host_with_hostnames.workspace)

@@ -2809,16 +2809,23 @@ class User(db.Model, UserMixin):
         return jwt.encode(jwt_data, app.config['SECRET_KEY'], algorithm="HS512")
 
 
-class File(Metadata):
-    __tablename__ = 'file'
+DOMAIN_FILE_AVAILABLE = False
+try:
+    from faraday.domain.vulnerability.models import File  # ponytail YAGNI: File -> domain/vulnerability
+    DOMAIN_FILE_AVAILABLE = True
+except ImportError:
+    DOMAIN_FILE_AVAILABLE = False
 
-    id = Column(Integer, autoincrement=True, primary_key=True)
-    name = BlankColumn(Text)  # TODO migration: check why blank is allowed
-    filename = NonBlankColumn(Text)
-    description = BlankColumn(Text)
-    content = Column(UploadedFileField(upload_type=FaradayUploadedFile), nullable=False)  # plain attached file
-    object_id = Column(Integer, nullable=False)
-    object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
+    class File(Metadata):
+        __tablename__ = 'file'
+
+        id = Column(Integer, autoincrement=True, primary_key=True)
+        name = BlankColumn(Text)  # TODO migration: check why blank is allowed
+        filename = NonBlankColumn(Text)
+        description = BlankColumn(Text)
+        content = Column(UploadedFileField(upload_type=FaradayUploadedFile), nullable=False)  # plain attached file
+        object_id = Column(Integer, nullable=False)
+        object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
 
 
 class UserAvatar(Metadata):

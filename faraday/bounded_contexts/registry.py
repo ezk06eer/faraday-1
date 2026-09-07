@@ -4,6 +4,22 @@ Mantiene contrato wire /_api + /v3, solo extrae registro por BC para que cada BC
 """
 from faraday.server.config import faraday_server  # noqa: F401
 
+DEPRECATED_ROUTES = [
+    '/v3/ws/<workspace_name>/hosts/bulk_delete/',
+    '/v3/ws/<workspace_name>/vulns/bulk_delete/',
+    '/v3/ws/<workspace_id>/change_readonly/',
+    '/v3/ws/<workspace_id>/deactivate/',
+    '/v3/ws/<workspace_id>/activate/',
+]
+
+
+def is_deprecated_route(rule):
+    """YAGNI helper: check if rule is deprecated (migrated from CustomFlask.SKIP_RULES)."""
+    try:
+        return rule in DEPRECATED_ROUTES
+    except Exception:
+        return False
+
 def register_workspace_bc(app):
     from faraday.server.api.modules.workspaces import workspace_api  # lazy
     from faraday.server.ui import ui

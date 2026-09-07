@@ -19,22 +19,33 @@ from faraday.server.models import (
 
 
 def _redis_url_from_config() -> str:
-    raw = (getattr(faraday_server, "celery_backend_url", None) or "").strip()
-    if not raw:
-        return "redis://127.0.0.1:6379/0"
-    if raw.startswith("redis://") or raw.startswith("rediss://"):
-        return raw
-    return f"redis://{raw}"
+    # Delegates to infra (ponytail YAGNI, keeps contract)
+    try:
+        from faraday.infra.redis import _redis_url_from_config as _infra_url  # pylint: disable=import-outside-toplevel
+
+        return _infra_url()
+    except ImportError:
+        raw = (getattr(faraday_server, "celery_backend_url", None) or "").strip()
+        if not raw:
+            return "redis://127.0.0.1:6379/0"
+        if raw.startswith("redis://") or raw.startswith("rediss://"):
+            return raw
+        return f"redis://{raw}"
 
 
 _redis_client = None
 
 
 def get_redis_client() -> redis.Redis:
-    global _redis_client  # pylint: disable=W0603
-    if _redis_client is None:
-        _redis_client = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
-    return _redis_client
+    try:
+        from faraday.infra.redis import get_redis_client as _infra_get  # pylint: disable=import-outside-toplevel
+
+        return _infra_get()
+    except ImportError:
+        global _redis_client  # pylint: disable=W0603
+        if _redis_client is None:
+            _redis_client = redis.Redis.from_url(_redis_url_from_config(), decode_responses=True)
+        return _redis_client
 
 
 def _json_default(obj):

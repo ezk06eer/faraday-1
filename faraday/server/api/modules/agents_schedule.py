@@ -48,12 +48,11 @@ from faraday.server.schemas import (
     MetadataSchema,
 )
 from faraday.server.utils.agents import get_command_and_agent_execution
-from faraday.server.models import (
-    AgentsSchedule,
-    db,
-    Executor,
-    SchedulerGeneric,
-)
+try:
+    from faraday.domain.agent_workflow.models import AgentsSchedule, Executor, SchedulerGeneric
+except ImportError:
+    from faraday.server.models import AgentsSchedule, Executor, SchedulerGeneric
+from faraday.server.models import db
 agents_schedule_api = Blueprint('agents_schedule_api', __name__)
 logger = logging.getLogger(__name__)
 

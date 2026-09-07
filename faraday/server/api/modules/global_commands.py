@@ -9,7 +9,10 @@ from faraday.server.api.base import (
     ReadOnlyView,
     PaginatedMixin
 )
-from faraday.server.models import Command
+try:
+    from faraday.domain.command.models import Command
+except ImportError:
+    from faraday.server.models import Command
 from faraday.server.api.modules.commandsrun import CommandSchema
 
 globalcommands_api = Blueprint('globalcommands_api', __name__)

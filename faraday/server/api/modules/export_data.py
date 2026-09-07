@@ -13,7 +13,10 @@ from marshmallow import Schema
 
 # Local application imports
 from faraday.server.api.base import GenericWorkspacedView
-from faraday.server.models import Workspace
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
 
 export_data_api = Blueprint('export_data_api', __name__)
 logger = logging.getLogger(__name__)

@@ -19,7 +19,10 @@ from marshmallow import Schema
 from sqlalchemy.orm.exc import NoResultFound
 
 # Local application imports
-from faraday.server.models import Agent
+try:
+    from faraday.domain.agent_workflow.models import Agent
+except ImportError:
+    from faraday.server.models import Agent
 from faraday.server.api.base import GenericWorkspacedView, get_workspace
 
 logger = logging.getLogger(__name__)

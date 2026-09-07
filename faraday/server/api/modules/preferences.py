@@ -5,7 +5,11 @@ from marshmallow import Schema, fields
 
 # Local application imports
 from faraday.server.api.base import GenericView
-from faraday.server.models import User, db
+try:
+    from faraday.domain.user_auth.models import User
+except ImportError:
+    from faraday.server.models import User
+from faraday.server.models import db
 
 preferences_api = Blueprint('preferences_api', __name__)
 

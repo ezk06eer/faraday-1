@@ -30,12 +30,11 @@ from faraday.server.api.base import (
     get_workspace
 )
 from faraday.server.extensions import socketio
-from faraday.server.models import (
-    Agent,
-    Executor,
-    SchedulerGeneric,
-    db,
-)
+try:
+    from faraday.domain.agent_workflow.models import Agent, Executor, SchedulerGeneric
+except ImportError:
+    from faraday.server.models import Agent, Executor, SchedulerGeneric
+from faraday.server.models import db
 from faraday.server.schemas import PrimaryKeyRelatedField
 from faraday.server.config import faraday_server
 from faraday.server.utils.agents import get_command_and_agent_execution

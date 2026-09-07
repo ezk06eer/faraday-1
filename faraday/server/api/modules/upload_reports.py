@@ -28,7 +28,15 @@ from wtforms import ValidationError
 # Local application imports
 from faraday.server.api.base import GenericWorkspacedView
 from faraday.server.config import CONST_FARADAY_HOME_PATH, faraday_server
-from faraday.server.models import Workspace, Command, db
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
+try:
+    from faraday.domain.command.models import Command
+except ImportError:
+    from faraday.server.models import Command
+from faraday.server.models import db
 from faraday.server.utils.reports_processor import REPORTS_QUEUE
 from faraday.server.utils.web import gzipped
 from faraday.settings.reports import ReportsSettings

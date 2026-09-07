@@ -27,7 +27,11 @@ from faraday.server.api.base import (
 )
 from faraday.server.api.modules.hosts_base import HostFilterSet, HostView
 from faraday.server.debouncer import debounce_workspace_update, debounce_workspace_host_count
-from faraday.server.models import Host, Hostname, Service, db
+try:
+    from faraday.domain.host_service.models import Host, Hostname, Service
+except ImportError:
+    from faraday.server.models import Host, Hostname, Service
+from faraday.server.models import db
 from faraday.server.utils.command import set_command_id
 from faraday.server.utils.database import get_or_create
 from faraday.server.utils.hosts import WORKSPACED_SCHEMA_EXCLUDE_FIELDS

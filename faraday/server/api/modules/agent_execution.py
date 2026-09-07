@@ -6,7 +6,15 @@ from marshmallow import fields
 from sqlalchemy import and_, func
 
 from faraday.server.api.base import ReadOnlyView, PaginatedMixin, AutoSchema, FilterMixin, BulkDeleteMixin
-from faraday.server.models import Agent, AgentExecution, Executor, Workspace, db
+try:
+    from faraday.domain.agent_workflow.models import Agent, AgentExecution, Executor
+except ImportError:
+    from faraday.server.models import Agent, AgentExecution, Executor
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
+from faraday.server.models import db
 from faraday.server.schemas import PrimaryKeyRelatedField
 
 agent_execution_api = Blueprint('agent_execution_api', __name__)

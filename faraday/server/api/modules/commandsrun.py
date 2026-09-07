@@ -17,7 +17,14 @@ from faraday.server.api.base import (
     ReadWriteWorkspacedView,
     get_workspace,
 )
-from faraday.server.models import Command, Workspace
+try:
+    from faraday.domain.command.models import Command
+except ImportError:
+    from faraday.server.models import Command
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
 from faraday.server.schemas import MutableField, PrimaryKeyRelatedField, SelfNestedField, MetadataSchema
 
 commandsrun_api = Blueprint('commandsrun_api', __name__)

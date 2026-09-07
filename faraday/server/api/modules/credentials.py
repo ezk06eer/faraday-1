@@ -26,7 +26,15 @@ from faraday.server.api.base import (
     route,
     PaginatedMixin,
 )
-from faraday.server.models import Credential, db, VulnerabilityGeneric
+try:
+    from faraday.domain.host_service.models import Credential
+except ImportError:
+    from faraday.server.models import Credential
+try:
+    from faraday.domain.vulnerability.models import VulnerabilityGeneric
+except ImportError:
+    from faraday.server.models import VulnerabilityGeneric
+from faraday.server.models import db
 from faraday.server.api.modules.vulns_base import VulnerabilitySchema
 from faraday.server.schemas import SelfNestedField, MetadataSchema
 from faraday.server.utils.export import export_credentials_to_csv

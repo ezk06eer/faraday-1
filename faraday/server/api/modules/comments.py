@@ -10,13 +10,19 @@ from marshmallow import fields, ValidationError
 from marshmallow.validate import OneOf
 
 # Local application imports
-from faraday.server.models import (
-    db,
-    Host,
-    Service,
-    VulnerabilityGeneric,
-    Comment,
-)
+try:
+    from faraday.domain.host_service.models import Host, Service
+except ImportError:
+    from faraday.server.models import Host, Service
+try:
+    from faraday.domain.vulnerability.models import VulnerabilityGeneric
+except ImportError:
+    from faraday.server.models import VulnerabilityGeneric
+try:
+    from faraday.domain.notification.models import Comment
+except ImportError:
+    from faraday.server.models import Comment
+from faraday.server.models import db
 from faraday.server.api.base import (
     AutoSchema,
     ReadWriteWorkspacedView,

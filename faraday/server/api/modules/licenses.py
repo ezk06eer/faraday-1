@@ -9,7 +9,10 @@ from flask import Blueprint
 from marshmallow import fields
 
 # Local application imports
-from faraday.server.models import License
+try:
+    from faraday.domain.reporting.models import License
+except ImportError:
+    from faraday.server.models import License
 from faraday.server.api.base import (
     ReadWriteView,
     AutoSchema,

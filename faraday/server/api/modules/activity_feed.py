@@ -18,7 +18,10 @@ from faraday.server.api.base import (
     ReadWriteWorkspacedView,
     PaginatedMixin,
 )
-from faraday.server.models import Command
+try:
+    from faraday.domain.command.models import Command
+except ImportError:
+    from faraday.server.models import Command
 from faraday.server.schemas import PrimaryKeyRelatedField
 
 activityfeed_api = Blueprint('activityfeed_api', __name__)

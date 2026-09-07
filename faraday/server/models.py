@@ -840,62 +840,65 @@ class VulnerabilityHitCount(db.Model):
         return
 
 
-class CustomAssociationSet(_AssociationSet):
-    """
-    A custom association set that passes the creator method the both
-    the value and the instance of the parent object
-    """
-
-    def __init__(self, lazy_collection, creator, value_attr, parent):
-        """I have to override this method because the proxy_factory
-        class takes different arguments than the hardcoded
-        _AssociationSet one.
-        In particular, the getter and the setter aren't passed, but
-        since I have an instance of the parent (AssociationProxy
-        instance) I do the logic here.
-        The value_attr argument isn't relevant to this implementation
+try:
+    from faraday.domain.base import CustomAssociationSet  # ponytail YAGNI
+except ImportError:
+    class CustomAssociationSet(_AssociationSet):
+        """
+        A custom association set that passes the creator method the both
+        the value and the instance of the parent object
         """
 
-        if getattr(parent, 'getset_factory', False):
-            getter, setter = parent.getset_factory(
-                parent.collection_class, parent)
-        else:
-            getter, setter = parent._default_getset(parent.collection_class)
+        def __init__(self, lazy_collection, creator, value_attr, parent):
+            """I have to override this method because the proxy_factory
+            class takes different arguments than the hardcoded
+            _AssociationSet one.
+            In particular, the getter and the setter aren't passed, but
+            since I have an instance of the parent (AssociationProxy
+            instance) I do the logic here.
+            The value_attr argument isn't relevant to this implementation
+            """
 
-        super().__init__(lazy_collection, creator, getter, setter, parent)
+            if getattr(parent, 'getset_factory', False):
+                getter, setter = parent.getset_factory(
+                    parent.collection_class, parent)
+            else:
+                getter, setter = parent._default_getset(parent.collection_class)
 
-    def _create(self, value):
-        if getattr(self.lazy_collection, 'ref', False):
-            # for sqlalchemy previous to 1.3.0b1
-            parent_instance = self.lazy_collection.ref()
-        else:
-            parent_instance = self.lazy_collection.parent
-        session = db.session
-        conflict_objs = session.new
-        try:
-            yield self.creator(value, parent_instance)
-        except IntegrityError as ex:
-            if not is_unique_constraint_violation(ex):
-                raise
-            # unique constraint failed at database
-            # other process/thread won us on the commit
-            # we need to fetch already created objs.
-            session.rollback()
-            for conflict_obj in conflict_objs:
-                if not hasattr(conflict_obj, 'name'):
-                    # The session can hold elements without a name (although it shouldn't)
-                    continue
-                if conflict_obj.name == value:
-                    continue
-                persisted_conflict_obj = session.query(conflict_obj.__class__).filter_by(name=conflict_obj.name).first()
-                if persisted_conflict_obj:
-                    self.col.add(persisted_conflict_obj)
-            yield self.creator(value, parent_instance)
+            super().__init__(lazy_collection, creator, getter, setter, parent)
 
-    def add(self, value):
-        if value not in self:
-            for new_value in self._create(value):
-                self.col.add(new_value)
+        def _create(self, value):
+            if getattr(self.lazy_collection, 'ref', False):
+                # for sqlalchemy previous to 1.3.0b1
+                parent_instance = self.lazy_collection.ref()
+            else:
+                parent_instance = self.lazy_collection.parent
+            session = db.session
+            conflict_objs = session.new
+            try:
+                yield self.creator(value, parent_instance)
+            except IntegrityError as ex:
+                if not is_unique_constraint_violation(ex):
+                    raise
+                # unique constraint failed at database
+                # other process/thread won us on the commit
+                # we need to fetch already created objs.
+                session.rollback()
+                for conflict_obj in conflict_objs:
+                    if not hasattr(conflict_obj, 'name'):
+                        # The session can hold elements without a name (although it shouldn't)
+                        continue
+                    if conflict_obj.name == value:
+                        continue
+                    persisted_conflict_obj = session.query(conflict_obj.__class__).filter_by(name=conflict_obj.name).first()
+                    if persisted_conflict_obj:
+                        self.col.add(persisted_conflict_obj)
+                yield self.creator(value, parent_instance)
+
+        def add(self, value):
+            if value not in self:
+                for new_value in self._create(value):
+                    self.col.add(new_value)
 
 
 def _build_associationproxy_creator(model_class_name):

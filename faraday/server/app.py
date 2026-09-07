@@ -720,18 +720,12 @@ def get_debouncer():
 
 
 def register_extensions(app):
-    # E3 Modulith: prefer DI via faraday.server.extensions.init_extensions,
-    # fallback to direct init for backwards compat (deterministic)
-    try:
-        from faraday.server.extensions import init_extensions as _init_extensions  # pylint: disable=import-outside-toplevel
+    # E3 Modulith: delegación íntegra en faraday.server.extensions.init_extensions (DI);
+    # init_extensions ya contiene fallbacks determinísticos internos, por lo que
+    # no hay init duplicado ni efectos secundarios extra aquí.
+    from faraday.server.extensions import init_extensions as _init_extensions  # pylint: disable=import-outside-toplevel
 
-        _init_extensions(app)
-    except Exception:
-        from faraday.server.websockets.dispatcher import DispatcherNamespace  # pylint: disable=import-outside-toplevel
-
-        socketio.init_app(app, ping_interval=faraday_server.socketio_ping_interval,
-                          ping_timeout=faraday_server.socketio_ping_timeout,
-                          logger=faraday_server.socketio_logger)
+    _init_extensions(app)
     from faraday.server.websockets.dispatcher import DispatcherNamespace  # pylint: disable=import-outside-toplevel
     try:
         socketio.on_namespace(DispatcherNamespace("/dispatcher"))

@@ -27,16 +27,6 @@ from flask_socketio import SocketIO
 
 from flask_celery import Celery
 
-# ---------------------------------------------------------------------------
-# Legacy singletons — DEPRECATED
-# Mantener exactamente la misma inicialización para no romper imports
-# existentes (faraday.server.tasks:19, app:63/76, agent:32, etc.).
-# Nuevo código: preferir create_socketio() / create_celery() / init_extensions().
-# ---------------------------------------------------------------------------
-socketio = SocketIO(cors_allowed_origins='*', engineio_logger=True)  # deprecated: usar create_socketio()
-celery = Celery()  # deprecated: usar create_celery()
-
-
 def create_socketio(app=None):
     """Factory determinística para SocketIO.
 
@@ -92,6 +82,17 @@ def create_celery(app=None):
             # Si config no cargable, no inicializar — caller decide
             pass
     return instance
+
+
+# ---------------------------------------------------------------------------
+# Legacy singletons — DEPRECATED
+# Asignados exclusivamente vía las factories create_* (misma inicialización
+# legacy) para no romper imports existentes (faraday.server.tasks:19,
+# app:63/76, agent:32, etc.).
+# Nuevo código: preferir create_socketio() / create_celery() / init_extensions().
+# ---------------------------------------------------------------------------
+socketio = create_socketio()  # deprecated: usar create_socketio()
+celery = create_celery()  # deprecated: usar create_celery()
 
 
 def init_extensions(app):

@@ -2993,27 +2993,34 @@ class License(Metadata):
     )
 
 
-class Tag(Metadata):
-    __tablename__ = 'tag'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text, unique=True)
-    slug = NonBlankColumn(Text, unique=True)
+DOMAIN_TAGS_AVAILABLE = False
+try:
+    from faraday.domain.tagging.models import Tag, TagObject  # noqa: F401  # ponytail YAGNI: tags -> domain/tagging
+    DOMAIN_TAGS_AVAILABLE = True
+except ImportError:
+    DOMAIN_TAGS_AVAILABLE = False
+
+    class Tag(Metadata):
+        __tablename__ = 'tag'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text, unique=True)
+        slug = NonBlankColumn(Text, unique=True)
 
 
-class TagObject(db.Model):
-    __tablename__ = 'tag_object'
-    id = Column(Integer, primary_key=True)
+    class TagObject(db.Model):
+        __tablename__ = 'tag_object'
+        id = Column(Integer, primary_key=True)
 
-    object_id = Column(Integer, nullable=False)
-    object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
+        object_id = Column(Integer, nullable=False)
+        object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
 
-    tag = relationship('Tag', backref='tagged_objects')
-    tag_id = Column(Integer, ForeignKey('tag.id'), index=True)
+        tag = relationship('Tag', backref='tagged_objects')
+        tag_id = Column(Integer, ForeignKey('tag.id'), index=True)
 
-    __table_args__ = (
-        # Enables fast lookup: "all tags for objects of type X with id IN (...)"
-        Index('ix_tag_object_type_object_id', 'object_type', 'object_id'),
-    )
+        __table_args__ = (
+            # Enables fast lookup: "all tags for objects of type X with id IN (...)"
+            Index('ix_tag_object_type_object_id', 'object_type', 'object_id'),
+        )
 
 
 class CWE(Metadata):

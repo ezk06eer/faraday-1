@@ -3,7 +3,6 @@
 Pure helpers: normalize_username, is_active_check.
 Mantiene contrato audit login faraday/server/app.py:726 CustomLoginForm.
 """
-import re
 
 def normalize_username(username: str) -> str:
     return (username or "").strip()

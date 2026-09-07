@@ -2781,6 +2781,10 @@ class UserToken(Metadata):
         )
 
 
+# DOMAIN_USER_AVAILABLE: shim flag opcional (A16) — marca que User existe; domain lo consulta sin tocar esta clase.
+DOMAIN_USER_AVAILABLE = True
+
+
 class User(db.Model, UserMixin):
     __tablename__ = 'faraday_user'
     ADMIN_ROLE = 'admin'

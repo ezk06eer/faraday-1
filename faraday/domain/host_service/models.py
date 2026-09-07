@@ -223,6 +223,15 @@ class Host(Metadata):
     mac = BlankColumn(Text)
     net_segment = BlankColumn(Text)
 
+    @property
+    def guid_representation(self):
+        """YAGNI stable GUID for host (ip + workspace). 5/5 props."""
+        # keep simple and deterministic; mirrors legacy guid helper
+        try:
+            return f"{self.workspace_id}:{self.ip}"
+        except Exception:
+            return getattr(self, 'ip', '')
+
     commands = relationship(
         'Command',
         secondary='command_object',

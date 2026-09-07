@@ -1240,9 +1240,13 @@ class Command(Metadata):
         return
 
 
+DOMAIN_HOST_AVAILABLE = False
 try:
     from faraday.domain.host_service.models import Host  # ponytail YAGNI: Host -> domain/host_service
+    DOMAIN_HOST_AVAILABLE = True
 except ImportError:
+    DOMAIN_HOST_AVAILABLE = False
+
     class Host(Metadata):
         __tablename__ = 'host'
         id = Column(Integer, primary_key=True)
@@ -1257,6 +1261,13 @@ except ImportError:
 
         mac = BlankColumn(Text)
         net_segment = BlankColumn(Text)
+
+        @property
+        def guid_representation(self):
+            try:
+                return f"{self.workspace_id}:{self.ip}"
+            except Exception:
+                return getattr(self, 'ip', '')
 
         commands = relationship(
             'Command',

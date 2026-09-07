@@ -47,7 +47,7 @@ except ImportError:
             create_date = Column(DateTime, default=datetime.utcnow)
             update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, Text, UniqueConstraint, func, text
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import backref, column_property, joinedload, relationship, undefer
 from sqlalchemy.sql import select, table
 

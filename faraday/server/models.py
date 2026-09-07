@@ -1540,556 +1540,562 @@ class VulnerabilityGroup(db.Model):
         return
 
 
-class VulnerabilityGeneric(VulnerabilityABC):
-    STATUS_OPEN = 'open'
-    STATUS_RE_OPENED = 're-opened'
-    STATUS_CLOSED = 'closed'
-    STATUS_RISK_ACCEPTED = 'risk-accepted'
+DOMAIN_VULN_AVAILABLE = False
+try:
+    from faraday.domain.vulnerability.models import VulnerabilityGeneric  # A15 YAGNI: vuln real en domain
+    DOMAIN_VULN_AVAILABLE = True
+except ImportError:
+    DOMAIN_VULN_AVAILABLE = False
+    class VulnerabilityGeneric(VulnerabilityABC):
+        STATUS_OPEN = 'open'
+        STATUS_RE_OPENED = 're-opened'
+        STATUS_CLOSED = 'closed'
+        STATUS_RISK_ACCEPTED = 'risk-accepted'
 
-    STATUSES = [
-        STATUS_OPEN,
-        STATUS_CLOSED,
-        STATUS_RE_OPENED,
-        STATUS_RISK_ACCEPTED
-    ]
-    VULN_TYPES = [
-        'vulnerability',
-        'vulnerability_web',
-        'vulnerability_code'
-    ]
+        STATUSES = [
+            STATUS_OPEN,
+            STATUS_CLOSED,
+            STATUS_RE_OPENED,
+            STATUS_RISK_ACCEPTED
+        ]
+        VULN_TYPES = [
+            'vulnerability',
+            'vulnerability_web',
+            'vulnerability_code'
+        ]
 
-    __tablename__ = 'vulnerability'
-    __table_args__ = (
-        Index('ix_vulnerability_workspace_id_risk', 'workspace_id'),
-    )
-
-    id = Column(Integer, primary_key=True)
-    _tmp_id = Column(Integer)
-    confirmed = Column(Boolean, nullable=False, default=False)
-    status = Column(Enum(*STATUSES, name='vulnerability_statuses'), nullable=False, default="open")
-    type = Column(Enum(*VULN_TYPES, name='vulnerability_types'), nullable=False)
-    issuetracker = BlankColumn(Text)
-    association_date = Column(DateTime, nullable=True)
-    disassociated_manually = Column(Boolean, nullable=False, default=False)
-    tool = BlankColumn(Text, nullable=False)
-    method = BlankColumn(Text)
-    parameters = BlankColumn(Text)
-    parameter_name = BlankColumn(Text)
-    path = BlankColumn(Text)
-    query_string = BlankColumn(Text)
-    request = BlankColumn(Text)
-    response = BlankColumn(Text)
-    website = BlankColumn(Text)
-    status_code = Column(Integer, nullable=True)
-    epss = Column(Float, nullable=True)  # Exploit Prediction Scoring System (EPSS)
-    is_main = Column(Boolean, nullable=True, default=None)
-    vulnerability_duplicate_id = Column(Integer, nullable=True)
-    group_id = Column(
-        Integer,
-        ForeignKey('vulnerability_group.id', ondelete='SET NULL'),
-        index=True,
-        nullable=True,
-        default=None,
-    )
-    is_automatic = Column(Boolean, nullable=True, default=None)
-    group_title = BlankColumn(Text, nullable=True)
-
-    @hybrid_property
-    def group_count(self):
-        if not self.is_main or self.group_id is None:
-            return None
-        if self.group:
-            return self.group.count
-        return None
-
-    @group_count.expression
-    def group_count(cls):
-        inner = (
-            select(func.count(text('v.id')))
-            .select_from(text('vulnerability as v'))
-            .where(text('v.group_id = vulnerability.group_id'))
-            .where(cls.group_id.isnot(None))
-            .scalar_subquery()
-        )
-        return case(
-            (cls.is_main.is_(True), inner),
-            else_=None
+        __tablename__ = 'vulnerability'
+        __table_args__ = (
+            Index('ix_vulnerability_workspace_id_risk', 'workspace_id'),
         )
 
-    group = relationship("VulnerabilityGroup", backref=backref('vulnerabilities', passive_deletes=True))
-    vulnerability_template_id = Column(
-        Integer,
-        ForeignKey('vulnerability_template.id', ondelete='SET NULL'),
-        index=True,
-        nullable=True,
-    )
+        id = Column(Integer, primary_key=True)
+        _tmp_id = Column(Integer)
+        confirmed = Column(Boolean, nullable=False, default=False)
+        status = Column(Enum(*STATUSES, name='vulnerability_statuses'), nullable=False, default="open")
+        type = Column(Enum(*VULN_TYPES, name='vulnerability_types'), nullable=False)
+        issuetracker = BlankColumn(Text)
+        association_date = Column(DateTime, nullable=True)
+        disassociated_manually = Column(Boolean, nullable=False, default=False)
+        tool = BlankColumn(Text, nullable=False)
+        method = BlankColumn(Text)
+        parameters = BlankColumn(Text)
+        parameter_name = BlankColumn(Text)
+        path = BlankColumn(Text)
+        query_string = BlankColumn(Text)
+        request = BlankColumn(Text)
+        response = BlankColumn(Text)
+        website = BlankColumn(Text)
+        status_code = Column(Integer, nullable=True)
+        epss = Column(Float, nullable=True)  # Exploit Prediction Scoring System (EPSS)
+        is_main = Column(Boolean, nullable=True, default=None)
+        vulnerability_duplicate_id = Column(Integer, nullable=True)
+        group_id = Column(
+            Integer,
+            ForeignKey('vulnerability_group.id', ondelete='SET NULL'),
+            index=True,
+            nullable=True,
+            default=None,
+        )
+        is_automatic = Column(Boolean, nullable=True, default=None)
+        group_title = BlankColumn(Text, nullable=True)
 
-    vulnerability_template = relationship('VulnerabilityTemplate',
-                                          backref=backref('duplicate_vulnerabilities', passive_deletes='all'))
-
-    status_history = relationship(
-        'VulnerabilityStatusHistory',
-        backref='vulnerability',
-        cascade="all, delete-orphan",
-        foreign_keys="VulnerabilityStatusHistory.vulnerability_id",
-        primaryjoin="VulnerabilityGeneric.id == VulnerabilityStatusHistory.vulnerability_id",
-        order_by="desc(VulnerabilityStatusHistory.change_date)"
-    )
-
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        backref=backref('vulnerabilities', cascade="all, delete-orphan", passive_deletes=True)
-    )
-
-    cve_instances = relationship("CVE",
-                                 secondary=cve_vulnerability_association,
-                                 collection_class=set)
-
-    cve = association_proxy('cve_instances',
-                            'name',
-                            proxy_factory=CustomAssociationSet,
-                            creator=_build_associationproxy_creator_non_workspaced('CVE', lambda c: c.upper()))
-
-    refs = relationship(
-        'VulnerabilityReference',
-        cascade="all, delete-orphan",
-        backref=backref("vulnerabilities")
-    )
-
-    commands = relationship(
-        'Command',
-        secondary='command_object',
-        primaryjoin='and_(VulnerabilityGeneric.id == CommandObject.object_id, CommandObject.object_type == "vulnerability")',
-        collection_class=set,
-        passive_deletes=True,
-    )
-
-    credentials = relationship("Credential",
-                               secondary='association_table_vulnerabilities_credentials',
-                               back_populates='vulnerabilities')
-
-    _cvss2_vector_string = Column(Text, nullable=True)
-    cvss2_base_score = Column(Float)
-    cvss2_exploitability_score = Column(Float)
-    cvss2_impact_score = Column(Float)
-    cvss2_base_severity = Column(Text, nullable=True)
-    cvss2_temporal_score = Column(Float)
-    cvss2_temporal_severity = Column(Text, nullable=True)
-    cvss2_environmental_score = Column(Float)
-    cvss2_environmental_severity = Column(Text, nullable=True)
-    cvss2_access_vector = Column(Text, nullable=True)
-    cvss2_access_complexity = Column(Text, nullable=True)
-    cvss2_authentication = Column(Text, nullable=True)
-    cvss2_confidentiality_impact = Column(Text, nullable=True)
-    cvss2_integrity_impact = Column(Text, nullable=True)
-    cvss2_availability_impact = Column(Text, nullable=True)
-    cvss2_exploitability = Column(Text, nullable=True)
-    cvss2_remediation_level = Column(Text, nullable=True)
-    cvss2_report_confidence = Column(Text, nullable=True)
-    cvss2_collateral_damage_potential = Column(Text, nullable=True)
-    cvss2_target_distribution = Column(Text, nullable=True)
-    cvss2_confidentiality_requirement = Column(Text, nullable=True)
-    cvss2_integrity_requirement = Column(Text, nullable=True)
-    cvss2_availability_requirement = Column(Text, nullable=True)
-
-    owasp = relationship('OWASP', secondary=owasp_vulnerability_association)
-
-    last_detected = Column(DateTime, nullable=True)
-
-    @hybrid_property
-    def cvss2_vector_string(self):
-        return self._cvss2_vector_string
-
-    @cvss2_vector_string.setter
-    def cvss2_vector_string(self, vector_string):
-        self._cvss2_vector_string = vector_string
-        self.set_cvss2_attrs()
-
-    def init_cvss2_attrs(self):
-        self._cvss2_vector_string = None
-        self.cvss2_base_score = None
-        self.cvss2_base_severity = None
-        self.cvss2_temporal_score = None
-        self.cvss2_temporal_severity = None
-        self.cvss2_environmental_score = None
-        self.cvss2_environmental_severity = None
-        self.cvss2_access_vector = None
-        self.cvss2_access_complexity = None
-        self.cvss2_authentication = None
-        self.cvss2_confidentiality_impact = None
-        self.cvss2_integrity_impact = None
-        self.cvss2_availability_impact = None
-        self.cvss2_exploitability = None
-        self.cvss2_remediation_level = None
-        self.cvss2_report_confidence = None
-        self.cvss2_collateral_damage_potential = None
-        self.cvss2_target_distribution = None
-        self.cvss2_confidentiality_requirement = None
-        self.cvss2_integrity_requirement = None
-        self.cvss2_availability_requirement = None
-        self.cvss2_exploitability_score = None
-        self.cvss2_impact_score = None
-
-    def set_cvss2_attrs(self):
-        """
-        Parse cvss2 and assign attributes
-        """
-        if not self.cvss2_vector_string:
-            self.init_cvss2_attrs()
-            return None
-        try:
-            cvss_instance = cvss.CVSS2(self.cvss2_vector_string)
-            self.cvss2_base_score = get_base_score(cvss_instance)
-            self.cvss2_base_severity = get_severity(cvss_instance, 'B')
-            self.cvss2_temporal_score = get_temporal_score(cvss_instance)
-            self.cvss2_temporal_severity = get_severity(cvss_instance, 'T')
-            self.cvss2_environmental_score = get_environmental_score(cvss_instance)
-            self.cvss2_environmental_severity = get_severity(cvss_instance, 'E')
-            self.cvss2_access_vector = get_propper_value(cvss_instance, 'AV')
-            self.cvss2_access_complexity = get_propper_value(cvss_instance, 'AC')
-            self.cvss2_authentication = get_propper_value(cvss_instance, 'Au')
-            self.cvss2_confidentiality_impact = get_propper_value(cvss_instance, 'C')
-            self.cvss2_integrity_impact = get_propper_value(cvss_instance, 'I')
-            self.cvss2_availability_impact = get_propper_value(cvss_instance, 'A')
-            self.cvss2_exploitability = get_propper_value(cvss_instance, 'E')
-            self.cvss2_remediation_level = get_propper_value(cvss_instance, 'RL')
-            self.cvss2_report_confidence = get_propper_value(cvss_instance, 'RC')
-            self.cvss2_collateral_damage_potential = get_propper_value(cvss_instance, 'CDP')
-            self.cvss2_target_distribution = get_propper_value(cvss_instance, 'TD')
-            self.cvss2_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
-            self.cvss2_integrity_requirement = get_propper_value(cvss_instance, 'IR')
-            self.cvss2_availability_requirement = get_propper_value(cvss_instance, 'AR')
-            self.cvss2_exploitability_score = get_exploitability_score(cvss_instance)
-            self.cvss2_impact_score = get_impact_score(cvss_instance)
-        except Exception as e:
-            logger.error("Could not parse cvss %s. %s", self.cvss2_vector_string, e)
-
-    _cvss3_vector_string = Column(Text, nullable=True)
-    cvss3_base_score = Column(Float)
-    cvss3_exploitability_score = Column(Float)
-    cvss3_impact_score = Column(Float)
-    cvss3_base_severity = Column(Text, nullable=True)
-    cvss3_temporal_score = Column(Float)
-    cvss3_temporal_severity = Column(Text, nullable=True)
-    cvss3_environmental_score = Column(Float)
-    cvss3_environmental_severity = Column(Text, nullable=True)
-    cvss3_attack_vector = Column(Text, nullable=True)
-    cvss3_attack_complexity = Column(Text, nullable=True)
-    cvss3_privileges_required = Column(Text, nullable=True)
-    cvss3_user_interaction = Column(Text, nullable=True)
-    cvss3_confidentiality_impact = Column(Text, nullable=True)
-    cvss3_integrity_impact = Column(Text, nullable=True)
-    cvss3_availability_impact = Column(Text, nullable=True)
-    cvss3_exploit_code_maturity = Column(Text, nullable=True)
-    cvss3_remediation_level = Column(Text, nullable=True)
-    cvss3_report_confidence = Column(Text, nullable=True)
-    cvss3_confidentiality_requirement = Column(Text, nullable=True)
-    cvss3_integrity_requirement = Column(Text, nullable=True)
-    cvss3_availability_requirement = Column(Text, nullable=True)
-    cvss3_modified_attack_vector = Column(Text, nullable=True)
-    cvss3_modified_attack_complexity = Column(Text, nullable=True)
-    cvss3_modified_privileges_required = Column(Text, nullable=True)
-    cvss3_modified_user_interaction = Column(Text, nullable=True)
-    cvss3_modified_scope = Column(Text, nullable=True)
-    cvss3_modified_confidentiality_impact = Column(Text, nullable=True)
-    cvss3_modified_integrity_impact = Column(Text, nullable=True)
-    cvss3_modified_availability_impact = Column(Text, nullable=True)
-    cvss3_scope = Column(Text, nullable=True)
-
-    @hybrid_property
-    def cvss3_vector_string(self):
-        return self._cvss3_vector_string
-
-    @cvss3_vector_string.setter
-    def cvss3_vector_string(self, vector_string):
-        self._cvss3_vector_string = vector_string
-        self.set_cvss3_attrs()
-
-    def init_cvss3_attrs(self):
-        self._cvss3_vector_string = None
-        self.cvss3_base_score = None
-        self.cvss3_base_severity = None
-        self.cvss3_temporal_score = None
-        self.cvss3_temporal_severity = None
-        self.cvss3_environmental_score = None
-        self.cvss3_environmental_severity = None
-        self.cvss3_attack_vector = None
-        self.cvss3_attack_complexity = None
-        self.cvss3_privileges_required = None
-        self.cvss3_user_interaction = None
-        self.cvss3_scope = None
-        self.cvss3_confidentiality_impact = None
-        self.cvss3_integrity_impact = None
-        self.cvss3_availability_impact = None
-        self.cvss3_exploit_code_maturity = None
-        self.cvss3_remediation_level = None
-        self.cvss3_report_confidence = None
-        self.cvss3_confidentiality_requirement = None
-        self.cvss3_integrity_requirement = None
-        self.cvss3_availability_requirement = None
-        self.cvss3_modified_attack_vector = None
-        self.cvss3_modified_attack_complexity = None
-        self.cvss3_modified_privileges_required = None
-        self.cvss3_modified_user_interaction = None
-        self.cvss3_modified_scope = None
-        self.cvss3_modified_confidentiality_impact = None
-        self.cvss3_modified_integrity_impact = None
-        self.cvss3_modified_availability_impact = None
-        self.cvss3_exploitability_score = None
-        self.cvss3_impact_score = None
-
-    def set_cvss3_attrs(self):
-        """
-        Parse cvss2 and assign attributes
-        """
-        if not self.cvss3_vector_string:
-            self.init_cvss3_attrs()
+        @hybrid_property
+        def group_count(self):
+            if not self.is_main or self.group_id is None:
+                return None
+            if self.group:
+                return self.group.count
             return None
 
-        try:
-            cvss_instance = cvss.CVSS3(self.cvss3_vector_string)
-            self.cvss3_base_score = get_base_score(cvss_instance)
-            self.cvss3_base_severity = get_severity(cvss_instance, 'B')
-            self.cvss3_temporal_score = get_temporal_score(cvss_instance)
-            self.cvss3_temporal_severity = get_severity(cvss_instance, 'T')
-            self.cvss3_environmental_score = get_environmental_score(cvss_instance)
-            self.cvss3_environmental_severity = get_severity(cvss_instance, 'E')
-            self.cvss3_attack_vector = get_propper_value(cvss_instance, 'AV')
-            self.cvss3_attack_complexity = get_propper_value(cvss_instance, 'AC')
-            self.cvss3_privileges_required = get_propper_value(cvss_instance, 'PR')
-            self.cvss3_user_interaction = get_propper_value(cvss_instance, 'UI')
-            self.cvss3_scope = get_propper_value(cvss_instance, 'S')
-            self.cvss3_confidentiality_impact = get_propper_value(cvss_instance, 'C')
-            self.cvss3_integrity_impact = get_propper_value(cvss_instance, 'I')
-            self.cvss3_availability_impact = get_propper_value(cvss_instance, 'A')
-            self.cvss3_exploit_code_maturity = get_propper_value(cvss_instance, 'E')
-            self.cvss3_remediation_level = get_propper_value(cvss_instance, 'RL')
-            self.cvss3_report_confidence = get_propper_value(cvss_instance, 'RC')
-            self.cvss3_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
-            self.cvss3_integrity_requirement = get_propper_value(cvss_instance, 'IR')
-            self.cvss3_availability_requirement = get_propper_value(cvss_instance, 'AR')
-            self.cvss3_modified_attack_vector = get_propper_value(cvss_instance, 'MAV')
-            self.cvss3_modified_attack_complexity = get_propper_value(cvss_instance, 'MAC')
-            self.cvss3_modified_privileges_required = get_propper_value(cvss_instance, 'MPR')
-            self.cvss3_modified_user_interaction = get_propper_value(cvss_instance, 'MUI')
-            self.cvss3_modified_scope = get_propper_value(cvss_instance, 'MS')
-            self.cvss3_modified_confidentiality_impact = get_propper_value(cvss_instance, 'MC')
-            self.cvss3_modified_integrity_impact = get_propper_value(cvss_instance, 'MI')
-            self.cvss3_modified_availability_impact = get_propper_value(cvss_instance, 'MA')
-            self.cvss3_exploitability_score = get_exploitability_score(cvss_instance)
-            self.cvss3_impact_score = get_impact_score(cvss_instance)
-        except Exception as e:
-            logger.error("Could not parse cvss %s. %s", self.cvss3_vector_string, e)
+        @group_count.expression
+        def group_count(cls):
+            inner = (
+                select(func.count(text('v.id')))
+                .select_from(text('vulnerability as v'))
+                .where(text('v.group_id = vulnerability.group_id'))
+                .where(cls.group_id.isnot(None))
+                .scalar_subquery()
+            )
+            return case(
+                (cls.is_main.is_(True), inner),
+                else_=None
+            )
 
-    _cvss4_vector_string = Column(Text, nullable=True)
-    cvss4_base_score = Column(Float)
-    cvss4_base_severity = Column(Text, nullable=True)
-    cvss4_attack_vector = Column(Text, nullable=True)
-    cvss4_attack_complexity = Column(Text, nullable=True)
-    cvss4_attack_requirements = Column(Text, nullable=True)
-    cvss4_privileges_required = Column(Text, nullable=True)
-    cvss4_user_interaction = Column(Text, nullable=True)
-    cvss4_vulnerable_system_confidentiality_impact = Column(Text, nullable=True)
-    cvss4_subsequent_system_confidentiality_impact = Column(Text, nullable=True)
-    cvss4_vulnerable_system_integrity_impact = Column(Text, nullable=True)
-    cvss4_subsequent_system_integrity_impact = Column(Text, nullable=True)
-    cvss4_vulnerable_system_availability_impact = Column(Text, nullable=True)
-    cvss4_subsequent_system_availability_impact = Column(Text, nullable=True)
-    cvss4_safety = Column(Text, nullable=True)
-    cvss4_automatable = Column(Text, nullable=True)
-    cvss4_recovery = Column(Text, nullable=True)
-    cvss4_value_density = Column(Text, nullable=True)
-    cvss4_vulnerability_response_effort = Column(Text, nullable=True)
-    cvss4_provider_urgency = Column(Text, nullable=True)
-    cvss4_modified_attack_vector = Column(Text, nullable=True)
-    cvss4_modified_attack_complexity = Column(Text, nullable=True)
-    cvss4_modified_attack_requirements = Column(Text, nullable=True)
-    cvss4_modified_privileges_required = Column(Text, nullable=True)
-    cvss4_modified_user_interaction = Column(Text, nullable=True)
-    cvss4_modified_vulnerable_system_confidentiality_impact = Column(Text, nullable=True)
-    cvss4_modified_subsequent_system_confidentiality_impact = Column(Text, nullable=True)
-    cvss4_modified_vulnerable_system_integrity_impact = Column(Text, nullable=True)
-    cvss4_modified_subsequent_system_integrity_impact = Column(Text, nullable=True)
-    cvss4_modified_vulnerable_system_availability_impact = Column(Text, nullable=True)
-    cvss4_modified_subsequent_system_availability_impact = Column(Text, nullable=True)
-    cvss4_confidentiality_requirement = Column(Text, nullable=True)
-    cvss4_integrity_requirement = Column(Text, nullable=True)
-    cvss4_availability_requirement = Column(Text, nullable=True)
-    cvss4_exploit_maturity = Column(Text, nullable=True)
-
-    @hybrid_property
-    def cvss4_vector_string(self):
-        return self._cvss4_vector_string
-
-    @cvss4_vector_string.setter
-    def cvss4_vector_string(self, vector_string):
-        self._cvss4_vector_string = vector_string
-        self.set_cvss4_attrs()
-
-    def init_cvss4_attrs(self):
-        self._cvss4_vector_string = None
-        self.cvss4_base_score = None
-        self.cvss4_base_severity = None
-        self.cvss4_attack_vector = None
-        self.cvss4_attack_complexity = None
-        self.cvss4_attack_requirements = None
-        self.cvss4_privileges_required = None
-        self.cvss4_user_interaction = None
-        self.cvss4_vulnerable_system_confidentiality_impact = None
-        self.cvss4_subsequent_system_confidentiality_impact = None
-        self.cvss4_vulnerable_system_integrity_impact = None
-        self.cvss4_subsequent_system_integrity_impact = None
-        self.cvss4_vulnerable_system_availability_impact = None
-        self.cvss4_subsequent_system_availability_impact = None
-        self.cvss4_safety = None
-        self.cvss4_automatable = None
-        self.cvss4_recovery = None
-        self.cvss4_value_density = None
-        self.cvss4_vulnerability_response_effort = None
-        self.cvss4_provider_urgency = None
-        self.cvss4_modified_attack_vector = None
-        self.cvss4_modified_attack_complexity = None
-        self.cvss4_modified_attack_requirements = None
-        self.cvss4_modified_privileges_required = None
-        self.cvss4_modified_user_interaction = None
-        self.cvss4_modified_vulnerable_system_confidentiality_impact = None
-        self.cvss4_modified_subsequent_system_confidentiality_impact = None
-        self.cvss4_modified_vulnerable_system_integrity_impact = None
-        self.cvss4_modified_subsequent_system_integrity_impact = None
-        self.cvss4_modified_vulnerable_system_availability_impact = None
-        self.cvss4_modified_subsequent_system_availability_impact = None
-        self.cvss4_confidentiality_requirement = None
-        self.cvss4_integrity_requirement = None
-        self.cvss4_availability_requirement = None
-        self.cvss4_exploit_maturity = None
-
-    def set_cvss4_attrs(self):
-        """
-        Parse cvss2 and assign attributes
-        """
-        if not self.cvss4_vector_string:
-            self.init_cvss4_attrs()
-            return None
-
-        try:
-            cvss_instance = cvss.CVSS4(self.cvss4_vector_string)
-            self.cvss4_base_score = get_base_score(cvss_instance)
-            self.cvss4_base_severity = get_severity(cvss_instance, 'B')
-            self.cvss4_attack_vector = get_propper_value(cvss_instance, 'AV')
-            self.cvss4_attack_complexity = get_propper_value(cvss_instance, 'AC')
-            self.cvss4_attack_requirements = get_propper_value(cvss_instance, 'AT')
-            self.cvss4_privileges_required = get_propper_value(cvss_instance, 'PR')
-            self.cvss4_user_interaction = get_propper_value(cvss_instance, 'UI')
-            self.cvss4_vulnerable_system_confidentiality_impact = get_propper_value(cvss_instance, 'VC')
-            self.cvss4_subsequent_system_confidentiality_impact = get_propper_value(cvss_instance, 'SC')
-            self.cvss4_vulnerable_system_integrity_impact = get_propper_value(cvss_instance, 'VI')
-            self.cvss4_subsequent_system_integrity_impact = get_propper_value(cvss_instance, 'SI')
-            self.cvss4_vulnerable_system_availability_impact = get_propper_value(cvss_instance, 'VA')
-            self.cvss4_subsequent_system_availability_impact = get_propper_value(cvss_instance, 'SA')
-            self.cvss4_safety = get_propper_value(cvss_instance, 'S')
-            self.cvss4_automatable = get_propper_value(cvss_instance, 'AU')
-            self.cvss4_recovery = get_propper_value(cvss_instance, 'R')
-            self.cvss4_value_density = get_propper_value(cvss_instance, 'V')
-            self.cvss4_vulnerability_response_effort = get_propper_value(cvss_instance, 'RE')
-            self.cvss4_provider_urgency = get_propper_value(cvss_instance, 'U')
-            self.cvss4_modified_attack_vector = get_propper_value(cvss_instance, 'MAV')
-            self.cvss4_modified_attack_complexity = get_propper_value(cvss_instance, 'MAC')
-            self.cvss4_modified_attack_requirements = get_propper_value(cvss_instance, 'MAT')
-            self.cvss4_modified_privileges_required = get_propper_value(cvss_instance, 'MPR')
-            self.cvss4_modified_user_interaction = get_propper_value(cvss_instance, 'MUI')
-            self.cvss4_modified_vulnerable_system_confidentiality_impact = get_propper_value(cvss_instance, 'MVC')
-            self.cvss4_modified_subsequent_system_confidentiality_impact = get_propper_value(cvss_instance, 'MSC')
-            self.cvss4_modified_vulnerable_system_integrity_impact = get_propper_value(cvss_instance, 'MVI')
-            self.cvss4_modified_subsequent_system_integrity_impact = get_propper_value(cvss_instance, 'MSI')
-            self.cvss4_modified_vulnerable_system_availability_impact = get_propper_value(cvss_instance, 'MVA')
-            self.cvss4_modified_subsequent_system_availability_impact = get_propper_value(cvss_instance, 'MSA')
-            self.cvss4_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
-            self.cvss4_integrity_requirement = get_propper_value(cvss_instance, 'IR')
-            self.cvss4_availability_requirement = get_propper_value(cvss_instance, 'AR')
-            self.cvss4_exploit_maturity = get_propper_value(cvss_instance, 'E')
-        except Exception as e:
-            logger.error("Could not parse cvss %s. %s", self.cvss4_vector_string, e)
-
-    cwe = relationship('CWE', secondary=cwe_vulnerability_association)
-
-    reference_instances = relationship(
-        "Reference",
-        secondary="reference_vulnerability_association",
-        collection_class=set
-    )
-
-    references = association_proxy(
-        'reference_instances', 'name',
-        proxy_factory=CustomAssociationSet,
-        creator=_build_associationproxy_creator('Reference'))
-
-    policy_violation_instances = relationship(
-        "PolicyViolation",
-        secondary="policy_violation_vulnerability_association",
-        collection_class=set
-    )
-
-    policy_violations = association_proxy(
-        'policy_violation_instances', 'name',
-        proxy_factory=CustomAssociationSet,
-        creator=_build_associationproxy_creator('PolicyViolation'))
-
-    evidence = relationship(
-        "File",
-        primaryjoin="and_(File.object_id==VulnerabilityGeneric.id, File.object_type=='vulnerability')",
-        foreign_keys="File.object_id",
-        cascade="all, delete-orphan"
-    )
-
-    tags = relationship(
-        "Tag",
-        secondary="tag_object",
-        primaryjoin="and_(TagObject.object_id==VulnerabilityGeneric.id, TagObject.object_type=='vulnerability')",
-        collection_class=set,
-    )
-
-    host_id = Column(Integer, ForeignKey(Host.id, ondelete='CASCADE'), index=True)
-    host = relationship(
-        'Host',
-        backref=backref("vulnerabilities", cascade="all, delete-orphan"),
-        foreign_keys=[host_id],
-    )
-
-    @declared_attr
-    def service_id(self):
-        return Column(Integer, db.ForeignKey('service.id', ondelete='CASCADE'), index=True)
-
-    __mapper_args__ = {
-        'polymorphic_on': type
-    }
-
-    @property
-    def attachments(self):
-        return db.session.query(File).filter_by(
-            object_id=self.id,
-            object_type='vulnerability'
+        group = relationship("VulnerabilityGroup", backref=backref('vulnerabilities', passive_deletes=True))
+        vulnerability_template_id = Column(
+            Integer,
+            ForeignKey('vulnerability_template.id', ondelete='SET NULL'),
+            index=True,
+            nullable=True,
         )
 
-    @hybrid_property
-    def target(self):
-        return self.target_host_ip
+        vulnerability_template = relationship('VulnerabilityTemplate',
+                                              backref=backref('duplicate_vulnerabilities', passive_deletes='all'))
 
-    @property
-    def has_duplicate(self):
-        return self.vulnerability_duplicate_id is None
+        status_history = relationship(
+            'VulnerabilityStatusHistory',
+            backref='vulnerability',
+            cascade="all, delete-orphan",
+            foreign_keys="VulnerabilityStatusHistory.vulnerability_id",
+            primaryjoin="VulnerabilityGeneric.id == VulnerabilityStatusHistory.vulnerability_id",
+            order_by="desc(VulnerabilityStatusHistory.change_date)"
+        )
 
-    @property
-    def hostnames(self):
-        if self.host is not None:
-            return self.host.hostnames
-        elif self.service is not None:
-            return self.service.host.hostnames
-        raise ValueError("Vulnerability has no service nor host")
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            backref=backref('vulnerabilities', cascade="all, delete-orphan", passive_deletes=True)
+        )
 
-    @declared_attr
-    def service(self):
-        return relationship('Service', backref=backref("vulnerabilitiesGeneric", cascade="all, delete-orphan"))
+        cve_instances = relationship("CVE",
+                                     secondary=cve_vulnerability_association,
+                                     collection_class=set)
+
+        cve = association_proxy('cve_instances',
+                                'name',
+                                proxy_factory=CustomAssociationSet,
+                                creator=_build_associationproxy_creator_non_workspaced('CVE', lambda c: c.upper()))
+
+        refs = relationship(
+            'VulnerabilityReference',
+            cascade="all, delete-orphan",
+            backref=backref("vulnerabilities")
+        )
+
+        commands = relationship(
+            'Command',
+            secondary='command_object',
+            primaryjoin='and_(VulnerabilityGeneric.id == CommandObject.object_id, CommandObject.object_type == "vulnerability")',
+            collection_class=set,
+            passive_deletes=True,
+        )
+
+        credentials = relationship("Credential",
+                                   secondary='association_table_vulnerabilities_credentials',
+                                   back_populates='vulnerabilities')
+
+        _cvss2_vector_string = Column(Text, nullable=True)
+        cvss2_base_score = Column(Float)
+        cvss2_exploitability_score = Column(Float)
+        cvss2_impact_score = Column(Float)
+        cvss2_base_severity = Column(Text, nullable=True)
+        cvss2_temporal_score = Column(Float)
+        cvss2_temporal_severity = Column(Text, nullable=True)
+        cvss2_environmental_score = Column(Float)
+        cvss2_environmental_severity = Column(Text, nullable=True)
+        cvss2_access_vector = Column(Text, nullable=True)
+        cvss2_access_complexity = Column(Text, nullable=True)
+        cvss2_authentication = Column(Text, nullable=True)
+        cvss2_confidentiality_impact = Column(Text, nullable=True)
+        cvss2_integrity_impact = Column(Text, nullable=True)
+        cvss2_availability_impact = Column(Text, nullable=True)
+        cvss2_exploitability = Column(Text, nullable=True)
+        cvss2_remediation_level = Column(Text, nullable=True)
+        cvss2_report_confidence = Column(Text, nullable=True)
+        cvss2_collateral_damage_potential = Column(Text, nullable=True)
+        cvss2_target_distribution = Column(Text, nullable=True)
+        cvss2_confidentiality_requirement = Column(Text, nullable=True)
+        cvss2_integrity_requirement = Column(Text, nullable=True)
+        cvss2_availability_requirement = Column(Text, nullable=True)
+
+        owasp = relationship('OWASP', secondary=owasp_vulnerability_association)
+
+        last_detected = Column(DateTime, nullable=True)
+
+        @hybrid_property
+        def cvss2_vector_string(self):
+            return self._cvss2_vector_string
+
+        @cvss2_vector_string.setter
+        def cvss2_vector_string(self, vector_string):
+            self._cvss2_vector_string = vector_string
+            self.set_cvss2_attrs()
+
+        def init_cvss2_attrs(self):
+            self._cvss2_vector_string = None
+            self.cvss2_base_score = None
+            self.cvss2_base_severity = None
+            self.cvss2_temporal_score = None
+            self.cvss2_temporal_severity = None
+            self.cvss2_environmental_score = None
+            self.cvss2_environmental_severity = None
+            self.cvss2_access_vector = None
+            self.cvss2_access_complexity = None
+            self.cvss2_authentication = None
+            self.cvss2_confidentiality_impact = None
+            self.cvss2_integrity_impact = None
+            self.cvss2_availability_impact = None
+            self.cvss2_exploitability = None
+            self.cvss2_remediation_level = None
+            self.cvss2_report_confidence = None
+            self.cvss2_collateral_damage_potential = None
+            self.cvss2_target_distribution = None
+            self.cvss2_confidentiality_requirement = None
+            self.cvss2_integrity_requirement = None
+            self.cvss2_availability_requirement = None
+            self.cvss2_exploitability_score = None
+            self.cvss2_impact_score = None
+
+        def set_cvss2_attrs(self):
+            """
+            Parse cvss2 and assign attributes
+            """
+            if not self.cvss2_vector_string:
+                self.init_cvss2_attrs()
+                return None
+            try:
+                cvss_instance = cvss.CVSS2(self.cvss2_vector_string)
+                self.cvss2_base_score = get_base_score(cvss_instance)
+                self.cvss2_base_severity = get_severity(cvss_instance, 'B')
+                self.cvss2_temporal_score = get_temporal_score(cvss_instance)
+                self.cvss2_temporal_severity = get_severity(cvss_instance, 'T')
+                self.cvss2_environmental_score = get_environmental_score(cvss_instance)
+                self.cvss2_environmental_severity = get_severity(cvss_instance, 'E')
+                self.cvss2_access_vector = get_propper_value(cvss_instance, 'AV')
+                self.cvss2_access_complexity = get_propper_value(cvss_instance, 'AC')
+                self.cvss2_authentication = get_propper_value(cvss_instance, 'Au')
+                self.cvss2_confidentiality_impact = get_propper_value(cvss_instance, 'C')
+                self.cvss2_integrity_impact = get_propper_value(cvss_instance, 'I')
+                self.cvss2_availability_impact = get_propper_value(cvss_instance, 'A')
+                self.cvss2_exploitability = get_propper_value(cvss_instance, 'E')
+                self.cvss2_remediation_level = get_propper_value(cvss_instance, 'RL')
+                self.cvss2_report_confidence = get_propper_value(cvss_instance, 'RC')
+                self.cvss2_collateral_damage_potential = get_propper_value(cvss_instance, 'CDP')
+                self.cvss2_target_distribution = get_propper_value(cvss_instance, 'TD')
+                self.cvss2_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
+                self.cvss2_integrity_requirement = get_propper_value(cvss_instance, 'IR')
+                self.cvss2_availability_requirement = get_propper_value(cvss_instance, 'AR')
+                self.cvss2_exploitability_score = get_exploitability_score(cvss_instance)
+                self.cvss2_impact_score = get_impact_score(cvss_instance)
+            except Exception as e:
+                logger.error("Could not parse cvss %s. %s", self.cvss2_vector_string, e)
+
+        _cvss3_vector_string = Column(Text, nullable=True)
+        cvss3_base_score = Column(Float)
+        cvss3_exploitability_score = Column(Float)
+        cvss3_impact_score = Column(Float)
+        cvss3_base_severity = Column(Text, nullable=True)
+        cvss3_temporal_score = Column(Float)
+        cvss3_temporal_severity = Column(Text, nullable=True)
+        cvss3_environmental_score = Column(Float)
+        cvss3_environmental_severity = Column(Text, nullable=True)
+        cvss3_attack_vector = Column(Text, nullable=True)
+        cvss3_attack_complexity = Column(Text, nullable=True)
+        cvss3_privileges_required = Column(Text, nullable=True)
+        cvss3_user_interaction = Column(Text, nullable=True)
+        cvss3_confidentiality_impact = Column(Text, nullable=True)
+        cvss3_integrity_impact = Column(Text, nullable=True)
+        cvss3_availability_impact = Column(Text, nullable=True)
+        cvss3_exploit_code_maturity = Column(Text, nullable=True)
+        cvss3_remediation_level = Column(Text, nullable=True)
+        cvss3_report_confidence = Column(Text, nullable=True)
+        cvss3_confidentiality_requirement = Column(Text, nullable=True)
+        cvss3_integrity_requirement = Column(Text, nullable=True)
+        cvss3_availability_requirement = Column(Text, nullable=True)
+        cvss3_modified_attack_vector = Column(Text, nullable=True)
+        cvss3_modified_attack_complexity = Column(Text, nullable=True)
+        cvss3_modified_privileges_required = Column(Text, nullable=True)
+        cvss3_modified_user_interaction = Column(Text, nullable=True)
+        cvss3_modified_scope = Column(Text, nullable=True)
+        cvss3_modified_confidentiality_impact = Column(Text, nullable=True)
+        cvss3_modified_integrity_impact = Column(Text, nullable=True)
+        cvss3_modified_availability_impact = Column(Text, nullable=True)
+        cvss3_scope = Column(Text, nullable=True)
+
+        @hybrid_property
+        def cvss3_vector_string(self):
+            return self._cvss3_vector_string
+
+        @cvss3_vector_string.setter
+        def cvss3_vector_string(self, vector_string):
+            self._cvss3_vector_string = vector_string
+            self.set_cvss3_attrs()
+
+        def init_cvss3_attrs(self):
+            self._cvss3_vector_string = None
+            self.cvss3_base_score = None
+            self.cvss3_base_severity = None
+            self.cvss3_temporal_score = None
+            self.cvss3_temporal_severity = None
+            self.cvss3_environmental_score = None
+            self.cvss3_environmental_severity = None
+            self.cvss3_attack_vector = None
+            self.cvss3_attack_complexity = None
+            self.cvss3_privileges_required = None
+            self.cvss3_user_interaction = None
+            self.cvss3_scope = None
+            self.cvss3_confidentiality_impact = None
+            self.cvss3_integrity_impact = None
+            self.cvss3_availability_impact = None
+            self.cvss3_exploit_code_maturity = None
+            self.cvss3_remediation_level = None
+            self.cvss3_report_confidence = None
+            self.cvss3_confidentiality_requirement = None
+            self.cvss3_integrity_requirement = None
+            self.cvss3_availability_requirement = None
+            self.cvss3_modified_attack_vector = None
+            self.cvss3_modified_attack_complexity = None
+            self.cvss3_modified_privileges_required = None
+            self.cvss3_modified_user_interaction = None
+            self.cvss3_modified_scope = None
+            self.cvss3_modified_confidentiality_impact = None
+            self.cvss3_modified_integrity_impact = None
+            self.cvss3_modified_availability_impact = None
+            self.cvss3_exploitability_score = None
+            self.cvss3_impact_score = None
+
+        def set_cvss3_attrs(self):
+            """
+            Parse cvss2 and assign attributes
+            """
+            if not self.cvss3_vector_string:
+                self.init_cvss3_attrs()
+                return None
+
+            try:
+                cvss_instance = cvss.CVSS3(self.cvss3_vector_string)
+                self.cvss3_base_score = get_base_score(cvss_instance)
+                self.cvss3_base_severity = get_severity(cvss_instance, 'B')
+                self.cvss3_temporal_score = get_temporal_score(cvss_instance)
+                self.cvss3_temporal_severity = get_severity(cvss_instance, 'T')
+                self.cvss3_environmental_score = get_environmental_score(cvss_instance)
+                self.cvss3_environmental_severity = get_severity(cvss_instance, 'E')
+                self.cvss3_attack_vector = get_propper_value(cvss_instance, 'AV')
+                self.cvss3_attack_complexity = get_propper_value(cvss_instance, 'AC')
+                self.cvss3_privileges_required = get_propper_value(cvss_instance, 'PR')
+                self.cvss3_user_interaction = get_propper_value(cvss_instance, 'UI')
+                self.cvss3_scope = get_propper_value(cvss_instance, 'S')
+                self.cvss3_confidentiality_impact = get_propper_value(cvss_instance, 'C')
+                self.cvss3_integrity_impact = get_propper_value(cvss_instance, 'I')
+                self.cvss3_availability_impact = get_propper_value(cvss_instance, 'A')
+                self.cvss3_exploit_code_maturity = get_propper_value(cvss_instance, 'E')
+                self.cvss3_remediation_level = get_propper_value(cvss_instance, 'RL')
+                self.cvss3_report_confidence = get_propper_value(cvss_instance, 'RC')
+                self.cvss3_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
+                self.cvss3_integrity_requirement = get_propper_value(cvss_instance, 'IR')
+                self.cvss3_availability_requirement = get_propper_value(cvss_instance, 'AR')
+                self.cvss3_modified_attack_vector = get_propper_value(cvss_instance, 'MAV')
+                self.cvss3_modified_attack_complexity = get_propper_value(cvss_instance, 'MAC')
+                self.cvss3_modified_privileges_required = get_propper_value(cvss_instance, 'MPR')
+                self.cvss3_modified_user_interaction = get_propper_value(cvss_instance, 'MUI')
+                self.cvss3_modified_scope = get_propper_value(cvss_instance, 'MS')
+                self.cvss3_modified_confidentiality_impact = get_propper_value(cvss_instance, 'MC')
+                self.cvss3_modified_integrity_impact = get_propper_value(cvss_instance, 'MI')
+                self.cvss3_modified_availability_impact = get_propper_value(cvss_instance, 'MA')
+                self.cvss3_exploitability_score = get_exploitability_score(cvss_instance)
+                self.cvss3_impact_score = get_impact_score(cvss_instance)
+            except Exception as e:
+                logger.error("Could not parse cvss %s. %s", self.cvss3_vector_string, e)
+
+        _cvss4_vector_string = Column(Text, nullable=True)
+        cvss4_base_score = Column(Float)
+        cvss4_base_severity = Column(Text, nullable=True)
+        cvss4_attack_vector = Column(Text, nullable=True)
+        cvss4_attack_complexity = Column(Text, nullable=True)
+        cvss4_attack_requirements = Column(Text, nullable=True)
+        cvss4_privileges_required = Column(Text, nullable=True)
+        cvss4_user_interaction = Column(Text, nullable=True)
+        cvss4_vulnerable_system_confidentiality_impact = Column(Text, nullable=True)
+        cvss4_subsequent_system_confidentiality_impact = Column(Text, nullable=True)
+        cvss4_vulnerable_system_integrity_impact = Column(Text, nullable=True)
+        cvss4_subsequent_system_integrity_impact = Column(Text, nullable=True)
+        cvss4_vulnerable_system_availability_impact = Column(Text, nullable=True)
+        cvss4_subsequent_system_availability_impact = Column(Text, nullable=True)
+        cvss4_safety = Column(Text, nullable=True)
+        cvss4_automatable = Column(Text, nullable=True)
+        cvss4_recovery = Column(Text, nullable=True)
+        cvss4_value_density = Column(Text, nullable=True)
+        cvss4_vulnerability_response_effort = Column(Text, nullable=True)
+        cvss4_provider_urgency = Column(Text, nullable=True)
+        cvss4_modified_attack_vector = Column(Text, nullable=True)
+        cvss4_modified_attack_complexity = Column(Text, nullable=True)
+        cvss4_modified_attack_requirements = Column(Text, nullable=True)
+        cvss4_modified_privileges_required = Column(Text, nullable=True)
+        cvss4_modified_user_interaction = Column(Text, nullable=True)
+        cvss4_modified_vulnerable_system_confidentiality_impact = Column(Text, nullable=True)
+        cvss4_modified_subsequent_system_confidentiality_impact = Column(Text, nullable=True)
+        cvss4_modified_vulnerable_system_integrity_impact = Column(Text, nullable=True)
+        cvss4_modified_subsequent_system_integrity_impact = Column(Text, nullable=True)
+        cvss4_modified_vulnerable_system_availability_impact = Column(Text, nullable=True)
+        cvss4_modified_subsequent_system_availability_impact = Column(Text, nullable=True)
+        cvss4_confidentiality_requirement = Column(Text, nullable=True)
+        cvss4_integrity_requirement = Column(Text, nullable=True)
+        cvss4_availability_requirement = Column(Text, nullable=True)
+        cvss4_exploit_maturity = Column(Text, nullable=True)
+
+        @hybrid_property
+        def cvss4_vector_string(self):
+            return self._cvss4_vector_string
+
+        @cvss4_vector_string.setter
+        def cvss4_vector_string(self, vector_string):
+            self._cvss4_vector_string = vector_string
+            self.set_cvss4_attrs()
+
+        def init_cvss4_attrs(self):
+            self._cvss4_vector_string = None
+            self.cvss4_base_score = None
+            self.cvss4_base_severity = None
+            self.cvss4_attack_vector = None
+            self.cvss4_attack_complexity = None
+            self.cvss4_attack_requirements = None
+            self.cvss4_privileges_required = None
+            self.cvss4_user_interaction = None
+            self.cvss4_vulnerable_system_confidentiality_impact = None
+            self.cvss4_subsequent_system_confidentiality_impact = None
+            self.cvss4_vulnerable_system_integrity_impact = None
+            self.cvss4_subsequent_system_integrity_impact = None
+            self.cvss4_vulnerable_system_availability_impact = None
+            self.cvss4_subsequent_system_availability_impact = None
+            self.cvss4_safety = None
+            self.cvss4_automatable = None
+            self.cvss4_recovery = None
+            self.cvss4_value_density = None
+            self.cvss4_vulnerability_response_effort = None
+            self.cvss4_provider_urgency = None
+            self.cvss4_modified_attack_vector = None
+            self.cvss4_modified_attack_complexity = None
+            self.cvss4_modified_attack_requirements = None
+            self.cvss4_modified_privileges_required = None
+            self.cvss4_modified_user_interaction = None
+            self.cvss4_modified_vulnerable_system_confidentiality_impact = None
+            self.cvss4_modified_subsequent_system_confidentiality_impact = None
+            self.cvss4_modified_vulnerable_system_integrity_impact = None
+            self.cvss4_modified_subsequent_system_integrity_impact = None
+            self.cvss4_modified_vulnerable_system_availability_impact = None
+            self.cvss4_modified_subsequent_system_availability_impact = None
+            self.cvss4_confidentiality_requirement = None
+            self.cvss4_integrity_requirement = None
+            self.cvss4_availability_requirement = None
+            self.cvss4_exploit_maturity = None
+
+        def set_cvss4_attrs(self):
+            """
+            Parse cvss2 and assign attributes
+            """
+            if not self.cvss4_vector_string:
+                self.init_cvss4_attrs()
+                return None
+
+            try:
+                cvss_instance = cvss.CVSS4(self.cvss4_vector_string)
+                self.cvss4_base_score = get_base_score(cvss_instance)
+                self.cvss4_base_severity = get_severity(cvss_instance, 'B')
+                self.cvss4_attack_vector = get_propper_value(cvss_instance, 'AV')
+                self.cvss4_attack_complexity = get_propper_value(cvss_instance, 'AC')
+                self.cvss4_attack_requirements = get_propper_value(cvss_instance, 'AT')
+                self.cvss4_privileges_required = get_propper_value(cvss_instance, 'PR')
+                self.cvss4_user_interaction = get_propper_value(cvss_instance, 'UI')
+                self.cvss4_vulnerable_system_confidentiality_impact = get_propper_value(cvss_instance, 'VC')
+                self.cvss4_subsequent_system_confidentiality_impact = get_propper_value(cvss_instance, 'SC')
+                self.cvss4_vulnerable_system_integrity_impact = get_propper_value(cvss_instance, 'VI')
+                self.cvss4_subsequent_system_integrity_impact = get_propper_value(cvss_instance, 'SI')
+                self.cvss4_vulnerable_system_availability_impact = get_propper_value(cvss_instance, 'VA')
+                self.cvss4_subsequent_system_availability_impact = get_propper_value(cvss_instance, 'SA')
+                self.cvss4_safety = get_propper_value(cvss_instance, 'S')
+                self.cvss4_automatable = get_propper_value(cvss_instance, 'AU')
+                self.cvss4_recovery = get_propper_value(cvss_instance, 'R')
+                self.cvss4_value_density = get_propper_value(cvss_instance, 'V')
+                self.cvss4_vulnerability_response_effort = get_propper_value(cvss_instance, 'RE')
+                self.cvss4_provider_urgency = get_propper_value(cvss_instance, 'U')
+                self.cvss4_modified_attack_vector = get_propper_value(cvss_instance, 'MAV')
+                self.cvss4_modified_attack_complexity = get_propper_value(cvss_instance, 'MAC')
+                self.cvss4_modified_attack_requirements = get_propper_value(cvss_instance, 'MAT')
+                self.cvss4_modified_privileges_required = get_propper_value(cvss_instance, 'MPR')
+                self.cvss4_modified_user_interaction = get_propper_value(cvss_instance, 'MUI')
+                self.cvss4_modified_vulnerable_system_confidentiality_impact = get_propper_value(cvss_instance, 'MVC')
+                self.cvss4_modified_subsequent_system_confidentiality_impact = get_propper_value(cvss_instance, 'MSC')
+                self.cvss4_modified_vulnerable_system_integrity_impact = get_propper_value(cvss_instance, 'MVI')
+                self.cvss4_modified_subsequent_system_integrity_impact = get_propper_value(cvss_instance, 'MSI')
+                self.cvss4_modified_vulnerable_system_availability_impact = get_propper_value(cvss_instance, 'MVA')
+                self.cvss4_modified_subsequent_system_availability_impact = get_propper_value(cvss_instance, 'MSA')
+                self.cvss4_confidentiality_requirement = get_propper_value(cvss_instance, 'CR')
+                self.cvss4_integrity_requirement = get_propper_value(cvss_instance, 'IR')
+                self.cvss4_availability_requirement = get_propper_value(cvss_instance, 'AR')
+                self.cvss4_exploit_maturity = get_propper_value(cvss_instance, 'E')
+            except Exception as e:
+                logger.error("Could not parse cvss %s. %s", self.cvss4_vector_string, e)
+
+        cwe = relationship('CWE', secondary=cwe_vulnerability_association)
+
+        reference_instances = relationship(
+            "Reference",
+            secondary="reference_vulnerability_association",
+            collection_class=set
+        )
+
+        references = association_proxy(
+            'reference_instances', 'name',
+            proxy_factory=CustomAssociationSet,
+            creator=_build_associationproxy_creator('Reference'))
+
+        policy_violation_instances = relationship(
+            "PolicyViolation",
+            secondary="policy_violation_vulnerability_association",
+            collection_class=set
+        )
+
+        policy_violations = association_proxy(
+            'policy_violation_instances', 'name',
+            proxy_factory=CustomAssociationSet,
+            creator=_build_associationproxy_creator('PolicyViolation'))
+
+        evidence = relationship(
+            "File",
+            primaryjoin="and_(File.object_id==VulnerabilityGeneric.id, File.object_type=='vulnerability')",
+            foreign_keys="File.object_id",
+            cascade="all, delete-orphan"
+        )
+
+        tags = relationship(
+            "Tag",
+            secondary="tag_object",
+            primaryjoin="and_(TagObject.object_id==VulnerabilityGeneric.id, TagObject.object_type=='vulnerability')",
+            collection_class=set,
+        )
+
+        host_id = Column(Integer, ForeignKey(Host.id, ondelete='CASCADE'), index=True)
+        host = relationship(
+            'Host',
+            backref=backref("vulnerabilities", cascade="all, delete-orphan"),
+            foreign_keys=[host_id],
+        )
+
+        @declared_attr
+        def service_id(self):
+            return Column(Integer, db.ForeignKey('service.id', ondelete='CASCADE'), index=True)
+
+        __mapper_args__ = {
+            'polymorphic_on': type
+        }
+
+        @property
+        def attachments(self):
+            return db.session.query(File).filter_by(
+                object_id=self.id,
+                object_type='vulnerability'
+            )
+
+        @hybrid_property
+        def target(self):
+            return self.target_host_ip
+
+        @property
+        def has_duplicate(self):
+            return self.vulnerability_duplicate_id is None
+
+        @property
+        def hostnames(self):
+            if self.host is not None:
+                return self.host.hostnames
+            elif self.service is not None:
+                return self.service.host.hostnames
+            raise ValueError("Vulnerability has no service nor host")
+
+        @declared_attr
+        def service(self):
+            return relationship('Service', backref=backref("vulnerabilitiesGeneric", cascade="all, delete-orphan"))
 
 
 class Vulnerability(VulnerabilityGeneric):

@@ -134,6 +134,26 @@ def setup_storage_path():
 
 
 def register_blueprints(app):
+    # Ponytail: delegate to bounded_contexts registry if available (des-monolitizar)
+    try:
+        from faraday.bounded_contexts.registry import register_all_bcs  # pylint: disable=import-outside-toplevel
+
+        # Use registry which handles workspace/host/vuln BCs + fallback for rest
+        # This keeps contracts.md wire /_api + /v3 intact
+        register_all_bcs(app)
+        # Still register ui which is not in registry's core BCs (YAGNI: ui is separate)
+        try:
+            from faraday.server.ui import ui  # pylint: disable=import-outside-toplevel
+
+            # Avoid double-register if ui already registered via registry
+            if 'ui' not in [bp.name for bp in app.blueprints.values()]:
+                app.register_blueprint(ui)
+        except ImportError:
+            pass
+        return
+    except ImportError:
+        pass
+    # Fallback legacy (monolito) — mantiene compat si registry no disponible
     from faraday.server.ui import ui  # pylint: disable=import-outside-toplevel
     from faraday.server.api.modules.info import info_api  # pylint:disable=import-outside-toplevel
     from faraday.server.api.modules.commandsrun import commandsrun_api  # pylint:disable=import-outside-toplevel

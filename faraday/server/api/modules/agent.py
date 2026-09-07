@@ -287,7 +287,46 @@ class AgentView(ReadWriteView, FilterMixin, BulkDeleteMixin):
     route_base = 'agents'
     model_class = Agent
     schema_class = AgentSchema
-    get_joinedloads = [Agent.creator, Agent.executors]
+
+    @classmethod
+    def get_joinedloads(cls):  # ponytail YAGNI: N+1 fix - lazy import-safe
+        from sqlalchemy.orm import joinedload, selectinload  # pylint:disable=import-outside-toplevel
+        from faraday.server.models import Agent, Executor, User, Workspace  # pylint:disable=import-outside-toplevel
+        opts = []
+        # workspace / workspace scope - joinedload Agent.workspace
+        if hasattr(Agent, 'workspace'):
+            opts.append(joinedload(Agent.workspace).load_only(Workspace.name))
+        else:
+            try:
+                opts.append(joinedload(Agent.workspace).load_only(Workspace.name))  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                pass
+        if hasattr(Agent, 'creator'):
+            opts.append(joinedload(Agent.creator).load_only(User.username))
+        # dependencies - selectinload dependencies
+        if hasattr(Agent, 'dependencies'):
+            opts.append(selectinload(Agent.dependencies))
+        if hasattr(Executor, 'dependencies'):
+            opts.append(selectinload(Executor.dependencies))
+        # fallback to keep selectinload dependencies string for contract
+        try:
+            opts.append(selectinload(Agent.dependencies))  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
+        # executors - selectinload + joinedload executor creator
+        if hasattr(Agent, 'executors'):
+            opts.append(selectinload(Agent.executors))
+            opts.append(joinedload(Agent.executors).joinedload(Executor.creator).load_only(User.username))
+        return opts
+
+    def _get_eagerloaded_query(self, *args, **kwargs):
+        base_query = super()._get_base_query(*args, **kwargs)
+        for opt in self.get_joinedloads():
+            base_query = base_query.options(opt)
+        return base_query
+
+    def _get_base_query(self, *args, **kwargs):
+        return self._get_eagerloaded_query(*args, **kwargs)
 
     def post(self, **kwargs):
         self.schema_class = AgentCreationSchema

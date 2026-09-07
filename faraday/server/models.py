@@ -3062,33 +3062,40 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
         vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
 
 
-class Comment(Metadata):
-    __tablename__ = 'comment'
-    id = Column(Integer, primary_key=True)
-    comment_type = Column(Enum(*COMMENT_TYPES, name='comment_types'), nullable=False, default='user')
+DOMAIN_COMMENT_AVAILABLE = False
+try:
+    from faraday.domain.notification.models import Comment  # ponytail YAGNI: Comment -> domain/notification
+    DOMAIN_COMMENT_AVAILABLE = True
+except ImportError:
+    DOMAIN_COMMENT_AVAILABLE = False
 
-    text = BlankColumn(Text)
+    class Comment(Metadata):
+        __tablename__ = 'comment'
+        id = Column(Integer, primary_key=True)
+        comment_type = Column(Enum(*COMMENT_TYPES, name='comment_types'), nullable=False, default='user')
 
-    reply_to_id = Column(Integer, ForeignKey('comment.id', ondelete='SET NULL'))
-    reply_to = relationship(
-        'Comment',
-        remote_side=[id],
-        foreign_keys=[reply_to_id]
-    )
+        text = BlankColumn(Text)
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=True)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('comments', cascade="all, delete-orphan"),
-    )
+        reply_to_id = Column(Integer, ForeignKey('comment.id', ondelete='SET NULL'))
+        reply_to = relationship(
+            'Comment',
+            remote_side=[id],
+            foreign_keys=[reply_to_id]
+        )
 
-    object_id = Column(Integer, nullable=False)
-    object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=True)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('comments', cascade="all, delete-orphan"),
+        )
 
-    @property
-    def parent(self):
-        return
+        object_id = Column(Integer, nullable=False)
+        object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
+
+        @property
+        def parent(self):
+            return
 
 
 class ExecutiveReport(Metadata):

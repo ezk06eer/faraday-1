@@ -30,13 +30,11 @@ from faraday.server.debouncer import (
     debounce_workspace_update,
     debounce_workspace_vulns_count_update,
 )
-from faraday.server.models import (
-    Host,
-    Service,
-    User,
-    Workspace,
-    db,
-)
+try:
+    from faraday.domain.host_service.models import Host, Service  # ponytail YAGNI V8
+except ImportError:
+    from faraday.server.models import Host, Service
+from faraday.server.models import User, Workspace, db
 from faraday.server.schemas import (
     MetadataSchema,
     MutableField,

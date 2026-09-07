@@ -94,11 +94,24 @@ class CommandView(PaginatedMixin, ReadWriteWorkspacedView):
     route_base = 'commands'
     model_class = Command
     schema_class = CommandSchema
-    get_joinedloads = [Command.workspace]
     order_field = Command.start_date.desc()
 
-    def _get_eagerloaded_query(self, *args, **kwargs):
-        return super()._get_eagerloaded_query(*args, **kwargs).filter(Command.command != "bulk_update")
+    @classmethod
+    def get_joinedloads(cls):
+        from sqlalchemy.orm import joinedload  # pylint:disable=import-outside-toplevel
+        return [
+            joinedload(Command.workspace),
+            joinedload(Command.creator),
+        ]
+
+    def _get_eagerloaded_query(self, workspace_name):
+        base_query = super()._get_base_query(workspace_name)
+        for opt in self.get_joinedloads():
+            base_query = base_query.options(opt)
+        return base_query.filter(Command.command != "bulk_update")
+
+    def _get_base_query(self, *args, **kwargs):
+        return self._get_eagerloaded_query(*args, **kwargs)
 
     def _envelope_list(self, objects, pagination_metadata=None):
         commands = []

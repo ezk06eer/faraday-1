@@ -55,6 +55,23 @@ class AgentExecutionView(BulkDeleteMixin, PaginatedMixin, ReadOnlyView, FilterMi
     schema_class = AgentExecutionSchema
     order_field = AgentExecution.id.desc()
 
+    @classmethod
+    def get_joinedloads(cls):
+        from sqlalchemy.orm import joinedload  # pylint:disable=import-outside-toplevel
+        return [
+            # Schema serializes executor.agent (name/id/tool/category) per row -> N+1 without this
+            joinedload(AgentExecution.executor).joinedload(Executor.agent),
+        ]
+
+    def _get_eagerloaded_query(self, *args, **kwargs):
+        base_query = super()._get_base_query(*args, **kwargs)
+        for opt in self.get_joinedloads():
+            base_query = base_query.options(opt)
+        return base_query
+
+    def _get_base_query(self, *args, **kwargs):
+        return self._get_eagerloaded_query(*args, **kwargs)
+
     def _translate_filters(self, filters):
         """
         Groups AgentExecutions by run_uuid, returning only one representative row per group.

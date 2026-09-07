@@ -8,8 +8,6 @@ Import-safe: sqlalchemy import deferred inside function to avoid import cycles i
 import logging
 from flask import request
 
-from faraday.server.api.base import InvalidUsage
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +39,8 @@ class SortingService:
             if view.sort_pass_silently:
                 logger.warning(f"Unknown field: {order_field}")
                 return view.order_field
+            from faraday.server.api.base import InvalidUsage
+
             raise InvalidUsage(f"Unknown field: {order_field}") from e
         order_field = field_instance.attribute or order_field
         model_class = getattr(view, "sort_model_class", None) or view.model_class
@@ -48,6 +48,8 @@ class SortingService:
             if view.sort_pass_silently:
                 logger.warning(f"Field not in the DB: {order_field}")
                 return view.order_field
+            from faraday.server.api.base import InvalidUsage
+
             raise InvalidUsage(f"Field not in the DB: {order_field}")
         if hasattr(model_class, order_field + "_id"):
             field = getattr(model_class, order_field + "_id")
@@ -60,6 +62,8 @@ class SortingService:
             if view.sort_pass_silently:
                 logger.warning(f"Invalid value for sorting direction: {sort_dir}")
                 return view.order_field
+            from faraday.server.api.base import InvalidUsage
+
             raise InvalidUsage(f"Invalid value for sorting direction: {sort_dir}")
         try:
             if view.order_field is not None:
@@ -71,4 +75,6 @@ class SortingService:
             if view.sort_pass_silently:
                 logger.warning(f"field {order_field} doesn't support sorting")
                 return view.order_field
+            from faraday.server.api.base import InvalidUsage
+
             raise InvalidUsage(f"field {order_field} doesn't support sorting") from e

@@ -26,6 +26,7 @@ from marshmallow import (
     ValidationError
 )
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import joinedload, selectinload
 import dateutil
 from croniter import croniter
 
@@ -48,7 +49,6 @@ from faraday.server.schemas import (
 )
 from faraday.server.utils.agents import get_command_and_agent_execution
 from faraday.server.models import (
-    Agent,
     AgentsSchedule,
     db,
     Executor,
@@ -177,14 +177,12 @@ class AgentsScheduleSchema(AutoSchema):
 
     @staticmethod
     def get_agent(obj):
-        agent_id = obj.executor.agent_id
-        try:
-            agent = db.session.query(Agent).\
-                filter(Agent.id == agent_id).one()
-        except NoResultFound as e:
-            raise InvalidUsage(f'Agent id not found: {agent_id}') from e
-        ret = AgentSchema().dump(agent)
-        return ret
+        # Use the executor->agent relationship (eager-loaded by the view)
+        # instead of issuing one query per serialized row.
+        agent = obj.executor.agent
+        if agent is None:
+            raise InvalidUsage(f'Agent id not found: {obj.executor.agent_id}')
+        return AgentSchema().dump(agent)
 
 
 class AgentsScheduleView(
@@ -195,6 +193,16 @@ class AgentsScheduleView(
     model_class = AgentsSchedule
     order_field = AgentsSchedule.id.asc()
     schema_class = AgentsScheduleSchema
+    # Eager-load everything the schema dereferences per row (n+1 fix):
+    # executor + executor.agent (get_agent), executor.schedules
+    # (ExecutorSchema nested), and the workspaces m2m.
+    get_joinedloads = [
+        joinedload(AgentsSchedule.executor).options(
+            joinedload(Executor.agent),
+            selectinload(Executor.schedules),
+        ),
+        selectinload(AgentsSchedule.workspaces),
+    ]
 
     def _envelope_list(self, objects, pagination_metadata=None):
         agents_schedule = []

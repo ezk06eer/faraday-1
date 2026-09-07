@@ -397,23 +397,26 @@ except ImportError:
         update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class SourceCode(Metadata):
-    __tablename__ = 'source_code'
-    id = Column(Integer, primary_key=True)
-    filename = NonBlankColumn(Text)
-    function = BlankColumn(Text)
-    module = BlankColumn(Text)
+try:
+    from faraday.domain.host_service.models import SourceCode  # ponytail YAGNI: SourceCode -> domain/host_service
+except ImportError:
+    class SourceCode(Metadata):
+        __tablename__ = 'source_code'
+        id = Column(Integer, primary_key=True)
+        filename = NonBlankColumn(Text)
+        function = BlankColumn(Text)
+        module = BlankColumn(Text)
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
-    workspace = relationship('Workspace', backref='source_codes')
+        workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
+        workspace = relationship('Workspace', backref='source_codes')
 
-    __table_args__ = (
-        UniqueConstraint(filename, workspace_id, name='uix_source_code_filename_workspace'),
-    )
+        __table_args__ = (
+            UniqueConstraint(filename, workspace_id, name='uix_source_code_filename_workspace'),
+        )
 
-    @property
-    def parent(self):
-        return
+        @property
+        def parent(self):
+            return
 
 
 def set_children_objects(instance, value, parent_field, child_field='id', workspaced=True):
@@ -2337,34 +2340,37 @@ class PolicyViolation(Metadata):
         return
 
 
-class Credential(Metadata):
-    __tablename__ = 'credential'
-    id = Column(Integer, primary_key=True)
-    password = NonBlankColumn(Text, nullable=False)
-    username = NonBlankColumn(Text, nullable=False)
-    endpoint = Column(Text, default='')
-    leak_date = Column(DateTime)
-    owned = Column(Boolean, default=False)
+try:
+    from faraday.domain.host_service.models import Credential  # ponytail YAGNI: Credential -> domain/host_service
+except ImportError:
+    class Credential(Metadata):
+        __tablename__ = 'credential'
+        id = Column(Integer, primary_key=True)
+        password = NonBlankColumn(Text, nullable=False)
+        username = NonBlankColumn(Text, nullable=False)
+        endpoint = Column(Text, default='')
+        leak_date = Column(DateTime)
+        owned = Column(Boolean, default=False)
 
-    vulnerabilities = relationship("VulnerabilityGeneric",
-                                   secondary='association_table_vulnerabilities_credentials',
-                                   back_populates='credentials',
-                                   lazy='selectin')
+        vulnerabilities = relationship("VulnerabilityGeneric",
+                                       secondary='association_table_vulnerabilities_credentials',
+                                       back_populates='credentials',
+                                       lazy='selectin')
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship('Workspace', backref=backref('credentials', passive_deletes=True),
-                            foreign_keys=[workspace_id], )
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship('Workspace', backref=backref('credentials', passive_deletes=True),
+                                foreign_keys=[workspace_id], )
 
-    __table_args__ = (
-        UniqueConstraint('username', 'password', 'endpoint', 'workspace_id',
-                         name='uix_credential_username_password_endpoint_workspace'),
-        Index('ix_credential_leak_date_workspace_id', leak_date, workspace_id),
-        Index('ix_credential_leak_date', leak_date),
-    )
+        __table_args__ = (
+            UniqueConstraint('username', 'password', 'endpoint', 'workspace_id',
+                             name='uix_credential_username_password_endpoint_workspace'),
+            Index('ix_credential_leak_date_workspace_id', leak_date, workspace_id),
+            Index('ix_credential_leak_date', leak_date),
+        )
 
-    @property
-    def parent(self):
-        return
+        @property
+        def parent(self):
+            return
 
 
 association_workspace_and_users_table = Table(

@@ -160,23 +160,67 @@ class Service(Metadata):
         return f"({self.port}/{self.protocol}) {self.name}{version or ''}"
 
 
-# TODO YAGNI parcial: Host, Credential, SourceCode aún viven en faraday/server/models.py
-# Re-export para contracts.md y para que faraday.domain.host_service sea fachada completa (5 nodos).
-# Eager try para caso sin ciclo; si falla (carga parcial circular), se resuelve vía __getattr__ lazy.
+class SourceCode(Metadata):
+    __tablename__ = 'source_code'
+    id = Column(Integer, primary_key=True)
+    filename = NonBlankColumn(Text)
+    function = BlankColumn(Text)
+    module = BlankColumn(Text)
+
+    workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
+    workspace = relationship('Workspace', backref='source_codes')
+
+    __table_args__ = (
+        UniqueConstraint(filename, workspace_id, name='uix_source_code_filename_workspace'),
+    )
+
+    @property
+    def parent(self):
+        return
+
+
+class Credential(Metadata):
+    __tablename__ = 'credential'
+    id = Column(Integer, primary_key=True)
+    password = NonBlankColumn(Text, nullable=False)
+    username = NonBlankColumn(Text, nullable=False)
+    endpoint = Column(Text, default='')
+    leak_date = Column(DateTime)
+    owned = Column(Boolean, default=False)
+
+    vulnerabilities = relationship("VulnerabilityGeneric",
+                                   secondary='association_table_vulnerabilities_credentials',
+                                   back_populates='credentials',
+                                   lazy='selectin')
+
+    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+    workspace = relationship('Workspace', backref=backref('credentials', passive_deletes=True),
+                            foreign_keys=[workspace_id], )
+
+    __table_args__ = (
+        UniqueConstraint('username', 'password', 'endpoint', 'workspace_id',
+                         name='uix_credential_username_password_endpoint_workspace'),
+        # Index handled via __table_args__ in original; keep minimal for YAGNI
+    )
+
+    @property
+    def parent(self):
+        return
+
+
+# Host sigue en faraday/server/models.py (100+ líneas, FK complejas) — re-export YAGNI para no romper wire en este corte
 try:
-    from faraday.server.models import SourceCode as _SourceCode, Host as _Host, Credential as _Credential  # type: ignore  # noqa: F401
-    SourceCode = _SourceCode  # noqa: F401
+    from faraday.server.models import Host as _Host  # type: ignore  # noqa: F401
     Host = _Host  # noqa: F401
-    Credential = _Credential  # noqa: F401
-    _has_reexports = True
-except Exception:  # noqa: BLE001 - ciclo de importación parcial durante carga de server/models
-    _has_reexports = False
+    _has_host = True
+except Exception:  # noqa: BLE001
+    _has_host = False
 
 __all__ = ["SourceCode", "Hostname", "Host", "Service", "Credential"]
 
 
 def __getattr__(name):
-    if name in ("SourceCode", "Host", "Credential"):
+    if name == "Host":
         try:
             import importlib
             srv = importlib.import_module("faraday.server.models")

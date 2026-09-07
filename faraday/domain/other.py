@@ -1,9 +1,7 @@
-"""Domain other — 2 clases restantes (CustomAssociationSet helper + Metadata base).
+"""Domain other — 1 clase restante (CustomAssociationSet helper).
 
-YAGNI: other vaciado 21->2, listo para eliminar cuando Metadata se extraiga a faraday/domain/base.py
+YAGNI: other vaciado 21->1, listo para eliminar. CustomAssociationSet se queda aquí hasta extraer a base.
 """
-from faraday.server.models import Metadata  # noqa: F401
-# CustomAssociationSet es helper, no modelo — se queda aquí hasta extraer a base
 from faraday.server.models import CustomAssociationSet  # noqa: F401
 
-__all__ = ["Metadata", "CustomAssociationSet"]
+__all__ = ["CustomAssociationSet"]

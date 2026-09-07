@@ -365,33 +365,36 @@ class DatabaseMetadata(db.Model):
     value = Column(String(250), nullable=False)
 
 
-class Metadata(db.Model):
-    __abstract__ = True
+try:
+    from faraday.domain.base import Metadata  # ponytail YAGNI: domain base
+except ImportError:
+    class Metadata(db.Model):
+        __abstract__ = True
 
-    @declared_attr
-    def creator_id(self):
-        return Column(
-            Integer,
-            ForeignKey('faraday_user.id', ondelete="SET NULL"),
-            nullable=True)
+        @declared_attr
+        def creator_id(self):
+            return Column(
+                Integer,
+                ForeignKey('faraday_user.id', ondelete="SET NULL"),
+                nullable=True)
 
-    @declared_attr
-    def creator(self):
-        return relationship('User', foreign_keys=[self.creator_id])
+        @declared_attr
+        def creator(self):
+            return relationship('User', foreign_keys=[self.creator_id])
 
-    @declared_attr
-    def update_user_id(self):
-        return Column(
-            Integer,
-            ForeignKey('faraday_user.id', ondelete="SET NULL"),
-            nullable=True)
+        @declared_attr
+        def update_user_id(self):
+            return Column(
+                Integer,
+                ForeignKey('faraday_user.id', ondelete="SET NULL"),
+                nullable=True)
 
-    @declared_attr
-    def update_user(self):
-        return relationship('User', foreign_keys=[self.update_user_id])
+        @declared_attr
+        def update_user(self):
+            return relationship('User', foreign_keys=[self.update_user_id])
 
-    create_date = Column(DateTime, default=datetime.utcnow)
-    update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+        create_date = Column(DateTime, default=datetime.utcnow)
+        update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class SourceCode(Metadata):

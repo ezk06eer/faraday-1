@@ -1,8 +1,9 @@
-"""Domain other — 6 clases cajón deuda (reshard BaseNotification*->notification).
+"""Domain other — 2 clases restantes (CustomAssociationSet helper + Metadata base).
 
-YAGNI: reshard progresivo.
+YAGNI: other vaciado 21->2, listo para eliminar cuando Metadata se extraiga a faraday/domain/base.py
 """
-# TODO ponytail: mover VulnerabilityStatusHistory, CustomAssociationSet, etc. (6 restantes)
 from faraday.server.models import Metadata  # noqa: F401
+# CustomAssociationSet es helper, no modelo — se queda aquí hasta extraer a base
+from faraday.server.models import CustomAssociationSet  # noqa: F401
 
-__all__ = ["Metadata"]
+__all__ = ["Metadata", "CustomAssociationSet"]

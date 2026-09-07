@@ -1,7 +1,7 @@
 """
-WorkspaceRepository — extracted from faraday/server/api/base.py:get_workspace + faraday/server/models.py:2517 query_with_count (E2)
+WorkspaceRepository — repo/workspace count + get_by_name (E2/E3)
 
-Import-safe: flask/sqlalchemy deferred. Mantiene contracts.md /v3/ws?confirmed&active.
+Import-safe, YAGNI sin text() aún (delegación por ahora, SQL moverá en próximo corte sin cortes).
 """
 class WorkspaceRepository:
     @staticmethod
@@ -30,6 +30,6 @@ class WorkspaceRepository:
 
     @staticmethod
     def query_with_count(confirmed=None, active=True, readonly=None, workspace_name=None):
-        """Delega a Workspace.query_with_count (mantiene raw SQL, futuro: repo puro sin text())."""
+        """Night: delegación directa, próximo corte moverá raw SQL de models.py:2517 aquí sin text()."""
         from faraday.server.models import Workspace
         return Workspace.query_with_count(confirmed, active=active, readonly=readonly, workspace_name=workspace_name)

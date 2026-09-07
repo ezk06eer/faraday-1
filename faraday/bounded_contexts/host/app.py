@@ -4,6 +4,12 @@ No delega a faraday.server.app.create_app completo.
 Registra solo host_api + host_workspaced_api + services_api sin vulns.
 Mantiene contracts.md /v3/hosts wire.
 """
+
+# YAGNI flags — BC capability (standalone sin vulns)
+HAS_HOSTS = True
+HAS_VULNS = False
+has_hosts = True
+has_vulns = False
 def create_host_app(db_connection_string=None, testing=None):
     from flask import Flask
     app = Flask(__name__, static_folder=None)

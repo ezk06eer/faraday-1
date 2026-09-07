@@ -1240,143 +1240,146 @@ class Command(Metadata):
         return
 
 
-class Host(Metadata):
-    __tablename__ = 'host'
-    id = Column(Integer, primary_key=True)
-    ip = NonBlankColumn(Text)  # IP v4 or v6
-    description = BlankColumn(Text)
-    os = BlankColumn(Text)
+try:
+    from faraday.domain.host_service.models import Host  # ponytail YAGNI: Host -> domain/host_service
+except ImportError:
+    class Host(Metadata):
+        __tablename__ = 'host'
+        id = Column(Integer, primary_key=True)
+        ip = NonBlankColumn(Text)  # IP v4 or v6
+        description = BlankColumn(Text)
+        os = BlankColumn(Text)
 
-    owned = Column(Boolean, nullable=False, default=False)
+        owned = Column(Boolean, nullable=False, default=False)
 
-    default_gateway_ip = BlankColumn(Text)
-    default_gateway_mac = BlankColumn(Text)
+        default_gateway_ip = BlankColumn(Text)
+        default_gateway_mac = BlankColumn(Text)
 
-    mac = BlankColumn(Text)
-    net_segment = BlankColumn(Text)
+        mac = BlankColumn(Text)
+        net_segment = BlankColumn(Text)
 
-    commands = relationship(
-        'Command',
-        secondary='command_object',
-        primaryjoin='and_(Host.id == CommandObject.object_id, CommandObject.object_type == "host")',
-        collection_class=set,
-        passive_deletes=True
-    )
+        commands = relationship(
+            'Command',
+            secondary='command_object',
+            primaryjoin='and_(Host.id == CommandObject.object_id, CommandObject.object_type == "host")',
+            collection_class=set,
+            passive_deletes=True
+        )
 
-    services = relationship(
-        'Service',
-        order_by='Service.protocol,Service.port',
-        cascade="all, delete-orphan"
-    )
+        services = relationship(
+            'Service',
+            order_by='Service.protocol,Service.port',
+            cascade="all, delete-orphan"
+        )
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref("hosts", cascade="all, delete-orphan", passive_deletes=True)
-    )
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref("hosts", cascade="all, delete-orphan", passive_deletes=True)
+        )
 
-    open_service_count = _make_generic_count_property('host', 'service', where=text("service.status = 'open'"))
-    total_service_count = _make_generic_count_property('host', 'service')
+        open_service_count = _make_generic_count_property('host', 'service', where=text("service.status = 'open'"))
+        total_service_count = _make_generic_count_property('host', 'service')
 
-    vulnerability_count = column_property(
-        (
-            select(func.count(text('vulnerability.id')))
-            .select_from(text('vulnerability'))
-            .where(text('vulnerability.host_id = host.id'))
-            .scalar_subquery()
-        ) + (
-            select(func.count(text('vulnerability.id')))
-            .select_from(text('vulnerability, service'))
-            .where(text('vulnerability.service_id = service.id and service.host_id = host.id'))
-            .scalar_subquery()
-        ),
-        deferred=True,
-    )
+        vulnerability_count = column_property(
+            (
+                select(func.count(text('vulnerability.id')))
+                .select_from(text('vulnerability'))
+                .where(text('vulnerability.host_id = host.id'))
+                .scalar_subquery()
+            ) + (
+                select(func.count(text('vulnerability.id')))
+                .select_from(text('vulnerability, service'))
+                .where(text('vulnerability.service_id = service.id and service.host_id = host.id'))
+                .scalar_subquery()
+            ),
+            deferred=True,
+        )
 
-    creator_command_id = column_property(
-        select(CommandObject.command_id)
-        .where(CommandObject.object_type == 'host')
-        .where(text('command_object.object_id = host.id'))
-        .where(CommandObject.workspace_id == workspace_id)
-        .order_by(asc(CommandObject.create_date))
-        .limit(1)
-        .scalar_subquery(),
-        deferred=True,
-    )
+        creator_command_id = column_property(
+            select(CommandObject.command_id)
+            .where(CommandObject.object_type == 'host')
+            .where(text('command_object.object_id = host.id'))
+            .where(CommandObject.workspace_id == workspace_id)
+            .order_by(asc(CommandObject.create_date))
+            .limit(1)
+            .scalar_subquery(),
+            deferred=True,
+        )
 
-    creator_command_tool = column_property(
-        select(Command.tool)
-        .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
-        .where(CommandObject.object_type == 'host')
-        .where(text('command_object.object_id = host.id'))
-        .where(CommandObject.workspace_id == workspace_id)
-        .order_by(asc(CommandObject.create_date))
-        .limit(1)
-        .scalar_subquery(),
-        deferred=True,
-    )
+        creator_command_tool = column_property(
+            select(Command.tool)
+            .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
+            .where(CommandObject.object_type == 'host')
+            .where(text('command_object.object_id = host.id'))
+            .where(CommandObject.workspace_id == workspace_id)
+            .order_by(asc(CommandObject.create_date))
+            .limit(1)
+            .scalar_subquery(),
+            deferred=True,
+        )
 
-    creator_command_params = column_property(
-        select(Command.params)
-        .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
-        .where(CommandObject.object_type == 'host')
-        .where(text('command_object.object_id = host.id'))
-        .where(CommandObject.workspace_id == workspace_id)
-        .order_by(asc(CommandObject.create_date))
-        .limit(1)
-        .scalar_subquery(),
-        deferred=True,
-    )
+        creator_command_params = column_property(
+            select(Command.params)
+            .select_from(join(Command, CommandObject, Command.id == CommandObject.command_id))
+            .where(CommandObject.object_type == 'host')
+            .where(text('command_object.object_id = host.id'))
+            .where(CommandObject.workspace_id == workspace_id)
+            .order_by(asc(CommandObject.create_date))
+            .limit(1)
+            .scalar_subquery(),
+            deferred=True,
+        )
 
-    __table_args__ = (
-        UniqueConstraint(ip, workspace_id, name='uix_host_ip_workspace'),
-    )
+        __table_args__ = (
+            UniqueConstraint(ip, workspace_id, name='uix_host_ip_workspace'),
+        )
 
-    vulnerability_critical_generic_count = Column(Integer, server_default=text("0"))
-    vulnerability_high_generic_count = Column(Integer, server_default=text("0"))
-    vulnerability_medium_generic_count = Column(Integer, server_default=text("0"))
-    vulnerability_low_generic_count = Column(Integer, server_default=text("0"))
-    vulnerability_info_generic_count = Column(Integer, server_default=text("0"))
-    vulnerability_unclassified_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_critical_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_high_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_medium_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_low_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_info_generic_count = Column(Integer, server_default=text("0"))
+        vulnerability_unclassified_generic_count = Column(Integer, server_default=text("0"))
 
-    importance = Column(Integer, default=0)
+        importance = Column(Integer, default=0)
 
-    risk = Column(Integer, default=0)
+        risk = Column(Integer, default=0)
 
-    @classmethod
-    def query_with_count(cls, host_ids, workspace):
-        query = cls.query.join(Workspace).filter(Workspace.id == workspace.id)
-        if host_ids:
-            query = query.filter(cls.id.in_(host_ids))
-        return query.options(
-            undefer(cls.open_service_count),
-            joinedload(cls.hostnames),
-            joinedload(cls.services),
-            joinedload(cls.update_user),
-            joinedload(getattr(cls, 'creator')).load_only(User.username),
-        ).limit(None).offset(0)
+        @classmethod
+        def query_with_count(cls, host_ids, workspace):
+            query = cls.query.join(Workspace).filter(Workspace.id == workspace.id)
+            if host_ids:
+                query = query.filter(cls.id.in_(host_ids))
+            return query.options(
+                undefer(cls.open_service_count),
+                joinedload(cls.hostnames),
+                joinedload(cls.services),
+                joinedload(cls.update_user),
+                joinedload(getattr(cls, 'creator')).load_only(User.username),
+            ).limit(None).offset(0)
 
-    @property
-    def parent(self):
-        return
+        @property
+        def parent(self):
+            return
 
-    def set_hostnames(self, new_hostnames):
-        """Override the host's hostnames. Take care of deleting old not
-        used hostnames and to leave the sames the ones that weren't
-        modified
+        def set_hostnames(self, new_hostnames):
+            """Override the host's hostnames. Take care of deleting old not
+            used hostnames and to leave the sames the ones that weren't
+            modified
 
-        This function was thought to update existing objects, it shouldn't
-        be used when creating!
-        """
-        try:
-            from faraday.domain.host_service.service import set_host_hostnames  # pylint: disable=import-outside-toplevel
+            This function was thought to update existing objects, it shouldn't
+            be used when creating!
+            """
+            try:
+                from faraday.domain.host_service.service import set_host_hostnames  # pylint: disable=import-outside-toplevel
 
-            return set_host_hostnames(self, new_hostnames)
-        except ImportError:
-            return set_children_objects(self, new_hostnames,
-                                        parent_field='hostnames',
-                                        child_field='name')
+                return set_host_hostnames(self, new_hostnames)
+            except ImportError:
+                return set_children_objects(self, new_hostnames,
+                                            parent_field='hostnames',
+                                            child_field='name')
 
 
 cve_vulnerability_association = db.Table(

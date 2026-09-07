@@ -2863,164 +2863,301 @@ class UserAvatar(Metadata):
     user = relationship('User', foreign_keys=[user_id])
 
 
-class MethodologyTemplate(Metadata):
-    # TODO: reset template_id in methodologies when deleting meth template
-    __tablename__ = 'methodology_template'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+DOMAIN_REPORTING_AVAILABLE = False
+try:
+    from faraday.domain.reporting.models import (  # noqa: F401
+        ExecutiveReport, MethodologyTemplate, Methodology, PlannerProject,
+        ProjectTask, License, WorkspaceSummaryReport, WorkspaceSummaryReportRun,
+    )  # ponytail YAGNI: reporting (8 clases) -> faraday/domain/reporting
+    DOMAIN_REPORTING_AVAILABLE = True
+except ImportError:
+    DOMAIN_REPORTING_AVAILABLE = False
 
+    project_task_user_association = db.Table('project_task_user_association',
+                                             db.Column('task_id', db.Integer(), db.ForeignKey('project_task.id')),
+                                             db.Column('user_id', db.Integer(),
+                                                       db.ForeignKey('faraday_user.id', ondelete='CASCADE'))
+                                             )
 
-class Methodology(Metadata):
-    # TODO: add unique constraint -> name, workspace
-    __tablename__ = 'methodology'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+    task_dependencies_association = db.Table('task_dependencies_association',
+                                             db.Column('task_id', db.Integer(), db.ForeignKey('project_task.id')),
+                                             db.Column('task_dependency_id', db.Integer(),
+                                                       db.ForeignKey('project_task.id', ondelete='CASCADE'))
+                                             )
 
-    template = relationship(
-        'MethodologyTemplate',
-        backref=backref('methodologies')
-    )
-    template_id = Column(
-        Integer,
-        ForeignKey('methodology_template.id', ondelete="SET NULL"),
-        index=True,
-        nullable=True,
-    )
-
-    workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        backref=backref('methodologies', cascade="all, delete-orphan"),
-    )
-
-    @property
-    def parent(self):
-        return
-
-
-project_task_user_association = db.Table('project_task_user_association',
-                                         db.Column('task_id', db.Integer(), db.ForeignKey('project_task.id')),
-                                         db.Column('user_id', db.Integer(),
-                                                   db.ForeignKey('faraday_user.id', ondelete='CASCADE'))
-                                         )
-
-task_dependencies_association = db.Table('task_dependencies_association',
-                                         db.Column('task_id', db.Integer(), db.ForeignKey('project_task.id')),
-                                         db.Column('task_dependency_id', db.Integer(),
-                                                   db.ForeignKey('project_task.id', ondelete='CASCADE'))
-                                         )
-
-vulnerabilities_related_association = db.Table(
-    'vulnerabilities_related_association',
-    db.Column('task_id', db.Integer(),
-              db.ForeignKey('project_task.id'),
-              primary_key=True),
-    db.Column('vulnerability_id', db.Integer(),
-              db.ForeignKey('vulnerability.id', ondelete='CASCADE'),
-              primary_key=True),
-    Index('ix_vulnerabilities_related_association_vulnerability_id', 'vulnerability_id'),
-)
-
-
-class PlannerProject(Metadata):
-    __tablename__ = 'planner_project'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
-
-    @property
-    def parent(self):
-        return
-
-    @property
-    def start_date(self):
-        if self.tasks:
-            if all(x.type == 'milestone' for x in self.tasks):
-                return None
-            return min(x.start_date for x in self.tasks if x.start_date is not None)
-
-    @property
-    def end_date(self):
-        if self.tasks:
-            return max(x.end_date for x in self.tasks if x.end_date is not None)
-
-
-class ProjectTask(Metadata):
-
-    TASK_STATUS_NEW = 'new'
-    TASK_STATUS_REVIEW = 'review'
-    TASK_STATUS_COMPLETED = 'completed'
-    TASK_STATUS_IN_PROGRESS = 'in progress'
-
-    STATUSES = [
-        TASK_STATUS_NEW,
-        TASK_STATUS_REVIEW,
-        TASK_STATUS_COMPLETED,
-        TASK_STATUS_IN_PROGRESS,
-    ]
-
-    NORMAL_TASK = 'task'
-    MILESTONE = 'milestone'
-
-    TASK_TYPES = [
-        NORMAL_TASK,
-        MILESTONE
-    ]
-
-    __tablename__ = 'project_task'
-    id = Column(Integer, primary_key=True)
-
-    name = Column(String, nullable=False, default='')
-    description = Column(String, nullable=True)
-    start_date = Column(DateTime, nullable=True)
-    end_date = Column(DateTime, nullable=True)
-    status = Column(Enum(*STATUSES, name='project_task_statuses'), nullable=True)
-    type = Column(Enum(*TASK_TYPES, name='project_task_types'), nullable=False)
-
-    users_assigned = relationship(
-        "User",
-        secondary="project_task_user_association")
-
-    task_dependencies = relationship(
-        "ProjectTask",
-        secondary="task_dependencies_association",
-        primaryjoin=id == task_dependencies_association.c.task_id,
-        secondaryjoin=id == task_dependencies_association.c.task_dependency_id
+    vulnerabilities_related_association = db.Table(
+        'vulnerabilities_related_association',
+        db.Column('task_id', db.Integer(),
+                  db.ForeignKey('project_task.id'),
+                  primary_key=True),
+        db.Column('vulnerability_id', db.Integer(),
+                  db.ForeignKey('vulnerability.id', ondelete='CASCADE'),
+                  primary_key=True),
+        Index('ix_vulnerabilities_related_association_vulnerability_id', 'vulnerability_id'),
     )
 
-    vulnerabilities_related = relationship(
-        "VulnerabilityGeneric",
-        secondary="vulnerabilities_related_association",
-    )
 
-    project_id = Column(
-        Integer,
-        ForeignKey('planner_project.id'),
-        index=True,
-        nullable=False,
-    )
-    project = relationship(
-        'PlannerProject',
-        backref=backref('tasks', cascade="all, delete-orphan")
-    )
-
-    @property
-    def parent(self):
-        return None
+    class MethodologyTemplate(Metadata):
+        # TODO: reset template_id in methodologies when deleting meth template
+        __tablename__ = 'methodology_template'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
 
-class License(Metadata):
-    __tablename__ = 'license'
-    id = Column(Integer, primary_key=True)
-    product = NonBlankColumn(Text)
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=False)
+    class Methodology(Metadata):
+        # TODO: add unique constraint -> name, workspace
+        __tablename__ = 'methodology'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
-    type = BlankColumn(Text)
-    notes = BlankColumn(Text)
+        template = relationship(
+            'MethodologyTemplate',
+            backref=backref('methodologies')
+        )
+        template_id = Column(
+            Integer,
+            ForeignKey('methodology_template.id', ondelete="SET NULL"),
+            index=True,
+            nullable=True,
+        )
 
-    __table_args__ = (
-        UniqueConstraint('product', 'start_date', 'end_date', name='uix_license_product_start_end_dates'),
-    )
+        workspace_id = Column(Integer, ForeignKey('workspace.id'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            backref=backref('methodologies', cascade="all, delete-orphan"),
+        )
+
+        @property
+        def parent(self):
+            return
+
+
+    class PlannerProject(Metadata):
+        __tablename__ = 'planner_project'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
+
+        @property
+        def parent(self):
+            return
+
+        @property
+        def start_date(self):
+            if self.tasks:
+                if all(x.type == 'milestone' for x in self.tasks):
+                    return None
+                return min(x.start_date for x in self.tasks if x.start_date is not None)
+
+        @property
+        def end_date(self):
+            if self.tasks:
+                return max(x.end_date for x in self.tasks if x.end_date is not None)
+
+
+    class ProjectTask(Metadata):
+
+        TASK_STATUS_NEW = 'new'
+        TASK_STATUS_REVIEW = 'review'
+        TASK_STATUS_COMPLETED = 'completed'
+        TASK_STATUS_IN_PROGRESS = 'in progress'
+
+        STATUSES = [
+            TASK_STATUS_NEW,
+            TASK_STATUS_REVIEW,
+            TASK_STATUS_COMPLETED,
+            TASK_STATUS_IN_PROGRESS,
+        ]
+
+        NORMAL_TASK = 'task'
+        MILESTONE = 'milestone'
+
+        TASK_TYPES = [
+            NORMAL_TASK,
+            MILESTONE
+        ]
+
+        __tablename__ = 'project_task'
+        id = Column(Integer, primary_key=True)
+
+        name = Column(String, nullable=False, default='')
+        description = Column(String, nullable=True)
+        start_date = Column(DateTime, nullable=True)
+        end_date = Column(DateTime, nullable=True)
+        status = Column(Enum(*STATUSES, name='project_task_statuses'), nullable=True)
+        type = Column(Enum(*TASK_TYPES, name='project_task_types'), nullable=False)
+
+        users_assigned = relationship(
+            "User",
+            secondary="project_task_user_association")
+
+        task_dependencies = relationship(
+            "ProjectTask",
+            secondary="task_dependencies_association",
+            primaryjoin=id == task_dependencies_association.c.task_id,
+            secondaryjoin=id == task_dependencies_association.c.task_dependency_id
+        )
+
+        vulnerabilities_related = relationship(
+            "VulnerabilityGeneric",
+            secondary="vulnerabilities_related_association",
+        )
+
+        project_id = Column(
+            Integer,
+            ForeignKey('planner_project.id'),
+            index=True,
+            nullable=False,
+        )
+        project = relationship(
+            'PlannerProject',
+            backref=backref('tasks', cascade="all, delete-orphan")
+        )
+
+        @property
+        def parent(self):
+            return None
+
+
+    class License(Metadata):
+        __tablename__ = 'license'
+        id = Column(Integer, primary_key=True)
+        product = NonBlankColumn(Text)
+        start_date = Column(DateTime, nullable=False)
+        end_date = Column(DateTime, nullable=False)
+
+        type = BlankColumn(Text)
+        notes = BlankColumn(Text)
+
+        __table_args__ = (
+            UniqueConstraint('product', 'start_date', 'end_date', name='uix_license_product_start_end_dates'),
+        )
+
+
+    class ExecutiveReport(Metadata):
+        STATUSES = [
+            'created',
+            'error',
+            'processing',
+        ]
+        __tablename__ = 'executive_report'
+        id = Column(Integer, primary_key=True)
+
+        grouped = Column(Boolean, nullable=False, default=False)
+        name = NonBlankColumn(Text, index=True)
+        status = Column(Enum(*STATUSES, name='executive_report_statuses'), nullable=False, default='processing')
+        template_name = NonBlankColumn(Text)
+
+        conclusions = BlankColumn(Text)
+        enterprise = BlankColumn(Text)
+        objectives = BlankColumn(Text)
+        recommendations = BlankColumn(Text)
+        scope = BlankColumn(Text)
+        summary = BlankColumn(Text)
+        title = BlankColumn(Text)
+        confirmed = Column(Boolean, nullable=False, default=False)
+        vuln_count = Column(Integer, default=0)  # saves the amount of vulns when the report was generated.
+        markdown = Column(Boolean, default=False, nullable=False)
+        duplicate_detection = Column(Boolean, default=False, nullable=False)
+        border_size = Column(Integer, default=3, nullable=True)
+        advanced_filter = Column(Boolean, default=False, nullable=False)
+        advanced_filter_parsed = Column(Text, nullable=False, default="")
+        sections_metadata = Column(JSONType, nullable=False, default=dict)
+
+        workspaces = relationship(
+            'Workspace',
+            secondary=executive_report_workspace_table,
+            back_populates='reports'
+        )
+        tags = relationship(
+            "Tag",
+            secondary="tag_object",
+            primaryjoin="and_(TagObject.object_id==ExecutiveReport.id, TagObject.object_type=='executive_report')",
+            collection_class=set,
+        )
+        filter = Column(JSONType, nullable=True, default=[])
+
+        @property
+        def parent(self):
+            return
+
+        @property
+        def attachments(self):
+            return db.session.query(File).filter_by(
+                object_id=self.id,
+                object_type='executive_report'
+            )
+
+
+    class WorkspaceSummaryReport(Metadata):
+        DAILY_TYPE = 'daily'
+        WEEKLY_TYPE = 'weekly'
+        MONTHLY_TYPE = 'monthly'
+        YEARLY_TYPE = 'yearly'
+
+        SUMMARY_PERIOD_TYPES = [
+            DAILY_TYPE,
+            WEEKLY_TYPE,
+            MONTHLY_TYPE,
+            YEARLY_TYPE,
+        ]
+
+        __tablename__ = 'workspace_summary_report'
+        id = Column(Integer, primary_key=True)
+
+        user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete='CASCADE'), index=True, nullable=False)
+        user = relationship(
+            'User',
+            backref=backref('workspace_summary_reports', cascade="all, delete-orphan", passive_deletes=True),
+            foreign_keys=[user_id],
+        )
+
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('workspace_summary_reports', cascade="all, delete-orphan", passive_deletes=True),
+        )
+
+        recipients = Column(JSONType, nullable=False, default={})
+        summary_period_type = Column(
+            Enum(*SUMMARY_PERIOD_TYPES, name='summary_period_types'),
+            nullable=False,
+            default='weekly',
+        )
+        active = Column(Boolean, nullable=False, default=True)
+
+        __table_args__ = (
+            UniqueConstraint('creator_id', 'workspace_id', name='uix_workspace_summary_report_creator_workspace'),
+        )
+
+
+    class WorkspaceSummaryReportRun(Metadata):
+        __tablename__ = 'workspace_summary_report_run'
+        id = Column(Integer, primary_key=True)
+
+        workspace_summary_report_id = Column(
+            Integer,
+            ForeignKey('workspace_summary_report.id', ondelete='CASCADE'),
+            index=True,
+            nullable=False,
+        )
+        workspace_summary_report = relationship(
+            'WorkspaceSummaryReport',
+            foreign_keys=[workspace_summary_report_id],
+            backref=backref('runs', cascade="all, delete-orphan", passive_deletes=True),
+        )
+
+        # Denormalized copy of the generated File's filename: set once at
+        # creation and never updated afterwards, so listing runs doesn't need to
+        # join the polymorphic File table.
+        filename = NonBlankColumn(Text)
+
+        @property
+        def attachments(self):
+            return db.session.query(File).filter_by(
+                object_id=self.id,
+                object_type='ws_sum_report',
+            )
 
 
 DOMAIN_TAGS_AVAILABLE = False
@@ -3060,61 +3197,6 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
         name = NonBlankColumn(Text, unique=True)
 
         vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
-
-
-class ExecutiveReport(Metadata):
-    STATUSES = [
-        'created',
-        'error',
-        'processing',
-    ]
-    __tablename__ = 'executive_report'
-    id = Column(Integer, primary_key=True)
-
-    grouped = Column(Boolean, nullable=False, default=False)
-    name = NonBlankColumn(Text, index=True)
-    status = Column(Enum(*STATUSES, name='executive_report_statuses'), nullable=False, default='processing')
-    template_name = NonBlankColumn(Text)
-
-    conclusions = BlankColumn(Text)
-    enterprise = BlankColumn(Text)
-    objectives = BlankColumn(Text)
-    recommendations = BlankColumn(Text)
-    scope = BlankColumn(Text)
-    summary = BlankColumn(Text)
-    title = BlankColumn(Text)
-    confirmed = Column(Boolean, nullable=False, default=False)
-    vuln_count = Column(Integer, default=0)  # saves the amount of vulns when the report was generated.
-    markdown = Column(Boolean, default=False, nullable=False)
-    duplicate_detection = Column(Boolean, default=False, nullable=False)
-    border_size = Column(Integer, default=3, nullable=True)
-    advanced_filter = Column(Boolean, default=False, nullable=False)
-    advanced_filter_parsed = Column(Text, nullable=False, default="")
-    sections_metadata = Column(JSONType, nullable=False, default=dict)
-
-    workspaces = relationship(
-        'Workspace',
-        secondary=executive_report_workspace_table,
-        back_populates='reports'
-    )
-    tags = relationship(
-        "Tag",
-        secondary="tag_object",
-        primaryjoin="and_(TagObject.object_id==ExecutiveReport.id, TagObject.object_type=='executive_report')",
-        collection_class=set,
-    )
-    filter = Column(JSONType, nullable=True, default=[])
-
-    @property
-    def parent(self):
-        return
-
-    @property
-    def attachments(self):
-        return db.session.query(File).filter_by(
-            object_id=self.id,
-            object_type='executive_report'
-        )
 
 
 class ObjectType(db.Model):
@@ -4114,78 +4196,6 @@ class RolePermission(db.Model):
     allowed = Column(Boolean, default=False, nullable=False)
 
     __table_args__ = (UniqueConstraint(unit_action_id, role_id, name='uix_unit_action_role'),)
-
-
-class WorkspaceSummaryReport(Metadata):
-    DAILY_TYPE = 'daily'
-    WEEKLY_TYPE = 'weekly'
-    MONTHLY_TYPE = 'monthly'
-    YEARLY_TYPE = 'yearly'
-
-    SUMMARY_PERIOD_TYPES = [
-        DAILY_TYPE,
-        WEEKLY_TYPE,
-        MONTHLY_TYPE,
-        YEARLY_TYPE,
-    ]
-
-    __tablename__ = 'workspace_summary_report'
-    id = Column(Integer, primary_key=True)
-
-    user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete='CASCADE'), index=True, nullable=False)
-    user = relationship(
-        'User',
-        backref=backref('workspace_summary_reports', cascade="all, delete-orphan", passive_deletes=True),
-        foreign_keys=[user_id],
-    )
-
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('workspace_summary_reports', cascade="all, delete-orphan", passive_deletes=True),
-    )
-
-    recipients = Column(JSONType, nullable=False, default={})
-    summary_period_type = Column(
-        Enum(*SUMMARY_PERIOD_TYPES, name='summary_period_types'),
-        nullable=False,
-        default='weekly',
-    )
-    active = Column(Boolean, nullable=False, default=True)
-
-    __table_args__ = (
-        UniqueConstraint('creator_id', 'workspace_id', name='uix_workspace_summary_report_creator_workspace'),
-    )
-
-
-class WorkspaceSummaryReportRun(Metadata):
-    __tablename__ = 'workspace_summary_report_run'
-    id = Column(Integer, primary_key=True)
-
-    workspace_summary_report_id = Column(
-        Integer,
-        ForeignKey('workspace_summary_report.id', ondelete='CASCADE'),
-        index=True,
-        nullable=False,
-    )
-    workspace_summary_report = relationship(
-        'WorkspaceSummaryReport',
-        foreign_keys=[workspace_summary_report_id],
-        backref=backref('runs', cascade="all, delete-orphan", passive_deletes=True),
-    )
-
-    # Denormalized copy of the generated File's filename: set once at
-    # creation and never updated afterwards, so listing runs doesn't need to
-    # join the polymorphic File table.
-    filename = NonBlankColumn(Text)
-
-    @property
-    def attachments(self):
-        return db.session.query(File).filter_by(
-            object_id=self.id,
-            object_type='ws_sum_report',
-        )
 
 
 # Indexes to speed up queries

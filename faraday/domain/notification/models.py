@@ -5,9 +5,10 @@ faraday/server/models.py: NotificationSubscription*, NotificationEvent,
 NotificationBase (+3 subtipos), Notification, BaseNotification,
 UserNotification, UserNotificationSettings, EmailNotification, SlackNotification.
 
-ExecutiveReport y EventType permanecen en faraday/server/models.py y se
-re-exportan aquí para mantener el contrato del shard
-(faraday/domain/README.md, notification: 12 clases).
+ExecutiveReport (X1) vive ahora en faraday/domain/reporting/models.py y se
+importa desde allí (con fallback a server.models); EventType permanece en
+faraday/server/models.py. Ambos se re-exportan aquí para mantener el contrato
+del shard (faraday/domain/README.md, notification: 12 clases).
 
 Patrón: lazy `db` import como faraday/domain/base.py para evitar ciclo
 duro; Metadata viene de faraday/domain/base.py (ya real).
@@ -45,7 +46,6 @@ try:
         db,  # type: ignore
         NOTIFICATION_METHODS,
         OBJECT_TYPES,
-        ExecutiveReport,
         EventType,
         BlankColumn,
         COMMENT_TYPES,
@@ -59,10 +59,20 @@ except ImportError:  # fallback para py_compile / uso aislado sin app
         'comment', 'executive_report', 'workspace', 'task', 'report_logo',
         'report_template', 'template_logo', 'ws_sum_report',
     ]
-    ExecutiveReport = None  # type: ignore
     EventType = None  # type: ignore
     BlankColumn = Text
     COMMENT_TYPES = ['user']
+
+# W7/X1: ExecutiveReport ahora vive en faraday/domain/reporting (shard real).
+# El import point de notification debe encontrarlo en ambos órdenes de carga
+# (server-first y domain-first); fallback a server.models para el ciclo parcial.
+try:
+    from faraday.domain.reporting.models import ExecutiveReport
+except ImportError:
+    try:
+        from faraday.server.models import ExecutiveReport
+    except ImportError:
+        ExecutiveReport = None  # type: ignore
 
 try:
     from faraday.server.fields import JSONType

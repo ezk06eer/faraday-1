@@ -3568,115 +3568,130 @@ except ImportError:
             return
 
 
-def rule_default_name(context):
-    model = context.get_current_parameters()['model']
-    create_date = context.get_current_parameters()['create_date']
-    return f'Job for model {model} @ {create_date.isoformat()}'
-
-
-association_pipelines_and_jobs_table = Table(
-    'association_pipelines_and_jobs_table',
-    db.Model.metadata,
-    Column('pipeline_id', Integer, ForeignKey('pipeline.id')),
-    Column('workflow_id', Integer, ForeignKey('workflow.id'))
-)
-
-
-class Pipeline(Metadata):
-    __tablename__ = "pipeline"
-    id = Column(Integer, primary_key=True)
-    name = Column(String, default=f"Pipeline-{datetime.now()}", unique=True, nullable=False)
-    description = Column(String, default="", nullable=False)
-    jobs_order = Column(String, default="")
-    jobs = relationship(
-        'Workflow',
-        secondary=association_pipelines_and_jobs_table,
-        back_populates="pipelines"
+DOMAIN_PIPELINE_AVAILABLE = False
+try:
+    from faraday.domain.agent_workflow.models import (  # ponytail YAGNI: pipeline/workflow -> domain/agent_workflow
+        Action,
+        Condition,
+        Pipeline,
+        Workflow,
+        WorkflowExecution,
+        association_pipelines_and_jobs_table,
+        rule_default_name,
     )
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="SET NULL"), index=True, nullable=True)
-    workspace = relationship('Workspace', backref=backref('pipelines'))
+    DOMAIN_PIPELINE_AVAILABLE = True
+except ImportError:
+    DOMAIN_PIPELINE_AVAILABLE = False
 
-    enabled = Column(Boolean, nullable=False, default=False)
-    running = Column(Boolean, nullable=False, default=False)
-    running_since = Column(DateTime, nullable=True)
-
-    @property
-    def parent(self):
-        return
+    def rule_default_name(context):
+        model = context.get_current_parameters()['model']
+        create_date = context.get_current_parameters()['create_date']
+        return f'Job for model {model} @ {create_date.isoformat()}'
 
 
-class Workflow(Metadata):
-    VALID_MODELS = ("vulnerability", "vulnerability_web", "host", "service")
-
-    __tablename__ = 'workflow'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True, default=rule_default_name)
-    description = Column(String, nullable=False, default='')
-    model = Column(Enum(*VALID_MODELS, name='valid_workflow_models'), nullable=False)
-    enabled = Column(Boolean, nullable=False, default=True)
-
-    pipelines = relationship(
-        'Pipeline',
-        secondary=association_pipelines_and_jobs_table,
-        back_populates="jobs"
+    association_pipelines_and_jobs_table = Table(
+        'association_pipelines_and_jobs_table',
+        db.Model.metadata,
+        Column('pipeline_id', Integer, ForeignKey('pipeline.id')),
+        Column('workflow_id', Integer, ForeignKey('workflow.id'))
     )
-    conditions = relationship('Condition', back_populates='workflow', cascade="all, delete-orphan")
-    actions = relationship('Action', back_populates='workflow', cascade="all, delete-orphan")
-    executions = relationship('WorkflowExecution', back_populates='workflow', cascade="all, delete-orphan")
-
-    @property
-    def parent(self):
-        return
-
-    @property
-    def root_condition(self):
-        for condition in self.conditions:
-            if condition.is_root:
-                return condition
-        return None
 
 
-class Condition(Metadata):
-    TYPES = ['and', 'or', 'xor', 'leaf']
+    class Pipeline(Metadata):
+        __tablename__ = "pipeline"
+        id = Column(Integer, primary_key=True)
+        name = Column(String, default=f"Pipeline-{datetime.now()}", unique=True, nullable=False)
+        description = Column(String, default="", nullable=False)
+        jobs_order = Column(String, default="")
+        jobs = relationship(
+            'Workflow',
+            secondary=association_pipelines_and_jobs_table,
+            back_populates="pipelines"
+        )
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="SET NULL"), index=True, nullable=True)
+        workspace = relationship('Workspace', backref=backref('pipelines'))
 
-    __tablename__ = 'condition'
-    id = Column(Integer, primary_key=True)
-    parent_id = Column(Integer, ForeignKey('condition.id'))
-    parent = relationship("Condition", remote_side=[id])
-    children = relationship("Condition", lazy="joined", join_depth=2)
-    type = Column(Enum(*TYPES, name='condition_types'))
-    field = Column(String(50), nullable=True)
-    operator = Column(String(50), nullable=True)
-    data = Column(Text, nullable=True)
-    is_root = Column(Boolean, nullable=False, default=False)
+        enabled = Column(Boolean, nullable=False, default=False)
+        running = Column(Boolean, nullable=False, default=False)
+        running_since = Column(DateTime, nullable=True)
 
-    workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=False)
-    workflow = relationship('Workflow', back_populates="conditions")
-
-
-class Action(Metadata):
-    __tablename__ = 'action'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=True)
-    description = Column(String, nullable=False, default='')
-    command = Column(String, nullable=False)
-    field = Column(String, nullable=True)
-    value = Column(String, nullable=True)
-    custom_field = Column(Boolean, default=False)
-    target = Column(String, nullable=True, default='')
-
-    workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=True)
-    workflow = relationship('Workflow', back_populates="actions")
+        @property
+        def parent(self):
+            return
 
 
-class WorkflowExecution(Metadata):
-    __tablename__ = 'workflow_execution'
-    id = Column(Integer, primary_key=True)
-    successful = Column(Boolean, nullable=False)
-    message = Column(String, nullable=False)
-    workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=False)
-    workflow = relationship('Workflow', back_populates='executions')
-    object_and_id = Column(String, nullable=False)
+    class Workflow(Metadata):
+        VALID_MODELS = ("vulnerability", "vulnerability_web", "host", "service")
+
+        __tablename__ = 'workflow'
+        id = Column(Integer, primary_key=True)
+        name = Column(String, nullable=False, unique=True, default=rule_default_name)
+        description = Column(String, nullable=False, default='')
+        model = Column(Enum(*VALID_MODELS, name='valid_workflow_models'), nullable=False)
+        enabled = Column(Boolean, nullable=False, default=True)
+
+        pipelines = relationship(
+            'Pipeline',
+            secondary=association_pipelines_and_jobs_table,
+            back_populates="jobs"
+        )
+        conditions = relationship('Condition', back_populates='workflow', cascade="all, delete-orphan")
+        actions = relationship('Action', back_populates='workflow', cascade="all, delete-orphan")
+        executions = relationship('WorkflowExecution', back_populates='workflow', cascade="all, delete-orphan")
+
+        @property
+        def parent(self):
+            return
+
+        @property
+        def root_condition(self):
+            for condition in self.conditions:
+                if condition.is_root:
+                    return condition
+            return None
+
+
+    class Condition(Metadata):
+        TYPES = ['and', 'or', 'xor', 'leaf']
+
+        __tablename__ = 'condition'
+        id = Column(Integer, primary_key=True)
+        parent_id = Column(Integer, ForeignKey('condition.id'))
+        parent = relationship("Condition", remote_side=[id])
+        children = relationship("Condition", lazy="joined", join_depth=2)
+        type = Column(Enum(*TYPES, name='condition_types'))
+        field = Column(String(50), nullable=True)
+        operator = Column(String(50), nullable=True)
+        data = Column(Text, nullable=True)
+        is_root = Column(Boolean, nullable=False, default=False)
+
+        workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=False)
+        workflow = relationship('Workflow', back_populates="conditions")
+
+
+    class Action(Metadata):
+        __tablename__ = 'action'
+        id = Column(Integer, primary_key=True)
+        name = Column(String, nullable=True)
+        description = Column(String, nullable=False, default='')
+        command = Column(String, nullable=False)
+        field = Column(String, nullable=True)
+        value = Column(String, nullable=True)
+        custom_field = Column(Boolean, default=False)
+        target = Column(String, nullable=True, default='')
+
+        workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=True)
+        workflow = relationship('Workflow', back_populates="actions")
+
+
+    class WorkflowExecution(Metadata):
+        __tablename__ = 'workflow_execution'
+        id = Column(Integer, primary_key=True)
+        successful = Column(Boolean, nullable=False)
+        message = Column(String, nullable=False)
+        workflow_id = Column(Integer, ForeignKey('workflow.id'), index=True, nullable=False)
+        workflow = relationship('Workflow', back_populates='executions')
+        object_and_id = Column(String, nullable=False)
 
 
 DOMAIN_AGENT_AVAILABLE = False

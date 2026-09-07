@@ -495,357 +495,6 @@ class CustomFieldsSchema(db.Model):
     table_name = Column(Text)
 
 
-class VulnerabilityABC(Metadata):
-    EASE_OF_RESOLUTIONS = [
-        'trivial',
-        'simple',
-        'moderate',
-        'difficult',
-        'infeasible'
-    ]
-
-    SEVERITY_UNCLASSIFIED = 'unclassified'
-    SEVERITY_INFORMATIONAL = 'informational'
-    SEVERITY_LOW = 'low'
-    SEVERITY_MEDIUM = 'medium'
-    SEVERITY_HIGH = 'high'
-    SEVERITY_CRITICAL = 'critical'
-
-    SEVERITIES = [
-        SEVERITY_UNCLASSIFIED,
-        SEVERITY_INFORMATIONAL,
-        SEVERITY_LOW,
-        SEVERITY_MEDIUM,
-        SEVERITY_HIGH,
-        SEVERITY_CRITICAL,
-    ]
-
-    __abstract__ = True
-    id = Column(Integer, primary_key=True)
-
-    data = BlankColumn(Text)
-    description = BlankColumn(Text)
-    ease_of_resolution = Column(Enum(*EASE_OF_RESOLUTIONS, name='vulnerability_ease_of_resolution'), nullable=True)
-    name = NonBlankColumn(Text, nullable=False)
-    resolution = BlankColumn(Text)
-    severity = Column(Enum(*SEVERITIES, name='vulnerability_severity'), nullable=False, index=True)
-    risk = Column(Integer, nullable=True)
-
-    impact_accountability = Column(Boolean, default=False, nullable=False)
-    impact_availability = Column(Boolean, default=False, nullable=False)
-    impact_confidentiality = Column(Boolean, default=False, nullable=False)
-    impact_integrity = Column(Boolean, default=False, nullable=False)
-
-    external_id = BlankColumn(Text)
-
-    custom_fields = Column(JSONType)
-
-    @property
-    def parent(self):
-        raise NotImplementedError('ABC property called')
-
-
-class SeveritiesHistogram(db.Model):
-    __tablename__ = "severities_histogram"
-    __table_args__ = (
-        UniqueConstraint('date', 'workspace_id', name='uix_severities_histogram_table_date_workspace_id'),
-    )
-
-    SEVERITIES_ALLOWED = [VulnerabilityABC.SEVERITY_MEDIUM,
-                          VulnerabilityABC.SEVERITY_HIGH,
-                          VulnerabilityABC.SEVERITY_CRITICAL]
-
-    DEFAULT_DAYS_BEFORE = 20
-
-    id = Column(Integer, primary_key=True)
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('severities_histogram', cascade="all, delete-orphan")
-    )
-    date = Column(Date, default=date.today(), nullable=False)
-    medium = Column(Integer, nullable=False)
-    high = Column(Integer, nullable=False)
-    critical = Column(Integer, nullable=False)
-    confirmed = Column(Integer, nullable=False)
-
-    @property
-    def parent(self):
-        return
-
-
-class VulnerabilityHitCount(db.Model):
-    __tablename__ = "vulnerability_hit_count"
-
-    id = Column(Integer, primary_key=True)
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('vulnerability_hit_counts', cascade="all, delete-orphan")
-    )
-    date = Column(Date, nullable=False, default=datetime.utcnow())
-
-    # Low
-    low_open_unconfirmed = Column(Integer, nullable=False, default=0)
-    low_open_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def low_open_total(self):
-        return self.low_open_unconfirmed + self.low_open_confirmed
-
-    low_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
-    low_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def low_risk_accepted_total(self):
-        return self.low_risk_accepted_unconfirmed + self.low_risk_accepted_confirmed
-
-    low_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
-    low_re_opened_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def low_re_opened_total(self):
-        return self.low_re_opened_unconfirmed + self.low_re_opened_confirmed
-
-    low_closed_unconfirmed = Column(Integer, nullable=False, default=0)
-    low_closed_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def low_closed_total(self):
-        return self.low_closed_unconfirmed + self.low_closed_confirmed
-
-    @hybrid_property
-    def low_total(self):
-        return self.low_open_total + self.low_risk_accepted_total + self.low_re_opened_total + self.low_closed_total
-
-    @hybrid_property
-    def low_confirmed_total(self):
-        return self.low_open_confirmed + self.low_risk_accepted_confirmed + self.low_re_opened_confirmed + \
-               self.low_closed_confirmed
-
-    # Medium
-    medium_open_unconfirmed = Column(Integer, nullable=False, default=0)
-    medium_open_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def medium_open_total(self):
-        return self.medium_open_unconfirmed + self.medium_open_confirmed
-
-    medium_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
-    medium_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def medium_risk_accepted_total(self):
-        return self.medium_risk_accepted_unconfirmed + self.medium_risk_accepted_confirmed
-
-    medium_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
-    medium_re_opened_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def medium_re_opened_total(self):
-        return self.medium_re_opened_unconfirmed + self.medium_re_opened_confirmed
-
-    medium_closed_unconfirmed = Column(Integer, nullable=False, default=0)
-    medium_closed_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def medium_closed_total(self):
-        return self.medium_closed_unconfirmed + self.medium_closed_confirmed
-
-    @hybrid_property
-    def medium_total(self):
-        return self.medium_open_total + self.medium_risk_accepted_total + self.medium_re_opened_total + \
-               self.medium_closed_total
-
-    @hybrid_property
-    def medium_confirmed_total(self):
-        return self.medium_open_confirmed + self.medium_risk_accepted_confirmed + self.medium_re_opened_confirmed + \
-               self.medium_closed_confirmed
-
-    # High
-    high_open_unconfirmed = Column(Integer, nullable=False, default=0)
-    high_open_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def high_open_total(self):
-        return self.high_open_unconfirmed + self.high_open_confirmed
-
-    high_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
-    high_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def high_risk_accepted_total(self):
-        return self.high_risk_accepted_unconfirmed + self.high_risk_accepted_confirmed
-
-    high_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
-    high_re_opened_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def high_re_opened_total(self):
-        return self.high_re_opened_unconfirmed + self.high_re_opened_confirmed
-
-    high_closed_unconfirmed = Column(Integer, nullable=False, default=0)
-    high_closed_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def high_closed_total(self):
-        return self.high_closed_unconfirmed + self.high_closed_confirmed
-
-    @hybrid_property
-    def high_total(self):
-        return self.high_open_total + self.high_risk_accepted_total + self.high_re_opened_total + self.high_closed_total
-
-    @hybrid_property
-    def high_confirmed_total(self):
-        return self.high_open_confirmed + self.high_risk_accepted_confirmed + self.high_re_opened_confirmed + \
-               self.high_closed_confirmed
-
-    # Critical
-    critical_open_unconfirmed = Column(Integer, nullable=False, default=0)
-    critical_open_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def critical_open_total(self):
-        return self.critical_open_unconfirmed + self.critical_open_confirmed
-
-    critical_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
-    critical_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def critical_risk_accepted_total(self):
-        return self.critical_risk_accepted_unconfirmed + self.critical_risk_accepted_confirmed
-
-    critical_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
-    critical_re_opened_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def critical_re_opened_total(self):
-        return self.critical_re_opened_unconfirmed + self.critical_re_opened_confirmed
-
-    critical_closed_unconfirmed = Column(Integer, nullable=False, default=0)
-    critical_closed_confirmed = Column(Integer, nullable=False, default=0)
-
-    @hybrid_property
-    def critical_closed_total(self):
-        return self.critical_closed_unconfirmed + self.critical_closed_confirmed
-
-    @hybrid_property
-    def critical_total(self):
-        return self.critical_open_total + self.critical_risk_accepted_total + self.critical_re_opened_total + \
-               self.critical_closed_total
-
-    @hybrid_property
-    def critical_confirmed_total(self):
-        return self.critical_open_confirmed + self.critical_risk_accepted_confirmed + \
-               self.critical_re_opened_confirmed + self.critical_closed_confirmed
-
-    # Specific for open status
-    @hybrid_property
-    def low_open_total_custom(self):
-        return self.low_open_total + self.low_re_opened_total + self.low_risk_accepted_total
-
-    @hybrid_property
-    def low_open_confirmed_total_custom(self):
-        return self.low_open_confirmed + self.low_re_opened_confirmed + self.low_risk_accepted_confirmed
-
-    @hybrid_property
-    def medium_open_total_custom(self):
-        return self.medium_open_total + self.medium_re_opened_total + self.medium_risk_accepted_total
-
-    @hybrid_property
-    def medium_open_confirmed_total_custom(self):
-        return self.medium_open_confirmed + self.medium_re_opened_confirmed + self.medium_risk_accepted_confirmed
-
-    @hybrid_property
-    def high_open_total_custom(self):
-        return self.high_open_total + self.high_re_opened_total + self.high_risk_accepted_total
-
-    @hybrid_property
-    def high_open_confirmed_total_custom(self):
-        return self.high_open_confirmed + self.high_re_opened_confirmed + self.high_risk_accepted_confirmed
-
-    @hybrid_property
-    def critical_open_total_custom(self):
-        return self.critical_open_total + self.critical_re_opened_total + self.critical_risk_accepted_total
-
-    @hybrid_property
-    def critical_open_confirmed_total_custom(self):
-        return self.critical_open_confirmed + self.critical_re_opened_confirmed + self.critical_risk_accepted_confirmed
-
-    # total counts
-    @hybrid_property
-    def total(self):
-        return self.low_total + self.medium_total + self.high_total + self.critical_total
-
-    @hybrid_property
-    def total_confirmed(self):
-        return self.low_confirmed_total + self.medium_confirmed_total + self.high_confirmed_total + \
-               self.critical_confirmed_total
-
-    @hybrid_property
-    def total_open(self):
-        return self.low_open_total + self.medium_open_total + self.high_open_total + self.critical_open_total
-
-    @hybrid_property
-    def total_closed(self):
-        return self.low_closed_total + self.medium_closed_total + self.high_closed_total + self.critical_closed_total
-
-    @hybrid_property
-    def total_re_opened(self):
-        return self.low_re_opened_total + self.medium_re_opened_total + self.high_re_opened_total + \
-               self.critical_re_opened_total
-
-    @hybrid_property
-    def total_risk_accepted(self):
-        return self.low_risk_accepted_total + self.medium_risk_accepted_total + self.high_risk_accepted_total + \
-               self.critical_risk_accepted_total
-
-    @hybrid_property
-    def total_open_confirmed(self):
-        return self.low_open_confirmed + self.medium_open_confirmed + self.high_open_confirmed + \
-               self.critical_open_confirmed
-
-    @hybrid_property
-    def total_closed_confirmed(self):
-        return self.low_closed_confirmed + self.medium_closed_confirmed + self.high_closed_confirmed + \
-               self.critical_closed_confirmed
-
-    @hybrid_property
-    def total_re_opened_confirmed(self):
-        return self.low_re_opened_confirmed + self.medium_re_opened_confirmed + self.high_re_opened_confirmed + \
-               self.critical_re_opened_confirmed
-
-    @hybrid_property
-    def total_risk_accepted_confirmed(self):
-        return self.low_risk_accepted_confirmed + self.medium_risk_accepted_confirmed + \
-               self.high_risk_accepted_confirmed + self.critical_risk_accepted_confirmed
-
-    @hybrid_property
-    def total_status(self):
-        return self.total_open + self.total_closed + self.total_re_opened + self.total_risk_accepted
-
-    @hybrid_property
-    def total_status_confirmed(self):
-        return self.total_open_confirmed + self.total_closed_confirmed + self.total_re_opened_confirmed + \
-               self.total_risk_accepted_confirmed
-
-    @hybrid_property
-    def total_open_confirmed_total_custom(self):
-        return self.critical_open_confirmed_total_custom + self.high_open_confirmed_total_custom + \
-               self.medium_open_confirmed_total_custom + self.low_open_confirmed_total_custom
-
-    @hybrid_property
-    def total_open_total_custom(self):
-        return self.critical_open_total_custom + self.high_open_total_custom + self.medium_open_total_custom + \
-               self.low_open_total_custom
-
-    @property
-    def parent(self):
-        return
-
-
 try:
     from faraday.domain.base import CustomAssociationSet  # ponytail YAGNI
 except ImportError:
@@ -949,113 +598,6 @@ def _build_associationproxy_creator_non_workspaced(model_class_name, preprocess_
         return child
 
     return creator
-
-
-class VulnerabilityTemplate(VulnerabilityABC):
-    __tablename__ = 'vulnerability_template'
-
-    __table_args__ = (
-        UniqueConstraint('name', name='uix_vulnerability_template_name'),
-    )
-
-    reference_template_instances = relationship(
-        "ReferenceTemplate",
-        secondary="reference_template_vulnerability_association",
-        lazy="joined",
-        collection_class=set
-    )
-
-    references = association_proxy(
-        'reference_template_instances',
-        'name',
-        proxy_factory=CustomAssociationSet,
-        creator=_build_associationproxy_creator_non_workspaced('ReferenceTemplate')
-    )
-
-    policy_violation_template_instances = relationship(
-        "PolicyViolationTemplate",
-        secondary="policy_violation_template_vulnerability_association",
-        lazy="joined",
-        collection_class=set
-    )
-
-    policy_violations = association_proxy(
-        'policy_violation_template_instances',
-        'name',
-        proxy_factory=CustomAssociationSet,
-        creator=_build_associationproxy_creator_non_workspaced('PolicyViolationTemplate')
-    )
-    custom_fields = Column(JSONType)
-    shipped = Column(Boolean, nullable=False, default=False)
-
-    # CVSS #
-
-    # CVSS2
-    _cvss2_vector_string = Column(Text, nullable=True)
-
-    @hybrid_property
-    def cvss2_vector_string(self):
-        return self._cvss2_vector_string
-
-    @cvss2_vector_string.setter
-    def cvss2_vector_string(self, vector_string):
-        self._cvss2_vector_string = vector_string
-        if not self._cvss2_vector_string:
-            self.init_cvss2_attrs()
-            return None
-        try:
-            cvss2 = cvss.CVSS2(vector_string)
-        except Exception as e:
-            logger.error(f"Error parsing CVSS2 vector string: {self._cvss2_vector_string}", e)
-
-    def init_cvss2_attrs(self):
-        self._cvss2_vector_string = None
-
-    # CVSS3
-    _cvss3_vector_string = Column(Text, nullable=True)
-
-    @hybrid_property
-    def cvss3_vector_string(self):
-        return self._cvss3_vector_string
-
-    @cvss3_vector_string.setter
-    def cvss3_vector_string(self, vector_string):
-        self._cvss3_vector_string = vector_string
-        if not self._cvss3_vector_string:
-            self.init_cvss3_attrs()
-            return None
-        try:
-            cvss3 = cvss.CVSS3(vector_string)
-        except Exception as e:
-            logger.error(f"Error parsing CVSS3 vector string: {self._cvss3_vector_string}", e)
-
-    def init_cvss3_attrs(self):
-        self._cvss3_vector_string = None
-
-    # CVSS4
-    _cvss4_vector_string = Column(Text, nullable=True)
-
-    @hybrid_property
-    def cvss4_vector_string(self):
-        return self._cvss4_vector_string
-
-    @cvss4_vector_string.setter
-    def cvss4_vector_string(self, vector_string):
-        self._cvss4_vector_string = vector_string
-        if not self._cvss4_vector_string:
-            self.init_cvss4_attrs()
-            return None
-        try:
-            cvss4 = cvss.CVSS4(vector_string)
-        except Exception as e:
-            logger.error(f"Error parsing CVSS4 vector string: {self._cvss4_vector_string}. Error: {e}")
-
-    def init_cvss4_attrs(self):
-        self._cvss4_vector_string = None
-
-    # CVE
-
-    cve = Column(Text, nullable=True, default="")
 
 
 DOMAIN_COMMAND_AVAILABLE = False
@@ -1504,40 +1046,507 @@ association_table_vulnerabilities_credentials = Table(
 )
 
 
-class VulnerabilityGroup(db.Model):
-    __tablename__ = 'vulnerability_group'
-    id = Column(Integer, primary_key=True)
-    title = NonBlankColumn(Text)
-    is_automatic = Column(Boolean, nullable=True)
-    count = Column(Integer, nullable=False, default=0)
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship('Workspace', backref=backref('vulnerability_groups', passive_deletes=True))
-
-    @property
-    def parent(self):
-        return
-
-
 DOMAIN_VULN_AVAILABLE = False
 DOMAIN_VULN_REFS_AVAILABLE = False
 try:
-    from faraday.domain.vulnerability.models import (  # A15 YAGNI: vuln real en domain; W5: vuln refs shard
+    from faraday.domain.vulnerability.models import (  # noqa: F401  # A15 YAGNI: vuln real en domain; W5: vuln refs shard; X5: subclasses
         CVE,
         CWE,
+        File,
         OWASP,
+        PolicyViolation,
+        PolicyViolationTemplate,
+        PolicyViolationTemplateVulnerabilityAssociation,
+        PolicyViolationVulnerabilityAssociation,
         REFERENCE_TYPES,  # noqa: F401  (misma lista ya definida arriba; shim la mantiene importable)
         Reference,
         ReferenceTemplate,
         ReferenceTemplateVulnerabilityAssociation,
         ReferenceVulnerabilityAssociation,
+        SeveritiesHistogram,
+        Vulnerability,
+        VulnerabilityABC,
+        VulnerabilityCode,
         VulnerabilityGeneric,
+        VulnerabilityGroup,
+        VulnerabilityHitCount,
         VulnerabilityReference,
+        VulnerabilityStatusHistory,
+        VulnerabilityTemplate,
+        VulnerabilityWeb,
     )
     DOMAIN_VULN_AVAILABLE = True
     DOMAIN_VULN_REFS_AVAILABLE = True
 except ImportError:
     DOMAIN_VULN_AVAILABLE = False
     DOMAIN_VULN_REFS_AVAILABLE = False
+
+    class VulnerabilityABC(Metadata):
+        EASE_OF_RESOLUTIONS = [
+            'trivial',
+            'simple',
+            'moderate',
+            'difficult',
+            'infeasible'
+        ]
+
+        SEVERITY_UNCLASSIFIED = 'unclassified'
+        SEVERITY_INFORMATIONAL = 'informational'
+        SEVERITY_LOW = 'low'
+        SEVERITY_MEDIUM = 'medium'
+        SEVERITY_HIGH = 'high'
+        SEVERITY_CRITICAL = 'critical'
+
+        SEVERITIES = [
+            SEVERITY_UNCLASSIFIED,
+            SEVERITY_INFORMATIONAL,
+            SEVERITY_LOW,
+            SEVERITY_MEDIUM,
+            SEVERITY_HIGH,
+            SEVERITY_CRITICAL,
+        ]
+
+        __abstract__ = True
+        id = Column(Integer, primary_key=True)
+
+        data = BlankColumn(Text)
+        description = BlankColumn(Text)
+        ease_of_resolution = Column(Enum(*EASE_OF_RESOLUTIONS, name='vulnerability_ease_of_resolution'), nullable=True)
+        name = NonBlankColumn(Text, nullable=False)
+        resolution = BlankColumn(Text)
+        severity = Column(Enum(*SEVERITIES, name='vulnerability_severity'), nullable=False, index=True)
+        risk = Column(Integer, nullable=True)
+
+        impact_accountability = Column(Boolean, default=False, nullable=False)
+        impact_availability = Column(Boolean, default=False, nullable=False)
+        impact_confidentiality = Column(Boolean, default=False, nullable=False)
+        impact_integrity = Column(Boolean, default=False, nullable=False)
+
+        external_id = BlankColumn(Text)
+
+        custom_fields = Column(JSONType)
+
+        @property
+        def parent(self):
+            raise NotImplementedError('ABC property called')
+
+    class SeveritiesHistogram(db.Model):
+        __tablename__ = "severities_histogram"
+        __table_args__ = (
+            UniqueConstraint('date', 'workspace_id', name='uix_severities_histogram_table_date_workspace_id'),
+        )
+
+        SEVERITIES_ALLOWED = [VulnerabilityABC.SEVERITY_MEDIUM,
+                              VulnerabilityABC.SEVERITY_HIGH,
+                              VulnerabilityABC.SEVERITY_CRITICAL]
+
+        DEFAULT_DAYS_BEFORE = 20
+
+        id = Column(Integer, primary_key=True)
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('severities_histogram', cascade="all, delete-orphan")
+        )
+        date = Column(Date, default=date.today(), nullable=False)
+        medium = Column(Integer, nullable=False)
+        high = Column(Integer, nullable=False)
+        critical = Column(Integer, nullable=False)
+        confirmed = Column(Integer, nullable=False)
+
+        @property
+        def parent(self):
+            return
+
+    class VulnerabilityHitCount(db.Model):
+        __tablename__ = "vulnerability_hit_count"
+
+        id = Column(Integer, primary_key=True)
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('vulnerability_hit_counts', cascade="all, delete-orphan")
+        )
+        date = Column(Date, nullable=False, default=datetime.utcnow())
+
+        # Low
+        low_open_unconfirmed = Column(Integer, nullable=False, default=0)
+        low_open_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def low_open_total(self):
+            return self.low_open_unconfirmed + self.low_open_confirmed
+
+        low_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
+        low_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def low_risk_accepted_total(self):
+            return self.low_risk_accepted_unconfirmed + self.low_risk_accepted_confirmed
+
+        low_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
+        low_re_opened_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def low_re_opened_total(self):
+            return self.low_re_opened_unconfirmed + self.low_re_opened_confirmed
+
+        low_closed_unconfirmed = Column(Integer, nullable=False, default=0)
+        low_closed_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def low_closed_total(self):
+            return self.low_closed_unconfirmed + self.low_closed_confirmed
+
+        @hybrid_property
+        def low_total(self):
+            return self.low_open_total + self.low_risk_accepted_total + self.low_re_opened_total + self.low_closed_total
+
+        @hybrid_property
+        def low_confirmed_total(self):
+            return self.low_open_confirmed + self.low_risk_accepted_confirmed + self.low_re_opened_confirmed + \
+                   self.low_closed_confirmed
+
+        # Medium
+        medium_open_unconfirmed = Column(Integer, nullable=False, default=0)
+        medium_open_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def medium_open_total(self):
+            return self.medium_open_unconfirmed + self.medium_open_confirmed
+
+        medium_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
+        medium_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def medium_risk_accepted_total(self):
+            return self.medium_risk_accepted_unconfirmed + self.medium_risk_accepted_confirmed
+
+        medium_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
+        medium_re_opened_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def medium_re_opened_total(self):
+            return self.medium_re_opened_unconfirmed + self.medium_re_opened_confirmed
+
+        medium_closed_unconfirmed = Column(Integer, nullable=False, default=0)
+        medium_closed_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def medium_closed_total(self):
+            return self.medium_closed_unconfirmed + self.medium_closed_confirmed
+
+        @hybrid_property
+        def medium_total(self):
+            return self.medium_open_total + self.medium_risk_accepted_total + self.medium_re_opened_total + \
+                   self.medium_closed_total
+
+        @hybrid_property
+        def medium_confirmed_total(self):
+            return self.medium_open_confirmed + self.medium_risk_accepted_confirmed + self.medium_re_opened_confirmed + \
+                   self.medium_closed_confirmed
+
+        # High
+        high_open_unconfirmed = Column(Integer, nullable=False, default=0)
+        high_open_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def high_open_total(self):
+            return self.high_open_unconfirmed + self.high_open_confirmed
+
+        high_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
+        high_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def high_risk_accepted_total(self):
+            return self.high_risk_accepted_unconfirmed + self.high_risk_accepted_confirmed
+
+        high_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
+        high_re_opened_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def high_re_opened_total(self):
+            return self.high_re_opened_unconfirmed + self.high_re_opened_confirmed
+
+        high_closed_unconfirmed = Column(Integer, nullable=False, default=0)
+        high_closed_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def high_closed_total(self):
+            return self.high_closed_unconfirmed + self.high_closed_confirmed
+
+        @hybrid_property
+        def high_total(self):
+            return self.high_open_total + self.high_risk_accepted_total + self.high_re_opened_total + self.high_closed_total
+
+        @hybrid_property
+        def high_confirmed_total(self):
+            return self.high_open_confirmed + self.high_risk_accepted_confirmed + self.high_re_opened_confirmed + \
+                   self.high_closed_confirmed
+
+        # Critical
+        critical_open_unconfirmed = Column(Integer, nullable=False, default=0)
+        critical_open_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def critical_open_total(self):
+            return self.critical_open_unconfirmed + self.critical_open_confirmed
+
+        critical_risk_accepted_unconfirmed = Column(Integer, nullable=False, default=0)
+        critical_risk_accepted_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def critical_risk_accepted_total(self):
+            return self.critical_risk_accepted_unconfirmed + self.critical_risk_accepted_confirmed
+
+        critical_re_opened_unconfirmed = Column(Integer, nullable=False, default=0)
+        critical_re_opened_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def critical_re_opened_total(self):
+            return self.critical_re_opened_unconfirmed + self.critical_re_opened_confirmed
+
+        critical_closed_unconfirmed = Column(Integer, nullable=False, default=0)
+        critical_closed_confirmed = Column(Integer, nullable=False, default=0)
+
+        @hybrid_property
+        def critical_closed_total(self):
+            return self.critical_closed_unconfirmed + self.critical_closed_confirmed
+
+        @hybrid_property
+        def critical_total(self):
+            return self.critical_open_total + self.critical_risk_accepted_total + self.critical_re_opened_total + \
+                   self.critical_closed_total
+
+        @hybrid_property
+        def critical_confirmed_total(self):
+            return self.critical_open_confirmed + self.critical_risk_accepted_confirmed + \
+                   self.critical_re_opened_confirmed + self.critical_closed_confirmed
+
+        # Specific for open status
+        @hybrid_property
+        def low_open_total_custom(self):
+            return self.low_open_total + self.low_re_opened_total + self.low_risk_accepted_total
+
+        @hybrid_property
+        def low_open_confirmed_total_custom(self):
+            return self.low_open_confirmed + self.low_re_opened_confirmed + self.low_risk_accepted_confirmed
+
+        @hybrid_property
+        def medium_open_total_custom(self):
+            return self.medium_open_total + self.medium_re_opened_total + self.medium_risk_accepted_total
+
+        @hybrid_property
+        def medium_open_confirmed_total_custom(self):
+            return self.medium_open_confirmed + self.medium_re_opened_confirmed + self.medium_risk_accepted_confirmed
+
+        @hybrid_property
+        def high_open_total_custom(self):
+            return self.high_open_total + self.high_re_opened_total + self.high_risk_accepted_total
+
+        @hybrid_property
+        def high_open_confirmed_total_custom(self):
+            return self.high_open_confirmed + self.high_re_opened_confirmed + self.high_risk_accepted_confirmed
+
+        @hybrid_property
+        def critical_open_total_custom(self):
+            return self.critical_open_total + self.critical_re_opened_total + self.critical_risk_accepted_total
+
+        @hybrid_property
+        def critical_open_confirmed_total_custom(self):
+            return self.critical_open_confirmed + self.critical_re_opened_confirmed + self.critical_risk_accepted_confirmed
+
+        # total counts
+        @hybrid_property
+        def total(self):
+            return self.low_total + self.medium_total + self.high_total + self.critical_total
+
+        @hybrid_property
+        def total_confirmed(self):
+            return self.low_confirmed_total + self.medium_confirmed_total + self.high_confirmed_total + \
+                   self.critical_confirmed_total
+
+        @hybrid_property
+        def total_open(self):
+            return self.low_open_total + self.medium_open_total + self.high_open_total + self.critical_open_total
+
+        @hybrid_property
+        def total_closed(self):
+            return self.low_closed_total + self.medium_closed_total + self.high_closed_total + self.critical_closed_total
+
+        @hybrid_property
+        def total_re_opened(self):
+            return self.low_re_opened_total + self.medium_re_opened_total + self.high_re_opened_total + \
+                   self.critical_re_opened_total
+
+        @hybrid_property
+        def total_risk_accepted(self):
+            return self.low_risk_accepted_total + self.medium_risk_accepted_total + self.high_risk_accepted_total + \
+                   self.critical_risk_accepted_total
+
+        @hybrid_property
+        def total_open_confirmed(self):
+            return self.low_open_confirmed + self.medium_open_confirmed + self.high_open_confirmed + \
+                   self.critical_open_confirmed
+
+        @hybrid_property
+        def total_closed_confirmed(self):
+            return self.low_closed_confirmed + self.medium_closed_confirmed + self.high_closed_confirmed + \
+                   self.critical_closed_confirmed
+
+        @hybrid_property
+        def total_re_opened_confirmed(self):
+            return self.low_re_opened_confirmed + self.medium_re_opened_confirmed + self.high_re_opened_confirmed + \
+                   self.critical_re_opened_confirmed
+
+        @hybrid_property
+        def total_risk_accepted_confirmed(self):
+            return self.low_risk_accepted_confirmed + self.medium_risk_accepted_confirmed + \
+                   self.high_risk_accepted_confirmed + self.critical_risk_accepted_confirmed
+
+        @hybrid_property
+        def total_status(self):
+            return self.total_open + self.total_closed + self.total_re_opened + self.total_risk_accepted
+
+        @hybrid_property
+        def total_status_confirmed(self):
+            return self.total_open_confirmed + self.total_closed_confirmed + self.total_re_opened_confirmed + \
+                   self.total_risk_accepted_confirmed
+
+        @hybrid_property
+        def total_open_confirmed_total_custom(self):
+            return self.critical_open_confirmed_total_custom + self.high_open_confirmed_total_custom + \
+                   self.medium_open_confirmed_total_custom + self.low_open_confirmed_total_custom
+
+        @hybrid_property
+        def total_open_total_custom(self):
+            return self.critical_open_total_custom + self.high_open_total_custom + self.medium_open_total_custom + \
+                   self.low_open_total_custom
+
+        @property
+        def parent(self):
+            return
+
+    class VulnerabilityTemplate(VulnerabilityABC):
+        __tablename__ = 'vulnerability_template'
+
+        __table_args__ = (
+            UniqueConstraint('name', name='uix_vulnerability_template_name'),
+        )
+
+        reference_template_instances = relationship(
+            "ReferenceTemplate",
+            secondary="reference_template_vulnerability_association",
+            lazy="joined",
+            collection_class=set
+        )
+
+        references = association_proxy(
+            'reference_template_instances',
+            'name',
+            proxy_factory=CustomAssociationSet,
+            creator=_build_associationproxy_creator_non_workspaced('ReferenceTemplate')
+        )
+
+        policy_violation_template_instances = relationship(
+            "PolicyViolationTemplate",
+            secondary="policy_violation_template_vulnerability_association",
+            lazy="joined",
+            collection_class=set
+        )
+
+        policy_violations = association_proxy(
+            'policy_violation_template_instances',
+            'name',
+            proxy_factory=CustomAssociationSet,
+            creator=_build_associationproxy_creator_non_workspaced('PolicyViolationTemplate')
+        )
+        custom_fields = Column(JSONType)
+        shipped = Column(Boolean, nullable=False, default=False)
+
+        # CVSS #
+
+        # CVSS2
+        _cvss2_vector_string = Column(Text, nullable=True)
+
+        @hybrid_property
+        def cvss2_vector_string(self):
+            return self._cvss2_vector_string
+
+        @cvss2_vector_string.setter
+        def cvss2_vector_string(self, vector_string):
+            self._cvss2_vector_string = vector_string
+            if not self._cvss2_vector_string:
+                self.init_cvss2_attrs()
+                return None
+            try:
+                cvss2 = cvss.CVSS2(vector_string)
+            except Exception as e:
+                logger.error(f"Error parsing CVSS2 vector string: {self._cvss2_vector_string}", e)
+
+        def init_cvss2_attrs(self):
+            self._cvss2_vector_string = None
+
+        # CVSS3
+        _cvss3_vector_string = Column(Text, nullable=True)
+
+        @hybrid_property
+        def cvss3_vector_string(self):
+            return self._cvss3_vector_string
+
+        @cvss3_vector_string.setter
+        def cvss3_vector_string(self, vector_string):
+            self._cvss3_vector_string = vector_string
+            if not self._cvss3_vector_string:
+                self.init_cvss3_attrs()
+                return None
+            try:
+                cvss3 = cvss.CVSS3(vector_string)
+            except Exception as e:
+                logger.error(f"Error parsing CVSS3 vector string: {self._cvss3_vector_string}", e)
+
+        def init_cvss3_attrs(self):
+            self._cvss3_vector_string = None
+
+        # CVSS4
+        _cvss4_vector_string = Column(Text, nullable=True)
+
+        @hybrid_property
+        def cvss4_vector_string(self):
+            return self._cvss4_vector_string
+
+        @cvss4_vector_string.setter
+        def cvss4_vector_string(self, vector_string):
+            self._cvss4_vector_string = vector_string
+            if not self._cvss4_vector_string:
+                self.init_cvss4_attrs()
+                return None
+            try:
+                cvss4 = cvss.CVSS4(vector_string)
+            except Exception as e:
+                logger.error(f"Error parsing CVSS4 vector string: {self._cvss4_vector_string}. Error: {e}")
+
+        def init_cvss4_attrs(self):
+            self._cvss4_vector_string = None
+
+        # CVE
+
+        cve = Column(Text, nullable=True, default="")
+
+    class VulnerabilityGroup(db.Model):
+        __tablename__ = 'vulnerability_group'
+        id = Column(Integer, primary_key=True)
+        title = NonBlankColumn(Text)
+        is_automatic = Column(Boolean, nullable=True)
+        count = Column(Integer, nullable=False, default=0)
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship('Workspace', backref=backref('vulnerability_groups', passive_deletes=True))
+
+        @property
+        def parent(self):
+            return
 
     class CVE(db.Model):
         __tablename__ = 'cve'
@@ -2118,91 +2127,86 @@ except ImportError:
         def service(self):
             return relationship('Service', backref=backref("vulnerabilitiesGeneric", cascade="all, delete-orphan"))
 
+    class Vulnerability(VulnerabilityGeneric):
+        __tablename__ = None
 
-class Vulnerability(VulnerabilityGeneric):
-    __tablename__ = None
+        @declared_attr
+        def service_id(self):
+            return VulnerabilityGeneric.__table__.c.get('service_id',
+                                                        Column(Integer,
+                                                               db.ForeignKey('service.id', ondelete='CASCADE'),
+                                                               index=True))
 
-    @declared_attr
-    def service_id(self):
-        return VulnerabilityGeneric.__table__.c.get('service_id',
-                                                    Column(Integer,
-                                                           db.ForeignKey('service.id', ondelete='CASCADE'),
-                                                           index=True))
+        @declared_attr
+        def service(self):
+            return relationship('Service', backref=backref("vulnerabilities", cascade="all, delete-orphan"))
 
-    @declared_attr
-    def service(self):
-        return relationship('Service', backref=backref("vulnerabilities", cascade="all, delete-orphan"))
+        @property
+        def parent(self):
+            return self.host or self.service
 
-    @property
-    def parent(self):
-        return self.host or self.service
+        __mapper_args__ = {
+            'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[0]
+        }
 
-    __mapper_args__ = {
-        'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[0]
-    }
+    class VulnerabilityWeb(VulnerabilityGeneric):
+        __tablename__ = None
 
+        def __init__(self, *args, **kwargs):
+            # Sanitize some fields on creation
+            if 'request' in kwargs:
+                kwargs['request'] = ''.join([x for x in kwargs['request'] if x in string.printable])
+            if 'response' in kwargs:
+                kwargs['response'] = ''.join([x for x in kwargs['response'] if x in string.printable])
+            super().__init__(*args, **kwargs)
 
-class VulnerabilityWeb(VulnerabilityGeneric):
-    __tablename__ = None
+        @declared_attr
+        def service_id(self):
+            return VulnerabilityGeneric.__table__.c.get(
+                'service_id', Column(Integer, db.ForeignKey('service.id', ondelete='CASCADE'),
+                                     nullable=False))
 
-    def __init__(self, *args, **kwargs):
-        # Sanitize some fields on creation
-        if 'request' in kwargs:
-            kwargs['request'] = ''.join([x for x in kwargs['request'] if x in string.printable])
-        if 'response' in kwargs:
-            kwargs['response'] = ''.join([x for x in kwargs['response'] if x in string.printable])
-        super().__init__(*args, **kwargs)
+        @declared_attr
+        def service(self):
+            return relationship('Service', backref=backref("vulnerabilities_web", cascade="all, delete-orphan"))
 
-    @declared_attr
-    def service_id(self):
-        return VulnerabilityGeneric.__table__.c.get(
-            'service_id', Column(Integer, db.ForeignKey('service.id', ondelete='CASCADE'),
-                                 nullable=False))
+        @property
+        def parent(self):
+            return self.service
 
-    @declared_attr
-    def service(self):
-        return relationship('Service', backref=backref("vulnerabilities_web", cascade="all, delete-orphan"))
+        @property
+        def hostnames(self):
+            return self.service.host.hostnames
 
-    @property
-    def parent(self):
-        return self.service
+        __mapper_args__ = {
+            'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[1]
+        }
 
-    @property
-    def hostnames(self):
-        return self.service.host.hostnames
+    class VulnerabilityCode(VulnerabilityGeneric):
+        __tablename__ = None
+        code = BlankColumn(Text)
+        start_line = Column(Integer, nullable=True)
+        end_line = Column(Integer, nullable=True)
 
-    __mapper_args__ = {
-        'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[1]
-    }
+        source_code_id = Column(Integer, ForeignKey(SourceCode.id, ondelete='CASCADE'), index=True)
+        source_code = relationship(
+            SourceCode,
+            backref='vulnerabilities',
+            foreign_keys=[source_code_id]
+        )
 
+        __mapper_args__ = {
+            'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[2]
+        }
 
-class VulnerabilityCode(VulnerabilityGeneric):
-    __tablename__ = None
-    code = BlankColumn(Text)
-    start_line = Column(Integer, nullable=True)
-    end_line = Column(Integer, nullable=True)
+        @property
+        def hostnames(self):
+            return []
 
-    source_code_id = Column(Integer, ForeignKey(SourceCode.id, ondelete='CASCADE'), index=True)
-    source_code = relationship(
-        SourceCode,
-        backref='vulnerabilities',
-        foreign_keys=[source_code_id]
-    )
+        @property
+        def parent(self):
+            return self.source_code
 
-    __mapper_args__ = {
-        'polymorphic_identity': VulnerabilityGeneric.VULN_TYPES[2]
-    }
-
-    @property
-    def hostnames(self):
-        return []
-
-    @property
-    def parent(self):
-        return self.source_code
-
-
-if not DOMAIN_VULN_REFS_AVAILABLE:
     class ReferenceTemplate(Metadata):
         __tablename__ = 'reference_template'
         id = Column(Integer, primary_key=True)
@@ -2214,7 +2218,6 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
 
         def __init__(self, name=None, **kwargs):
             super().__init__(name=name, **kwargs)
-
 
     class Reference(Metadata):
         __tablename__ = 'reference'
@@ -2245,7 +2248,6 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
             # TODO: fix this property
             return
 
-
     class VulnerabilityReference(Metadata):
         __tablename__ = 'vulnerability_reference'
         __table_args__ = (
@@ -2268,14 +2270,12 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
             # TODO: fix this property
             return
 
-
     class OWASP(Metadata):
         __tablename__ = 'owasp'
         id = Column(Integer, primary_key=True)
         name = NonBlankColumn(Text, unique=True)
 
         vulnerabilities = relationship('VulnerabilityWeb', secondary=owasp_vulnerability_association)
-
 
     class ReferenceVulnerabilityAssociation(db.Model):
         __tablename__ = 'reference_vulnerability_association'
@@ -2293,23 +2293,20 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
                                      backref=backref("reference_vulnerability_associations", cascade="all, delete-orphan"),
                                      foreign_keys=[vulnerability_id])
 
+    class PolicyViolationVulnerabilityAssociation(db.Model):
+        __tablename__ = 'policy_violation_vulnerability_association'
 
-class PolicyViolationVulnerabilityAssociation(db.Model):
-    __tablename__ = 'policy_violation_vulnerability_association'
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), primary_key=True)
+        policy_violation_id = Column(Integer, ForeignKey('policy_violation.id', ondelete="CASCADE"), primary_key=True)
 
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), primary_key=True)
-    policy_violation_id = Column(Integer, ForeignKey('policy_violation.id', ondelete="CASCADE"), primary_key=True)
+        policy_violation = relationship("PolicyViolation",
+                                        backref=backref("policy_violation_associations", cascade="all, delete-orphan"),
+                                        foreign_keys=[policy_violation_id])
+        vulnerability = relationship("Vulnerability",
+                                     backref=backref("policy_violation_vulnerability_associations",
+                                                     cascade="all, delete-orphan"),
+                                     foreign_keys=[vulnerability_id])
 
-    policy_violation = relationship("PolicyViolation",
-                                    backref=backref("policy_violation_associations", cascade="all, delete-orphan"),
-                                    foreign_keys=[policy_violation_id])
-    vulnerability = relationship("Vulnerability",
-                                 backref=backref("policy_violation_vulnerability_associations",
-                                                 cascade="all, delete-orphan"),
-                                 foreign_keys=[vulnerability_id])
-
-
-if not DOMAIN_VULN_REFS_AVAILABLE:
     class ReferenceTemplateVulnerabilityAssociation(db.Model):
         __tablename__ = 'reference_template_vulnerability_association'
 
@@ -2327,64 +2324,89 @@ if not DOMAIN_VULN_REFS_AVAILABLE:
             backref=backref('reference_template_vulnerability_associations', cascade="all, delete-orphan")
         )
 
+    class PolicyViolationTemplateVulnerabilityAssociation(db.Model):
+        __tablename__ = 'policy_violation_template_vulnerability_association'
 
-class PolicyViolationTemplateVulnerabilityAssociation(db.Model):
-    __tablename__ = 'policy_violation_template_vulnerability_association'
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability_template.id', ondelete='CASCADE'), primary_key=True)
+        policy_violation_id = Column(Integer, ForeignKey('policy_violation_template.id'), primary_key=True)
 
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability_template.id', ondelete='CASCADE'), primary_key=True)
-    policy_violation_id = Column(Integer, ForeignKey('policy_violation_template.id'), primary_key=True)
+        policy_violation = relationship("PolicyViolationTemplate",
+                                        backref=backref("policy_violation_template_associations",
+                                                        cascade="all, delete-orphan"),
+                                        foreign_keys=[policy_violation_id])
+        vulnerability = relationship("VulnerabilityTemplate",
+                                     backref=backref("policy_violation_template_vulnerability_associations",
+                                                     cascade="all, delete-orphan"),
+                                     foreign_keys=[vulnerability_id])
 
-    policy_violation = relationship("PolicyViolationTemplate",
-                                    backref=backref("policy_violation_template_associations",
-                                                    cascade="all, delete-orphan"),
-                                    foreign_keys=[policy_violation_id])
-    vulnerability = relationship("VulnerabilityTemplate",
-                                 backref=backref("policy_violation_template_vulnerability_associations",
-                                                 cascade="all, delete-orphan"),
-                                 foreign_keys=[vulnerability_id])
+    class PolicyViolationTemplate(Metadata):
+        __tablename__ = 'policy_violation_template'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
+        __table_args__ = (
+            UniqueConstraint('name', name='uix_policy_violation_template_name'),
+        )
 
-class PolicyViolationTemplate(Metadata):
-    __tablename__ = 'policy_violation_template'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+        def __init__(self, name=None, **kwargs):
+            super().__init__(name=name, **kwargs)
 
-    __table_args__ = (
-        UniqueConstraint('name', name='uix_policy_violation_template_name'),
-    )
+    class PolicyViolation(Metadata):
+        __tablename__ = 'policy_violation'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
-    def __init__(self, name=None, **kwargs):
-        super().__init__(name=name, **kwargs)
+        workspace_id = Column(
+            Integer,
+            ForeignKey('workspace.id', ondelete='CASCADE'),
+            index=True,
+            nullable=False
+        )
+        workspace = relationship(
+            'Workspace',
+            backref=backref("policy_violations", cascade="all, delete-orphan"),
+            foreign_keys=[workspace_id],
+        )
 
+        __table_args__ = (
+            UniqueConstraint('name', 'workspace_id', name='uix_policy_violation_template_name_vulnerability_workspace'),
+        )
 
-class PolicyViolation(Metadata):
-    __tablename__ = 'policy_violation'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+        def __init__(self, name=None, workspace_id=None, **kwargs):
+            super().__init__(name=name, workspace_id=workspace_id, **kwargs)
 
-    workspace_id = Column(
-        Integer,
-        ForeignKey('workspace.id', ondelete='CASCADE'),
-        index=True,
-        nullable=False
-    )
-    workspace = relationship(
-        'Workspace',
-        backref=backref("policy_violations", cascade="all, delete-orphan"),
-        foreign_keys=[workspace_id],
-    )
+        @property
+        def parent(self):
+            # TODO: Fix this property
+            return
 
-    __table_args__ = (
-        UniqueConstraint('name', 'workspace_id', name='uix_policy_violation_template_name_vulnerability_workspace'),
-    )
+    class CWE(Metadata):
+        __tablename__ = 'cwe'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text, unique=True)
 
-    def __init__(self, name=None, workspace_id=None, **kwargs):
-        super().__init__(name=name, workspace_id=workspace_id, **kwargs)
+        vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
 
-    @property
-    def parent(self):
-        # TODO: Fix this property
-        return
+    class VulnerabilityStatusHistory(db.Model):
+
+        __tablename__ = 'vulnerability_status_history'
+        id = Column(Integer, primary_key=True)
+        status = Column(Enum(*VulnerabilityGeneric.STATUSES, name='vulnerability_status_history_statuses'), nullable=False)
+        change_date = Column(DateTime, default=datetime.utcnow)
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete='CASCADE'), nullable=False)
+
+        user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete="SET NULL"), nullable=True)
+        user = relationship(
+            'User',
+            foreign_keys=[user_id]
+        )
+
+        __table_args__ = (
+            Index('ix_vulnerability_status_history_vulnerability_id', vulnerability_id),
+            Index('ix_vulnerability_status_history_change_date', change_date),
+            Index('ix_user_id_vulnerability_status_history', user_id),
+            Index('ix_vulnerability_status_history_vuln_status', vulnerability_id, status),
+        )
 
 
 try:
@@ -3205,14 +3227,6 @@ except ImportError:
             Index('ix_tag_object_type_object_id', 'object_type', 'object_id'),
         )
 
-
-if not DOMAIN_VULN_REFS_AVAILABLE:
-    class CWE(Metadata):
-        __tablename__ = 'cwe'
-        id = Column(Integer, primary_key=True)
-        name = NonBlankColumn(Text, unique=True)
-
-        vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
 
 
 class ObjectType(db.Model):
@@ -4137,30 +4151,6 @@ class Analytics(Metadata):
     data = Column(JSONType, nullable=False)
     show_data_table = Column(Boolean, default=False)
 
-
-
-
-
-class VulnerabilityStatusHistory(db.Model):
-
-    __tablename__ = 'vulnerability_status_history'
-    id = Column(Integer, primary_key=True)
-    status = Column(Enum(*VulnerabilityGeneric.STATUSES, name='vulnerability_status_history_statuses'), nullable=False)
-    change_date = Column(DateTime, default=datetime.utcnow)
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete='CASCADE'), nullable=False)
-
-    user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete="SET NULL"), nullable=True)
-    user = relationship(
-        'User',
-        foreign_keys=[user_id]
-    )
-
-    __table_args__ = (
-        Index('ix_vulnerability_status_history_vulnerability_id', vulnerability_id),
-        Index('ix_vulnerability_status_history_change_date', change_date),
-        Index('ix_user_id_vulnerability_status_history', user_id),
-        Index('ix_vulnerability_status_history_vuln_status', vulnerability_id, status),
-    )
 
 
 DOMAIN_PERMISSIONS_AVAILABLE = False

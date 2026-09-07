@@ -337,10 +337,29 @@ class CredentialView(ReadWriteWorkspacedView,
 
         return self._envelope_list(filtered_creds, pagination_metadata)
 
-    def _get_base_query(self, workspace_name):
-        from sqlalchemy.orm import joinedload  # pylint:disable=import-outside-toplevel
+    @classmethod
+    def get_joinedloads(cls):
+        from sqlalchemy.orm import joinedload, selectinload  # pylint:disable=import-outside-toplevel
+        from faraday.server.models import Host, Service, Workspace, VulnerabilityGeneric
+        return [
+            joinedload(Credential.workspace).load_only(Workspace.name),
+            joinedload(Credential.vulnerabilities).options(
+                joinedload(VulnerabilityGeneric.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.service).joinedload(Service.host).selectinload(Host.hostnames),
+                joinedload(VulnerabilityGeneric.workspace).load_only(Workspace.name),
+                selectinload(VulnerabilityGeneric.tags),
+            ),
+        ]
+
+    def _get_eagerloaded_query(self, workspace_name):
         base_query = super()._get_base_query(workspace_name)
-        return base_query.options(joinedload(Credential.vulnerabilities))
+        for opt in self.get_joinedloads():
+            base_query = base_query.options(opt)
+        # service_list hostnames already via get_joinedloads
+        return base_query
+
+    def _get_base_query(self, workspace_name):
+        return self._get_eagerloaded_query(workspace_name)
 
 
 CredentialView.register(credentials_api)

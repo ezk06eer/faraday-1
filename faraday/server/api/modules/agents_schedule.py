@@ -195,13 +195,26 @@ class AgentsScheduleView(
     # Eager-load everything the schema dereferences per row (n+1 fix):
     # executor + executor.agent (get_agent), executor.schedules
     # (ExecutorSchema nested), and the workspaces m2m.
-    get_joinedloads = [
-        joinedload(AgentsSchedule.executor).options(
-            joinedload(Executor.agent),
-            selectinload(Executor.schedules),
-        ),
-        selectinload(AgentsSchedule.workspaces),
-    ]
+    @classmethod
+    def get_joinedloads(cls):  # ponytail YAGNI: classmethod estilo credentials (core hace double-wrap del atributo)
+        from sqlalchemy.orm import joinedload, selectinload  # pylint:disable=import-outside-toplevel
+        from faraday.server.models import AgentsSchedule, Executor  # pylint:disable=import-outside-toplevel
+        return [
+            joinedload(AgentsSchedule.executor).options(
+                joinedload(Executor.agent),
+                selectinload(Executor.schedules),
+            ),
+            selectinload(AgentsSchedule.workspaces),
+        ]
+
+    def _get_eagerloaded_query(self, *args, **kwargs):
+        base_query = super()._get_base_query(*args, **kwargs)
+        for opt in self.get_joinedloads():
+            base_query = base_query.options(opt)
+        return base_query
+
+    def _get_base_query(self, *args, **kwargs):
+        return self._get_eagerloaded_query(*args, **kwargs)
 
     def _envelope_list(self, objects, pagination_metadata=None):
         agents_schedule = []

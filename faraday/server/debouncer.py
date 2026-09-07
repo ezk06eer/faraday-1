@@ -532,19 +532,33 @@ class Debouncer:
             )
             return
 
-        debounce_key = _debounce_key_for_workspace(action_name, workspace_id, key_suffix)
+        # TESTING (suite de tests con su propia DB rand): el worker de celery
+        # corre contra la DB de prod y no ve los datos del test -> síncrono.
+        # Los unit tests de esta clase patchean faraday_server (mock) para
+        # probar el camino async: respetarlos si el mock está activo.
+        testing = False
+        try:
+            from flask import current_app as _current_app  # pylint:disable=import-outside-toplevel
+            if _current_app and _current_app.config.get('TESTING'):
+                from faraday.server.app import faraday_server as _real_server  # pylint:disable=import-outside-toplevel
+                testing = (faraday_server is _real_server)
+        except (RuntimeError, ImportError):
+            testing = False
 
-        token_key = f"{debounce_key}:token"
-        meta_key = f"{debounce_key}:meta"
-        payload_key = f"{debounce_key}:payload"
-
-        if not faraday_server.celery_enabled:
-            logger.debug(f"Debouncer(redis): celery disabled, executing sync action={action_name} key={debounce_key}")
+        if not faraday_server.celery_enabled or testing:
+            debounce_key = _debounce_key_for_workspace(action_name, workspace_id, key_suffix)
+            logger.debug(f"Debouncer(redis): celery disabled{'+testing' if testing else ''}, "
+                         f"executing sync action={action_name} key={debounce_key}")
             if action == update_workspace_update_date:
                 update_workspace_update_date({parameters["workspace_id"]: parameters.get("update_date") or datetime.utcnow()})
             else:
                 action(**parameters)
             return
+
+        debounce_key = _debounce_key_for_workspace(action_name, workspace_id, key_suffix)
+        token_key = f"{debounce_key}:token"
+        meta_key = f"{debounce_key}:meta"
+        payload_key = f"{debounce_key}:payload"
 
         meta = {"action": action_name}
         payload = {"parameters": parameters}

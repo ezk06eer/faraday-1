@@ -156,6 +156,8 @@ class ServiceView(
 
     def _filter_eagerload_options(self):
         return [
+            # creator SÍ se serializa en /filter (owner) -> sin él escala por fila;
+            # en el path de listado base ya lo añade condicionado
             joinedload(Service.creator).load_only(User.username),
             joinedload(Service.update_user),
             joinedload(Service.host).load_only(Host.ip),

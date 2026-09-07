@@ -46,6 +46,15 @@ from faraday.server.debouncer import (
 logger = get_task_logger(__name__)
 
 
+def _is_testing() -> bool:
+    """True dentro de la suite: el worker real no ve la DB rand de tests."""
+    try:
+        from flask import current_app  # pylint:disable=import-outside-toplevel
+        return bool(current_app and current_app.config.get('TESTING'))
+    except RuntimeError:
+        return False
+
+
 FINALIZE_MAX_POLLS = 360  # ~1h at the 10s poll interval; cap so a lost task can't poll forever
 
 
@@ -306,7 +315,7 @@ def update_host_stats(
         all_hosts.add(host_id[0])
     for host in all_hosts:
         # stat calc
-        if faraday_server.celery_enabled and not sync:
+        if faraday_server.celery_enabled and not sync and not _is_testing():
             calc_vulnerability_stats.delay(host)
         else:
             calc_vulnerability_stats(host)

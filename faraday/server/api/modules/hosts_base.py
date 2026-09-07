@@ -191,11 +191,11 @@ class HostView(
     get_joinedloads = [Host.hostnames, Host.services, Host.update_user]
 
     def _filter_eagerload_options(self):
+        # sin cadenas sobre Host.services: el schema las usa solo como conteo
+        # (nplusone las marcaría como unnecessary eager load)
         return [
             joinedload(Host.creator).load_only(User.username),
             joinedload(Host.workspace).load_only(Workspace.name),
-            joinedload(Host.services).joinedload(Service.host).load_only(Host.ip),
-            joinedload(Host.services).joinedload(Service.workspace).load_only(Workspace.name),
             *[joinedload(relationship) for relationship in self.get_joinedloads],
             *[undefer(column) for column in self.get_undefer],
         ]
@@ -219,12 +219,9 @@ class HostView(
         query = self._get_base_query(*args, **kwargs)
         options += [joinedload(relationship)
                     for relationship in self.get_joinedloads]
-        # N+1 fix: ServiceSchema needs host.ip and workspace.name for each service in host.services
-        options += [
-            joinedload(Host.services).joinedload(Service.host).load_only(Host.ip),
-            joinedload(Host.services).joinedload(Service.workspace).load_only(Workspace.name),
-            joinedload(Host.services).joinedload(Service.creator).load_only(User.username),
-        ]
+        # HostSchema serializa services como conteo (open_service_count), nunca
+        # como objetos anidados: encadenar Service.host/workspace/creator aquí
+        # dispara nplusone "unnecessary eager load" (Y2 quitó los fixtures).
         if show_stats:
             options += [undefer(column) for column in self.get_undefer]
         return query.options(*options)
@@ -281,9 +278,7 @@ class HostView(
                 undefer(self.model_class.creator_command_tool),
                 undefer(self.model_class.creator_command_params),
                 joinedload(self.model_class.hostnames),
-                joinedload(self.model_class.services).joinedload(Service.host).load_only(Host.ip),
-                joinedload(self.model_class.services).joinedload(Service.workspace).load_only(Workspace.name),
-                joinedload(self.model_class.services).joinedload(Service.creator).load_only(User.username),
+                joinedload(self.model_class.services),
                 joinedload(self.model_class.update_user),
                 joinedload(getattr(self.model_class, 'creator')).load_only(User.username),
             )

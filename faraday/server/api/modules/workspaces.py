@@ -20,9 +20,12 @@ from sqlalchemy.orm import with_expression, joinedload
 from sqlalchemy.orm.exc import NoResultFound
 
 # Local application imports
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
 from faraday.server.models import (
     User,
-    Workspace,
     SeveritiesHistogram,
     Vulnerability,
     _last_run_agent_date,
@@ -439,17 +442,10 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
         confirmed = self._get_querystring_boolean_field('confirmed')
         active = self._get_querystring_boolean_field('active')
         readonly = self._get_querystring_boolean_field('readonly')
-        try:
-            from faraday.repo.workspace_repo import WorkspaceRepository  # ponytail YAGNI
+        from faraday.repo.workspace_repo import WorkspaceRepository
 
-            return WorkspaceRepository.query_with_count(confirmed, active=active, readonly=readonly, workspace_name=object_id)
-        except ImportError:
-            query = Workspace.query_with_count(
-                    confirmed,
-                    active=active,
-                    readonly=readonly,
-                    workspace_name=object_id)
-            return query
+        return WorkspaceRepository.query_with_count(
+            confirmed, active=active, readonly=readonly, workspace_name=object_id)
 
     def _get_object(self, object_id, workspace_name=None, eagerload=False, **kwargs):
         """

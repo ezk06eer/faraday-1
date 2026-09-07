@@ -153,7 +153,7 @@ class ServiceView(
     schema_class = ServiceSchema
     count_extra_filters = [Service.status == 'open']
     get_undefer = [Service.vulnerability_count]
-    get_joinedloads = [Service.update_user]
+    get_joinedloads = [Service.update_user, Service.host, Service.workspace]
     filterset_class = ServiceFilterSet
 
     def _filter_eagerload_options(self):
@@ -164,6 +164,15 @@ class ServiceView(
             joinedload(Service.workspace).load_only(Workspace.name),
             undefer(Service.vulnerability_count),
         ]
+
+    def _get_eagerloaded_query(self, *args, **kwargs):
+        # Override to ensure host/workspace are eager loaded for list view (N+1 fix)
+        # Base's _get_eagerloaded_query only loads creator/update_user, so we add host/workspace here
+        query = super()._get_eagerloaded_query(*args, **kwargs)
+        return query.options(
+            joinedload(Service.host).load_only(Host.ip),
+            joinedload(Service.workspace).load_only(Workspace.name),
+        )
 
     def _envelope_list(self, objects, pagination_metadata=None):
         services = []

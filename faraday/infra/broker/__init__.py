@@ -8,18 +8,17 @@ Implementations:
 - CeleryTaskQueue: wraps faraday.server.extensions.celery
 - InMemoryTaskQueue: synchronous, for unit tests
 """
+
 from abc import ABC, abstractmethod
 from typing import Any
 
 
 class TaskQueue(ABC):
     @abstractmethod
-    def delay(self, task_name: str, *args: Any, **kwargs: Any) -> Any:
-        ...
+    def delay(self, task_name: str, *args: Any, **kwargs: Any) -> Any: ...
 
     @abstractmethod
-    def chord(self, tasks, callback) -> Any:
-        ...
+    def chord(self, tasks, callback) -> Any: ...
 
 
 class CeleryTaskQueue(TaskQueue):

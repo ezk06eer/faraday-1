@@ -3,8 +3,10 @@
 Deterministic, no global state beyond singleton _redis_client.
 Mantiene contrato: _redis_url_from_config lee faraday_server.celery_backend_url.
 """
+
 import redis
 from faraday.server.config import faraday_server
+
 
 def _redis_url_from_config() -> str:
     raw = (getattr(faraday_server, "celery_backend_url", None) or "").strip()
@@ -14,7 +16,9 @@ def _redis_url_from_config() -> str:
         return raw
     return f"redis://{raw}"
 
+
 _redis_client = None
+
 
 def get_redis_client() -> redis.Redis:
     global _redis_client  # pylint: disable=W0603

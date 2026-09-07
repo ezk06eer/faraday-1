@@ -5,6 +5,7 @@ Deterministic port: EventPublisher interface.
 Current impl wraps the existing Queue for backwards compat.
 Future: Redis pub/sub or in-memory.
 """
+
 from abc import ABC, abstractmethod
 from queue import Queue
 from typing import Any
@@ -12,8 +13,7 @@ from typing import Any
 
 class EventPublisher(ABC):
     @abstractmethod
-    def publish(self, event: Any) -> None:
-        ...
+    def publish(self, event: Any) -> None: ...
 
     @abstractmethod
     def subscribe(self): ...

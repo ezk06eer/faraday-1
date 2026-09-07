@@ -8,8 +8,6 @@ Uso:
     from faraday.bounded_contexts.workspace.app import create_workspace_app
     app = create_workspace_app(testing=True)
 """
-from flask import Flask
-
 def create_workspace_app(db_connection_string=None, testing=None):
     """Crea Flask app solo con workspace BC (para tests y futuro microservicio)."""
     from faraday.server.app import create_app as _create_app  # lazy

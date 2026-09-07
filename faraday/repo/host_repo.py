@@ -6,6 +6,17 @@ class HostRepository:
         return Host.query.filter_by(workspace_id=workspace_id, ip=ip).first()
 
     @staticmethod
+    def get_by_ip(workspace_name, ip, session=None):
+        if session is None:
+            from faraday.server.models import db
+            session = db.session
+        from faraday.server.models import Host, Workspace
+        return (session.query(Host)
+                .join(Workspace, Host.workspace_id == Workspace.id)
+                .filter(Workspace.name == workspace_name, Host.ip == ip)
+                .first())
+
+    @staticmethod
     def get_by_id(host_id):
         from faraday.server.models import Host
         return Host.query.get(host_id)

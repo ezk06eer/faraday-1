@@ -190,6 +190,8 @@ class HostView(
         return [
             joinedload(Host.creator).load_only(User.username),
             joinedload(Host.workspace).load_only(Workspace.name),
+            joinedload(Host.services).joinedload(Service.host).load_only(Host.ip),
+            joinedload(Host.services).joinedload(Service.workspace).load_only(Workspace.name),
             *[joinedload(relationship) for relationship in self.get_joinedloads],
             *[undefer(column) for column in self.get_undefer],
         ]
@@ -213,6 +215,12 @@ class HostView(
         query = self._get_base_query(*args, **kwargs)
         options += [joinedload(relationship)
                     for relationship in self.get_joinedloads]
+        # N+1 fix: ServiceSchema needs host.ip and workspace.name for each service in host.services
+        options += [
+            joinedload(Host.services).joinedload(Service.host).load_only(Host.ip),
+            joinedload(Host.services).joinedload(Service.workspace).load_only(Workspace.name),
+            joinedload(Host.services).joinedload(Service.creator).load_only(User.username),
+        ]
         if show_stats:
             options += [undefer(column) for column in self.get_undefer]
         return query.options(*options)
@@ -269,7 +277,9 @@ class HostView(
                 undefer(self.model_class.creator_command_tool),
                 undefer(self.model_class.creator_command_params),
                 joinedload(self.model_class.hostnames),
-                joinedload(self.model_class.services),
+                joinedload(self.model_class.services).joinedload(Service.host).load_only(Host.ip),
+                joinedload(self.model_class.services).joinedload(Service.workspace).load_only(Workspace.name),
+                joinedload(self.model_class.services).joinedload(Service.creator).load_only(User.username),
                 joinedload(self.model_class.update_user),
                 joinedload(getattr(self.model_class, 'creator')).load_only(User.username),
             )
@@ -333,9 +343,9 @@ class HostView(
         """
         workspace_name = kwargs.get('workspace_name')
         if workspace_name:
-            services = self._get_object(host_id, workspace_name).services
+            services = self._get_object(host_id, workspace_name, eagerload=True).services
         else:
-            services = self._get_object(host_id).services
+            services = self._get_object(host_id, eagerload=True).services
         return ServiceSchema(many=True).dump(services)
 
     @route('/countVulns')

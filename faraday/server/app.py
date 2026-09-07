@@ -448,6 +448,7 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     try:
         from faraday.bounded_contexts.registry import is_deprecated_route  # pylint: disable=import-outside-toplevel
     except ImportError:
+        # fallback: registry is source of truth
         DEPRECATED_ROUTES = [  # These endpoints will be removed for v3
             '/v3/ws/<workspace_name>/hosts/bulk_delete/',
             '/v3/ws/<workspace_name>/vulns/bulk_delete/',

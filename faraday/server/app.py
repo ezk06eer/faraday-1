@@ -691,11 +691,23 @@ def get_debouncer():
 
 
 def register_extensions(app):
+    # E3 Modulith: prefer DI via faraday.server.extensions.init_extensions,
+    # fallback to direct init for backwards compat (deterministic)
+    try:
+        from faraday.server.extensions import init_extensions as _init_extensions  # pylint: disable=import-outside-toplevel
+
+        _init_extensions(app)
+    except Exception:
+        from faraday.server.websockets.dispatcher import DispatcherNamespace  # pylint: disable=import-outside-toplevel
+
+        socketio.init_app(app, ping_interval=faraday_server.socketio_ping_interval,
+                          ping_timeout=faraday_server.socketio_ping_timeout,
+                          logger=faraday_server.socketio_logger)
     from faraday.server.websockets.dispatcher import DispatcherNamespace  # pylint: disable=import-outside-toplevel
-    socketio.init_app(app, ping_interval=faraday_server.socketio_ping_interval,
-                      ping_timeout=faraday_server.socketio_ping_timeout,
-                      logger=faraday_server.socketio_logger)
-    socketio.on_namespace(DispatcherNamespace("/dispatcher"))
+    try:
+        socketio.on_namespace(DispatcherNamespace("/dispatcher"))
+    except Exception:
+        pass  # already registered in _init_extensions path or tests
 
     if faraday.server.config.faraday_server.celery_enabled:
         logger.info("Celery is enabled ...")

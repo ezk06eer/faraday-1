@@ -450,31 +450,34 @@ def set_children_objects(instance, value, parent_field, child_field='id', worksp
             current_value.append(children_model(**kwargs))
 
 
-class Hostname(Metadata):
-    __tablename__ = 'hostname'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+try:
+    from faraday.domain.host_service.models import Hostname  # ponytail YAGNI: Hostname -> domain/host_service
+except ImportError:
+    class Hostname(Metadata):
+        __tablename__ = 'hostname'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
-    host_id = Column(Integer, ForeignKey('host.id', ondelete='CASCADE'), index=True, nullable=False)
-    host = relationship('Host', backref=backref("hostnames", cascade="all, delete-orphan"))
+        host_id = Column(Integer, ForeignKey('host.id', ondelete='CASCADE'), index=True, nullable=False)
+        host = relationship('Host', backref=backref("hostnames", cascade="all, delete-orphan"))
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('hostnames', cascade="all, delete-orphan", passive_deletes=True),
-    )
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('hostnames', cascade="all, delete-orphan", passive_deletes=True),
+        )
 
-    __table_args__ = (
-        UniqueConstraint(name, host_id, workspace_id, name='uix_hostname_host_workspace'),
-    )
+        __table_args__ = (
+            UniqueConstraint(name, host_id, workspace_id, name='uix_hostname_host_workspace'),
+        )
 
-    def __str__(self):
-        return self.name
+        def __str__(self):
+            return self.name
 
-    @property
-    def parent(self):
-        return self.host
+        @property
+        def parent(self):
+            return self.host
 
 
 class CustomFieldsSchema(db.Model):
@@ -1411,65 +1414,68 @@ class CVE(db.Model):
             raise ValueError("Invalid cve format. Should be CVE-YEAR-NUMBERID.") from e
 
 
-class Service(Metadata):
-    STATUSES = [
-        'open',
-        'closed',
-        'filtered'
-    ]
-    __tablename__ = 'service'
-    id = Column(Integer, primary_key=True)
-    name = BlankColumn(Text)
-    description = BlankColumn(Text)
-    port = Column(Integer, nullable=False)
-    owned = Column(Boolean, nullable=False, default=False)
+try:
+    from faraday.domain.host_service.models import Service  # ponytail YAGNI: Service -> domain/host_service
+except ImportError:
+    class Service(Metadata):
+        STATUSES = [
+            'open',
+            'closed',
+            'filtered'
+        ]
+        __tablename__ = 'service'
+        id = Column(Integer, primary_key=True)
+        name = BlankColumn(Text)
+        description = BlankColumn(Text)
+        port = Column(Integer, nullable=False)
+        owned = Column(Boolean, nullable=False, default=False)
 
-    protocol = NonBlankColumn(Text)
-    status = Column(Enum(*STATUSES, name='service_statuses'), nullable=False)
-    version = BlankColumn(Text)
+        protocol = NonBlankColumn(Text)
+        status = Column(Enum(*STATUSES, name='service_statuses'), nullable=False)
+        version = BlankColumn(Text)
 
-    banner = BlankColumn(Text)
+        banner = BlankColumn(Text)
 
-    host_id = Column(Integer, ForeignKey('host.id', ondelete='CASCADE'), index=True, nullable=False)
+        host_id = Column(Integer, ForeignKey('host.id', ondelete='CASCADE'), index=True, nullable=False)
 
-    commands = relationship(
-        'Command',
-        secondary='command_object',
-        primaryjoin='and_(Service.id == CommandObject.object_id, CommandObject.object_type == "service")',
-        collection_class=set,
-        passive_deletes=True
-    )
+        commands = relationship(
+            'Command',
+            secondary='command_object',
+            primaryjoin='and_(Service.id == CommandObject.object_id, CommandObject.object_type == "service")',
+            collection_class=set,
+            passive_deletes=True
+        )
 
-    host = relationship(
-        'Host',
-        foreign_keys=[host_id],
-    )
+        host = relationship(
+            'Host',
+            foreign_keys=[host_id],
+        )
 
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref('services', cascade="all, delete-orphan", passive_deletes=True),
-    )
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref('services', cascade="all, delete-orphan", passive_deletes=True),
+        )
 
-    vulnerability_count = _make_generic_count_property('service',
-                                                       'vulnerability')
+        vulnerability_count = _make_generic_count_property('service',
+                                                           'vulnerability')
 
-    __table_args__ = (
-        UniqueConstraint(port, protocol, host_id, workspace_id, name='uix_service_port_protocol_host_workspace'),
-    )
+        __table_args__ = (
+            UniqueConstraint(port, protocol, host_id, workspace_id, name='uix_service_port_protocol_host_workspace'),
+        )
 
-    @property
-    def parent(self):
-        return self.host
+        @property
+        def parent(self):
+            return self.host
 
-    @property
-    def summary(self):
-        if self.version and self.version.lower() != "unknown":
-            version = " (" + self.version + ")"
-        else:
-            version = ""
-        return f"({self.port}/{self.protocol}) {self.name}{version or ''}"
+        @property
+        def summary(self):
+            if self.version and self.version.lower() != "unknown":
+                version = " (" + self.version + ")"
+            else:
+                version = ""
+            return f"({self.port}/{self.protocol}) {self.name}{version or ''}"
 
 
 cwe_vulnerability_association = Table(

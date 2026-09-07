@@ -8,6 +8,12 @@ Uso:
     from faraday.bounded_contexts.workspace.app import create_workspace_app
     app = create_workspace_app(testing=True)
 """
+
+# YAGNI flags — BC capability (standalone sin vulns/hosts)
+HAS_HOSTS = False
+HAS_VULNS = False
+has_hosts = False
+has_vulns = False
 def create_workspace_app(db_connection_string=None, testing=None):
     """Crea Flask app solo con workspace BC (para tests y futuro microservicio)."""
     from flask import Flask

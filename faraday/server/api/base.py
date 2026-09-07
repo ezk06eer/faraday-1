@@ -745,8 +745,15 @@ class FilterAlchemyMixin:
     filterset_class = None
 
     def _filter_query(self, query):
-        assert self.filterset_class is not None, 'You must define a filterset'
-        return self.filterset_class(query).filter()
+        # Delegates to FilteringService (ponytail composition, keeps contract)
+        # Lazy import avoids circular dependency with faraday.services.filtering
+        try:
+            from faraday.services.filtering import FilteringService  # pylint: disable=import-outside-toplevel
+
+            return FilteringService.filter_query_alchemy(self, query)
+        except ImportError:
+            assert self.filterset_class is not None, 'You must define a filterset'
+            return self.filterset_class(query).filter()
 
 
 class FilterWorkspacedMixin(ListMixin):
@@ -820,12 +827,18 @@ class FilterWorkspacedMixin(ListMixin):
         workspace = get_workspace(workspace_name)
         filter_query = None
         if 'group_by' not in filters:
-            offset = 0
-            limit = None
-            if 'offset' in filters:
-                offset = filters.pop('offset')
-            if 'limit' in filters:
-                limit = filters.pop('limit')
+            # Pure pagination extraction via FilteringService (YAGNI lazy import)
+            try:
+                from faraday.services.filtering import FilteringService  # pylint: disable=import-outside-toplevel
+
+                filters, offset, limit = FilteringService.extract_pagination(filters)
+            except ImportError:
+                offset = 0
+                limit = None
+                if 'offset' in filters:
+                    offset = filters.pop('offset')
+                if 'limit' in filters:
+                    limit = filters.pop('limit')
             try:
                 filter_query = self._generate_filter_query(
                     filters,
@@ -865,7 +878,14 @@ class FilterObjects:
         return filters, None
 
     def _process_filter_data(self, filters, workspace_name=None, **kwargs):
-        translated, extra = self._translate_filters(filters)
+        # Delegates to FilteringService (ponytail composition, keeps contract)
+        # Lazy import avoids circular dependency with faraday.services.filtering
+        try:
+            from faraday.services.filtering import FilteringService  # pylint: disable=import-outside-toplevel
+
+            translated, extra = FilteringService.translate_filters(self, filters)
+        except ImportError:
+            translated, extra = self._translate_filters(filters)
         return self._filter_standalone(translated, extra, workspace_name, **kwargs)
 
     def _generate_filter_query_standalone(self, filters, workspace=None, delete=False):
@@ -1026,12 +1046,18 @@ class FilterMixin(ListMixin):
 
         filter_query = None
         if 'group_by' not in filters:
-            offset = 0
-            limit = None
-            if 'offset' in filters:
-                offset = filters.pop('offset')
-            if 'limit' in filters:
-                limit = filters.pop('limit')
+            # Pure pagination extraction via FilteringService (YAGNI lazy import)
+            try:
+                from faraday.services.filtering import FilteringService  # pylint: disable=import-outside-toplevel
+
+                filters, offset, limit = FilteringService.extract_pagination(filters)
+            except ImportError:
+                offset = 0
+                limit = None
+                if 'offset' in filters:
+                    offset = filters.pop('offset')
+                if 'limit' in filters:
+                    limit = filters.pop('limit')
             try:
                 filter_query = self._generate_filter_query(
                     filters, severity_count=severity_count

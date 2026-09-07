@@ -3,18 +3,17 @@ WebSocket abstraction — wraps flask_socketio SocketIO (E2-A8)
 
 Deterministic port for DispatcherNamespace.
 """
+
 from abc import ABC, abstractmethod
 from typing import Any
 
 
 class WebSocketGateway(ABC):
     @abstractmethod
-    def emit(self, event: str, data: Any, room: str | None = None) -> None:
-        ...
+    def emit(self, event: str, data: Any, room: str | None = None) -> None: ...
 
     @abstractmethod
-    def join_room(self, room: str, sid: str) -> None:
-        ...
+    def join_room(self, room: str, sid: str) -> None: ...
 
 
 class SocketIOGateway(WebSocketGateway):

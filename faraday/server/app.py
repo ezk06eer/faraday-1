@@ -444,25 +444,30 @@ def get_prefixed_url(app, url):
 def create_app(db_connection_string=None, testing=None, register_extensions_flag=True, start_scheduler=False, remove_sids=False):
     logger.debug("Creating new faraday app instance")
 
-    class CustomFlask(Flask):
-        try:
-            from faraday.bounded_contexts.registry import DEPRECATED_ROUTES
-            SKIP_RULES = DEPRECATED_ROUTES
-        except ImportError:
-            SKIP_RULES = [  # These endpoints will be removed for v3
-                '/v3/ws/<workspace_name>/hosts/bulk_delete/',
-                '/v3/ws/<workspace_name>/vulns/bulk_delete/',
-                '/v3/ws/<workspace_id>/change_readonly/',
-                '/v3/ws/<workspace_id>/deactivate/',
-                '/v3/ws/<workspace_id>/activate/',
-            ]
+    # ponytail YAGNI: DEPRECATED_ROUTES check delegado a registry con fallback import-safe
+    try:
+        from faraday.bounded_contexts.registry import is_deprecated_route  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        DEPRECATED_ROUTES = [  # These endpoints will be removed for v3
+            '/v3/ws/<workspace_name>/hosts/bulk_delete/',
+            '/v3/ws/<workspace_name>/vulns/bulk_delete/',
+            '/v3/ws/<workspace_id>/change_readonly/',
+            '/v3/ws/<workspace_id>/deactivate/',
+            '/v3/ws/<workspace_id>/activate/',
+        ]
 
+        def is_deprecated_route(rule):  # fallback local si registry no disponible
+            try:
+                return rule in DEPRECATED_ROUTES
+            except Exception:
+                return False
+
+    class CustomFlask(Flask):
         def add_url_rule(self, rule, endpoint=None, view_func=None, **options):
             # Flask registers views when an application starts
             # do not add view from SKIP_VIEWS
-            for rule_ in CustomFlask.SKIP_RULES:
-                if rule_ == rule:
-                    return
+            if is_deprecated_route(rule):
+                return
             return super().add_url_rule(rule, endpoint, view_func, **options)
 
     ui_dir = Path(__file__).parent / 'www'

@@ -123,23 +123,29 @@ def get_group_by_and_sort_dir(model_class):
 
 
 def get_workspace(workspace_name):
-    ws = None
-    if not current_user.is_anonymous:
-        try:
-            ws = Workspace.query.filter_by(name=workspace_name).one()
-            if not ws.active:
-                abort(HTTP_FORBIDDEN, f"Disabled workspace: {workspace_name}")
-        except NoResultFound:
-            abort(HTTP_NOT_FOUND, f"No such workspace: {workspace_name}")
-    else:
-        # For anonymous users, check if the workspace exists
-        try:
-            ws = Workspace.query.filter_by(name=workspace_name).one()
-            if not ws.active:
+    # Delegates to WorkspaceRepository (ponytail repo layer, keeps contracts.md wire)
+    try:
+        from faraday.repo.workspace_repo import WorkspaceRepository  # pylint: disable=import-outside-toplevel
+
+        return WorkspaceRepository.get_by_name(workspace_name)
+    except ImportError:
+        # Fallback legacy (tests without repo deps)
+        ws = None
+        if not current_user.is_anonymous:
+            try:
+                ws = Workspace.query.filter_by(name=workspace_name).one()
+                if not ws.active:
+                    abort(HTTP_FORBIDDEN, f"Disabled workspace: {workspace_name}")
+            except NoResultFound:
+                abort(HTTP_NOT_FOUND, f"No such workspace: {workspace_name}")
+        else:
+            try:
+                ws = Workspace.query.filter_by(name=workspace_name).one()
+                if not ws.active:
+                    abort(HTTP_UNAUTHORIZED)
+            except NoResultFound:
                 abort(HTTP_UNAUTHORIZED)
-        except NoResultFound:
-            abort(HTTP_UNAUTHORIZED)
-    return ws
+        return ws
 
 
 class InvalidUsage(Exception):

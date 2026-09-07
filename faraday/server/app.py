@@ -742,7 +742,8 @@ def register_extensions(app):
         if not faraday.server.config.faraday_server.celery_backend_url:
             logger.error("No backend configuration found. Please add `celery_backend_url` to your server.ini...")
             sys.exit()
-        celery.init_app(app)
+        # Celery ya fue inicializado en init_extensions(app) (DI). No repetir
+        # celery.init_app(app) aquí: provocaría "Already registered extension CELERY".
     else:
         # TODO: link to documentation with howto enable celery
         logger.info("Celery not enabled ...")

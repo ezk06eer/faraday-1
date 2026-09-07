@@ -1,1 +1,1 @@
-"""Domain user_auth — 9 clases: Role, UserToken, User, UserAvatar, MethodologyTemplate, Methodology, PlannerProject, ProjectTask, License (faraday/server/models.py:2717)"""
+"""Domain user_auth — 8 clases reales: Role, UserToken, User, UserAvatar, PermissionsGroup, PermissionsUnit, PermissionsUnitAction, RolePermission (faraday/server/models.py:2715). MethodologyTemplate, Methodology, PlannerProject, ProjectTask y License permanecen en server y se re-exportan lazy."""

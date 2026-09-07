@@ -30,7 +30,10 @@ from faraday.server.models import (
 )
 
 logger = logging.getLogger(__name__)
-changes_queue = Queue()
+try:
+    from faraday.infra.events.bus import changes_queue  # ponytail YAGNI
+except ImportError:
+    changes_queue = Queue()
 
 
 def new_object_event(mapper, connection, instance):

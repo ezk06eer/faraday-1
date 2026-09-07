@@ -2712,124 +2712,141 @@ def get(workspace_name):
     return db.session.query(Workspace).filter_by(name=workspace_name).first()
 
 
-roles_users = db.Table('roles_users',
-                       db.Column('user_id', db.Integer(), db.ForeignKey('faraday_user.id')),
-                       db.Column('role_id', db.Integer(), db.ForeignKey('faraday_role.id')))
+DOMAIN_USER_AVAILABLE = False
+try:
+    from faraday.domain.user_auth.models import (  # noqa: F401
+        Role, UserToken, User, UserAvatar,
+    )  # ponytail YAGNI: user_auth (Role/UserToken/User/UserAvatar) -> faraday/domain/user_auth
+    DOMAIN_USER_AVAILABLE = True
+except ImportError:
+    DOMAIN_USER_AVAILABLE = False
+
+    roles_users = db.Table('roles_users',
+                           db.Column('user_id', db.Integer(), db.ForeignKey('faraday_user.id')),
+                           db.Column('role_id', db.Integer(), db.ForeignKey('faraday_role.id')))
 
 
-class Role(Metadata, RoleMixin):
-    __tablename__ = 'faraday_role'
-    id = db.Column(db.Integer(), primary_key=True)
-    name = db.Column(db.String(80), unique=True)
-    weight = db.Column(db.Integer(), nullable=False, default=100)
-    custom = db.Column(db.Boolean(), nullable=False, default=True)
-    description = db.Column(db.String(280))
+    class Role(Metadata, RoleMixin):
+        __tablename__ = 'faraday_role'
+        id = db.Column(db.Integer(), primary_key=True)
+        name = db.Column(db.String(80), unique=True)
+        weight = db.Column(db.Integer(), nullable=False, default=100)
+        custom = db.Column(db.Boolean(), nullable=False, default=True)
+        description = db.Column(db.String(280))
 
 
-class UserToken(Metadata):
-    __tablename__ = 'user_token'
-    GITLAB_SCOPE = 'gitlab'
-    SCHEDULER_SCOPE = 'scheduler'
-    SERVICE_DESK_SCOPE = 'service_desk'
-    JIRA_SCOPE = 'jira'
-    GLOBAL_SCOPE = 'global'
-    SCOPES = [GITLAB_SCOPE, SERVICE_DESK_SCOPE, SCHEDULER_SCOPE, JIRA_SCOPE, GLOBAL_SCOPE]
+    class UserToken(Metadata):
+        __tablename__ = 'user_token'
+        GITLAB_SCOPE = 'gitlab'
+        SCHEDULER_SCOPE = 'scheduler'
+        SERVICE_DESK_SCOPE = 'service_desk'
+        JIRA_SCOPE = 'jira'
+        GLOBAL_SCOPE = 'global'
+        SCOPES = [GITLAB_SCOPE, SERVICE_DESK_SCOPE, SCHEDULER_SCOPE, JIRA_SCOPE, GLOBAL_SCOPE]
 
-    id = Column(Integer(), primary_key=True)
+        id = Column(Integer(), primary_key=True)
 
-    user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete='CASCADE'), index=True, nullable=False)
-    user = relationship('User',
-                        backref=backref('user_tokens', cascade="all, delete-orphan", passive_deletes=True),
-                        foreign_keys=[user_id])
+        user_id = Column(Integer, ForeignKey('faraday_user.id', ondelete='CASCADE'), index=True, nullable=False)
+        user = relationship('User',
+                            backref=backref('user_tokens', cascade="all, delete-orphan", passive_deletes=True),
+                            foreign_keys=[user_id])
 
-    token = Column(String(), nullable=False, unique=True)
-    alias = Column(String(), nullable=False)
-    expires_at = Column(DateTime(), nullable=True)
-    scope = Column(Enum(*SCOPES, name='token_scopes'), nullable=False, default="gitlab")
-    revoked = Column(Boolean(), default=False, nullable=False)
-    hide = Column(Boolean(), default=False, nullable=False)
+        token = Column(String(), nullable=False, unique=True)
+        alias = Column(String(), nullable=False)
+        expires_at = Column(DateTime(), nullable=True)
+        scope = Column(Enum(*SCOPES, name='token_scopes'), nullable=False, default="gitlab")
+        revoked = Column(Boolean(), default=False, nullable=False)
+        hide = Column(Boolean(), default=False, nullable=False)
 
-    @hybrid_property
-    def expired(self):
-        return self.expires_at is not None and self.expires_at < datetime.utcnow()
+        @hybrid_property
+        def expired(self):
+            return self.expires_at is not None and self.expires_at < datetime.utcnow()
 
-    @expired.expression
-    def expired(cls):
-        return case(
-            (cls.expires_at != None, cls.expires_at < datetime.utcnow()),  # noqa E711
-            else_=False
+        @expired.expression
+        def expired(cls):
+            return case(
+                (cls.expires_at != None, cls.expires_at < datetime.utcnow()),  # noqa E711
+                else_=False
+            )
+
+
+    class User(db.Model, UserMixin):
+        __tablename__ = 'faraday_user'
+        ADMIN_ROLE = 'admin'
+        PENTESTER_ROLE = 'pentester'
+        ASSET_OWNER_ROLE = 'asset_owner'
+        CLIENT_ROLE = 'client'
+        WORKSPACE_ADMIN_ROLE = 'workspace_admin'
+        ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE, WORKSPACE_ADMIN_ROLE]
+        OTP_STATES = ["disabled", "requested", "confirmed"]
+        USER_TYPES = [LDAP_TYPE, LOCAL_TYPE, SAML_TYPE]
+
+        id = Column(Integer, primary_key=True)
+        username = NonBlankColumn(String(255), unique=True)
+        password = Column(String(255), nullable=True)
+        email = Column(String(255), unique=True, nullable=True)  # TBI
+        name = BlankColumn(String(255))  # TBI
+        last_login_at = Column(DateTime())  # flask-security
+        current_login_at = Column(DateTime())  # flask-security
+        last_login_ip = BlankColumn(String(100))  # flask-security
+        current_login_ip = BlankColumn(String(100))  # flask-security
+        login_count = Column(Integer)  # flask-security
+        active = Column(Boolean(), default=True, nullable=False)  # TBI flask-security
+        confirmed_at = Column(DateTime())
+        _otp_secret = Column(
+            String(32),
+            name="otp_secret", nullable=True
+        )
+        state_otp = Column(Enum(*OTP_STATES, name='user_otp_states'), nullable=False, default="disabled")
+        preferences = Column(JSONType, nullable=True, default={})
+        fs_uniquifier = Column(String(64), unique=True, nullable=False)  # flask-security
+
+        roles = db.relationship('Role', secondary=roles_users, backref='users')
+        user_type = Column(Enum(*USER_TYPES, name='user_types'), nullable=False, default=LOCAL_TYPE)
+
+        @property
+        def roles_list(self):
+            return [role.name for role in self.roles]
+
+        workspaces = relationship(
+            'Workspace',
+            secondary=association_workspace_and_users_table,
+            back_populates="allowed_users",
         )
 
+        session_id = Column(String(64), unique=True)
 
-# DOMAIN_USER_AVAILABLE: shim flag opcional (A16) — marca que User existe; domain lo consulta sin tocar esta clase.
-DOMAIN_USER_AVAILABLE = True
+        def __repr__(self):
+            return f"<{'LDAP ' if self.user_type == LDAP_TYPE else ''}User: {self.username}>"
+
+        def get_security_payload(self):
+            return {
+                "username": self.username,
+                "name": self.username,
+                "email": self.email,
+                "roles": self.roles_list,
+            }
+
+        def get_token(self):
+            user_id = self.fs_uniquifier
+            hashed_data = hash_data(self.password) if self.password else None
+            iat = int(time.time())
+            exp = iat + int(faraday_server.api_token_expiration)
+            jwt_data = {'user_id': user_id, "validation_check": hashed_data, 'iat': iat, 'exp': exp}
+
+            return jwt.encode(jwt_data, app.config['SECRET_KEY'], algorithm="HS512")
 
 
-class User(db.Model, UserMixin):
-    __tablename__ = 'faraday_user'
-    ADMIN_ROLE = 'admin'
-    PENTESTER_ROLE = 'pentester'
-    ASSET_OWNER_ROLE = 'asset_owner'
-    CLIENT_ROLE = 'client'
-    WORKSPACE_ADMIN_ROLE = 'workspace_admin'
-    ROLES = [ADMIN_ROLE, PENTESTER_ROLE, ASSET_OWNER_ROLE, CLIENT_ROLE, WORKSPACE_ADMIN_ROLE]
-    OTP_STATES = ["disabled", "requested", "confirmed"]
-    USER_TYPES = [LDAP_TYPE, LOCAL_TYPE, SAML_TYPE]
+    class UserAvatar(Metadata):
+        __tablename__ = 'user_avatar'
 
-    id = Column(Integer, primary_key=True)
-    username = NonBlankColumn(String(255), unique=True)
-    password = Column(String(255), nullable=True)
-    email = Column(String(255), unique=True, nullable=True)  # TBI
-    name = BlankColumn(String(255))  # TBI
-    last_login_at = Column(DateTime())  # flask-security
-    current_login_at = Column(DateTime())  # flask-security
-    last_login_ip = BlankColumn(String(100))  # flask-security
-    current_login_ip = BlankColumn(String(100))  # flask-security
-    login_count = Column(Integer)  # flask-security
-    active = Column(Boolean(), default=True, nullable=False)  # TBI flask-security
-    confirmed_at = Column(DateTime())
-    _otp_secret = Column(
-        String(32),
-        name="otp_secret", nullable=True
-    )
-    state_otp = Column(Enum(*OTP_STATES, name='user_otp_states'), nullable=False, default="disabled")
-    preferences = Column(JSONType, nullable=True, default={})
-    fs_uniquifier = Column(String(64), unique=True, nullable=False)  # flask-security
-
-    roles = db.relationship('Role', secondary=roles_users, backref='users')
-    user_type = Column(Enum(*USER_TYPES, name='user_types'), nullable=False, default=LOCAL_TYPE)
-
-    @property
-    def roles_list(self):
-        return [role.name for role in self.roles]
-
-    workspaces = relationship(
-        'Workspace',
-        secondary=association_workspace_and_users_table,
-        back_populates="allowed_users",
-    )
-
-    session_id = Column(String(64), unique=True)
-
-    def __repr__(self):
-        return f"<{'LDAP ' if self.user_type == LDAP_TYPE else ''}User: {self.username}>"
-
-    def get_security_payload(self):
-        return {
-            "username": self.username,
-            "name": self.username,
-            "email": self.email,
-            "roles": self.roles_list,
-        }
-
-    def get_token(self):
-        user_id = self.fs_uniquifier
-        hashed_data = hash_data(self.password) if self.password else None
-        iat = int(time.time())
-        exp = iat + int(faraday_server.api_token_expiration)
-        jwt_data = {'user_id': user_id, "validation_check": hashed_data, 'iat': iat, 'exp': exp}
-
-        return jwt.encode(jwt_data, app.config['SECRET_KEY'], algorithm="HS512")
+        id = Column(Integer, autoincrement=True, primary_key=True)
+        name = BlankColumn(Text, unique=True)
+        # photo field will automatically generate thumbnail
+        # if the file is a valid image
+        photo = Column(UploadedFileField(upload_type=FaradayUploadedFile))
+        user_id = Column('user_id', Integer(), ForeignKey('faraday_user.id'))
+        user = relationship('User', foreign_keys=[user_id])
 
 
 DOMAIN_FILE_AVAILABLE = False
@@ -2849,18 +2866,6 @@ except ImportError:
         content = Column(UploadedFileField(upload_type=FaradayUploadedFile), nullable=False)  # plain attached file
         object_id = Column(Integer, nullable=False)
         object_type = Column(Enum(*OBJECT_TYPES, name='object_types'), nullable=False)
-
-
-class UserAvatar(Metadata):
-    __tablename__ = 'user_avatar'
-
-    id = Column(Integer, autoincrement=True, primary_key=True)
-    name = BlankColumn(Text, unique=True)
-    # photo field will automatically generate thumbnail
-    # if the file is a valid image
-    photo = Column(UploadedFileField(upload_type=FaradayUploadedFile))
-    user_id = Column('user_id', Integer(), ForeignKey('faraday_user.id'))
-    user = relationship('User', foreign_keys=[user_id])
 
 
 class MethodologyTemplate(Metadata):
@@ -4050,70 +4055,80 @@ class VulnerabilityStatusHistory(db.Model):
     )
 
 
-class PermissionsGroup(db.Model):
-    __tablename__ = 'permissions_group'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-
-
-class PermissionsUnit(db.Model):
-    __tablename__ = 'permissions_unit'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-    permissions_group_id = Column(Integer, ForeignKey('permissions_group.id'), index=True, nullable=False)
-    permissions_group = relationship(
-        'PermissionsGroup',
-        backref=backref('permissions_units', cascade="all, delete-orphan"),
-        foreign_keys=[permissions_group_id],
-    )
+DOMAIN_PERMISSIONS_AVAILABLE = False
+try:
+    from faraday.domain.user_auth.models import (  # noqa: F401
+        PermissionsGroup, PermissionsUnit, PermissionsUnitAction, RolePermission,
+    )  # ponytail YAGNI: user_auth (permissions) -> faraday/domain/user_auth
+    DOMAIN_PERMISSIONS_AVAILABLE = True
+except ImportError:
+    DOMAIN_PERMISSIONS_AVAILABLE = False
 
 
-class PermissionsUnitAction(db.Model):
-    __tablename__ = 'permissions_unit_action'
-    CREATE_ACTION = 'create'
-    READ_ACTION = 'read'
-    UPDATE_ACTION = 'update'
-    DELETE_ACTION = 'delete'
-    RUN_ACTION = 'run'
-    TAG_ACTION = 'tag'
-    ACTIONS = [CREATE_ACTION, READ_ACTION, UPDATE_ACTION, DELETE_ACTION, RUN_ACTION, TAG_ACTION]
+    class PermissionsGroup(db.Model):
+        __tablename__ = 'permissions_group'
 
-    id = Column(Integer, primary_key=True)
-
-    permissions_unit_id = Column(Integer, ForeignKey('permissions_unit.id'), index=True, nullable=False)
-    permissions_unit = relationship(
-        'PermissionsUnit',
-        backref=backref('permissions_actions', cascade="all, delete-orphan"),
-        foreign_keys=[permissions_unit_id],
-    )
-    action_type = Column(Enum(*ACTIONS, name='action_types'), nullable=False, default=READ_ACTION)
-
-    __table_args__ = (UniqueConstraint(permissions_unit_id, action_type, name='uix_permissions_unit_action'),)
+        id = Column(Integer, primary_key=True)
+        name = Column(String, nullable=False, unique=True)
 
 
-class RolePermission(db.Model):
-    __tablename__ = 'role_permission'
+    class PermissionsUnit(db.Model):
+        __tablename__ = 'permissions_unit'
 
-    id = Column(Integer, primary_key=True)
+        id = Column(Integer, primary_key=True)
+        name = Column(String, nullable=False, unique=True)
+        permissions_group_id = Column(Integer, ForeignKey('permissions_group.id'), index=True, nullable=False)
+        permissions_group = relationship(
+            'PermissionsGroup',
+            backref=backref('permissions_units', cascade="all, delete-orphan"),
+            foreign_keys=[permissions_group_id],
+        )
 
-    unit_action_id = Column(Integer, ForeignKey('permissions_unit_action.id'), index=True, nullable=False)
-    unit_action = relationship(
-        'PermissionsUnitAction',
-        backref=backref('role_permissions', cascade="all, delete-orphan"),
-        foreign_keys=[unit_action_id],
-    )
-    role_id = Column(Integer, ForeignKey('faraday_role.id'), index=True, nullable=False)
-    role = relationship(
-        'Role',
-        backref=backref('unit_action_permissions', cascade="all, delete-orphan"),
-        foreign_keys=[role_id],
-    )
 
-    allowed = Column(Boolean, default=False, nullable=False)
+    class PermissionsUnitAction(db.Model):
+        __tablename__ = 'permissions_unit_action'
+        CREATE_ACTION = 'create'
+        READ_ACTION = 'read'
+        UPDATE_ACTION = 'update'
+        DELETE_ACTION = 'delete'
+        RUN_ACTION = 'run'
+        TAG_ACTION = 'tag'
+        ACTIONS = [CREATE_ACTION, READ_ACTION, UPDATE_ACTION, DELETE_ACTION, RUN_ACTION, TAG_ACTION]
 
-    __table_args__ = (UniqueConstraint(unit_action_id, role_id, name='uix_unit_action_role'),)
+        id = Column(Integer, primary_key=True)
+
+        permissions_unit_id = Column(Integer, ForeignKey('permissions_unit.id'), index=True, nullable=False)
+        permissions_unit = relationship(
+            'PermissionsUnit',
+            backref=backref('permissions_actions', cascade="all, delete-orphan"),
+            foreign_keys=[permissions_unit_id],
+        )
+        action_type = Column(Enum(*ACTIONS, name='action_types'), nullable=False, default=READ_ACTION)
+
+        __table_args__ = (UniqueConstraint(permissions_unit_id, action_type, name='uix_permissions_unit_action'),)
+
+
+    class RolePermission(db.Model):
+        __tablename__ = 'role_permission'
+
+        id = Column(Integer, primary_key=True)
+
+        unit_action_id = Column(Integer, ForeignKey('permissions_unit_action.id'), index=True, nullable=False)
+        unit_action = relationship(
+            'PermissionsUnitAction',
+            backref=backref('role_permissions', cascade="all, delete-orphan"),
+            foreign_keys=[unit_action_id],
+        )
+        role_id = Column(Integer, ForeignKey('faraday_role.id'), index=True, nullable=False)
+        role = relationship(
+            'Role',
+            backref=backref('unit_action_permissions', cascade="all, delete-orphan"),
+            foreign_keys=[role_id],
+        )
+
+        allowed = Column(Boolean, default=False, nullable=False)
+
+        __table_args__ = (UniqueConstraint(unit_action_id, role_id, name='uix_unit_action_role'),)
 
 
 class WorkspaceSummaryReport(Metadata):

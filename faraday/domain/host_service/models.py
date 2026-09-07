@@ -48,7 +48,7 @@ except ImportError:
             update_date = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, Text, UniqueConstraint, func, text
-from sqlalchemy.orm import backref, column_property, relationship
+from sqlalchemy.orm import backref, column_property, joinedload, relationship, undefer
 from sqlalchemy.sql import select, table
 
 NonBlankColumn = partial(Column, nullable=False, info={'allow_blank': False})
@@ -208,23 +208,182 @@ class Credential(Metadata):
         return
 
 
-# Host sigue en faraday/server/models.py (100+ líneas, FK complejas) — re-export YAGNI para no romper wire en este corte
-try:
-    from faraday.server.models import Host as _Host  # type: ignore  # noqa: F401
-    Host = _Host  # noqa: F401
-    _has_host = True
-except Exception:  # noqa: BLE001
-    _has_host = False
+class Host(Metadata):
+    __tablename__ = 'host'
+    id = Column(Integer, primary_key=True)
+    ip = NonBlankColumn(Text)  # IP v4 or v6
+    description = BlankColumn(Text)
+    os = BlankColumn(Text)
+
+    owned = Column(Boolean, nullable=False, default=False)
+
+    default_gateway_ip = BlankColumn(Text)
+    default_gateway_mac = BlankColumn(Text)
+
+    mac = BlankColumn(Text)
+    net_segment = BlankColumn(Text)
+
+    commands = relationship(
+        'Command',
+        secondary='command_object',
+        primaryjoin='and_(Host.id == CommandObject.object_id, CommandObject.object_type == "host")',
+        collection_class=set,
+        passive_deletes=True
+    )
+
+    services = relationship(
+        'Service',
+        order_by='Service.protocol,Service.port',
+        cascade="all, delete-orphan"
+    )
+
+    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete='CASCADE'), index=True, nullable=False)
+    workspace = relationship(
+        'Workspace',
+        foreign_keys=[workspace_id],
+        backref=backref("hosts", cascade="all, delete-orphan", passive_deletes=True)
+    )
+
+    open_service_count = _make_generic_count_property('host', 'service', where=text("service.status = 'open'"))
+    total_service_count = _make_generic_count_property('host', 'service')
+
+    vulnerability_count = column_property(
+        (
+            select(func.count(text('vulnerability.id')))
+            .select_from(text('vulnerability'))
+            .where(text('vulnerability.host_id = host.id'))
+            .scalar_subquery()
+        ) + (
+            select(func.count(text('vulnerability.id')))
+            .select_from(text('vulnerability, service'))
+            .where(text('vulnerability.service_id = service.id and service.host_id = host.id'))
+            .scalar_subquery()
+        ),
+        deferred=True,
+    )
+
+    # anti-ciclo: usa text() y lazy import para evitar dependencia dura a Command/CommandObject en import time
+    # definiciones equivalentes a server/models.py pero con text() para desacoplar
+    creator_command_id = column_property(
+        select(text('command_object.command_id'))
+        .select_from(text('command_object'))
+        .where(text("command_object.object_type = 'host'"))
+        .where(text('command_object.object_id = host.id'))
+        .where(text('command_object.workspace_id = host.workspace_id'))
+        .order_by(text('command_object.create_date asc'))
+        .limit(1)
+        .scalar_subquery(),
+        deferred=True,
+    )
+
+    creator_command_tool = column_property(
+        select(text('command.tool'))
+        .select_from(text('command join command_object on command.id = command_object.command_id'))
+        .where(text("command_object.object_type = 'host'"))
+        .where(text('command_object.object_id = host.id'))
+        .where(text('command_object.workspace_id = host.workspace_id'))
+        .order_by(text('command_object.create_date asc'))
+        .limit(1)
+        .scalar_subquery(),
+        deferred=True,
+    )
+
+    creator_command_params = column_property(
+        select(text('command.params'))
+        .select_from(text('command join command_object on command.id = command_object.command_id'))
+        .where(text("command_object.object_type = 'host'"))
+        .where(text('command_object.object_id = host.id'))
+        .where(text('command_object.workspace_id = host.workspace_id'))
+        .order_by(text('command_object.create_date asc'))
+        .limit(1)
+        .scalar_subquery(),
+        deferred=True,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(ip, workspace_id, name='uix_host_ip_workspace'),
+    )
+
+    vulnerability_critical_generic_count = Column(Integer, server_default=text("0"))
+    vulnerability_high_generic_count = Column(Integer, server_default=text("0"))
+    vulnerability_medium_generic_count = Column(Integer, server_default=text("0"))
+    vulnerability_low_generic_count = Column(Integer, server_default=text("0"))
+    vulnerability_info_generic_count = Column(Integer, server_default=text("0"))
+    vulnerability_unclassified_generic_count = Column(Integer, server_default=text("0"))
+
+    importance = Column(Integer, default=0)
+
+    risk = Column(Integer, default=0)
+
+    @classmethod
+    def query_with_count(cls, host_ids, workspace):
+        # lazy imports para evitar ciclo con Workspace/User
+        try:
+            from faraday.server.models import Workspace as _Workspace, User as _User  # type: ignore
+            Workspace = _Workspace  # noqa: F811
+            User = _User  # noqa: F811
+        except Exception:
+            from sqlalchemy.orm import aliased  # noqa: F401
+            Workspace = None  # type: ignore
+            User = None  # type: ignore
+        query = cls.query.join(Workspace).filter(Workspace.id == workspace.id)
+        if host_ids:
+            query = query.filter(cls.id.in_(host_ids))
+        # undefer/joinedload ya importados arriba; si Workspace/User son None fallback simple
+        if Workspace is not None:
+            return query.options(
+                undefer(cls.open_service_count),
+                joinedload(cls.hostnames),
+                joinedload(cls.services),
+                joinedload(cls.update_user),
+                joinedload(getattr(cls, 'creator')).load_only(User.username),
+            ).limit(None).offset(0)
+        return query
+
+    @property
+    def parent(self):
+        return
+
+    def set_hostnames(self, new_hostnames):
+        """Override the host's hostnames. Take care of deleting old not
+        used hostnames and to leave the sames the ones that weren't
+        modified
+
+        This function was thought to update existing objects, it shouldn't
+        be used when creating!
+        """
+        try:
+            from faraday.domain.host_service.service import set_host_hostnames  # pylint: disable=import-outside-toplevel
+
+            return set_host_hostnames(self, new_hostnames)
+        except ImportError:
+            # fallback local sin depender de faraday.server.models.set_children_objects (evita ciclo)
+            try:
+                from faraday.server.models import set_children_objects as _set_children  # type: ignore
+                return _set_children(self, new_hostnames,
+                                     parent_field='hostnames',
+                                     child_field='name')
+            except Exception:
+                # último fallback inline
+                import operator
+                children_model = getattr(type(self), 'hostnames').property.mapper.class_
+                value = set(new_hostnames)
+                from faraday.server.models import db as _db  # type: ignore
+                with _db.session.no_autoflush:
+                    current_value = getattr(self, 'hostnames')
+                    current_value_fields = set(map(operator.attrgetter('name'), current_value))
+                    for existing_child in current_value_fields:
+                        if existing_child not in value:
+                            removed_instance = next(
+                                inst for inst in current_value
+                                if getattr(inst, 'name') == existing_child)
+                            _db.session.delete(removed_instance)
+                    for new_child in value:
+                        if new_child in current_value_fields:
+                            continue
+                        kwargs = {'name': new_child, 'workspace': self.workspace}
+                        current_value.append(children_model(**kwargs))
+                return None
+
 
 __all__ = ["SourceCode", "Hostname", "Host", "Service", "Credential"]
-
-
-def __getattr__(name):
-    if name == "Host":
-        try:
-            import importlib
-            srv = importlib.import_module("faraday.server.models")
-            return getattr(srv, name)
-        except Exception as e:
-            raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from e
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

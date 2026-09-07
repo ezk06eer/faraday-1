@@ -439,12 +439,17 @@ class WorkspaceView(ReadWriteView, FilterMixin, BulkDeleteMixin, PaginatedMixin,
         confirmed = self._get_querystring_boolean_field('confirmed')
         active = self._get_querystring_boolean_field('active')
         readonly = self._get_querystring_boolean_field('readonly')
-        query = Workspace.query_with_count(
-                confirmed,
-                active=active,
-                readonly=readonly,
-                workspace_name=object_id)
-        return query
+        try:
+            from faraday.repo.workspace_repo import WorkspaceRepository  # ponytail YAGNI
+
+            return WorkspaceRepository.query_with_count(confirmed, active=active, readonly=readonly, workspace_name=object_id)
+        except ImportError:
+            query = Workspace.query_with_count(
+                    confirmed,
+                    active=active,
+                    readonly=readonly,
+                    workspace_name=object_id)
+            return query
 
     def _get_object(self, object_id, workspace_name=None, eagerload=False, **kwargs):
         """

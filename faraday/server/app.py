@@ -445,13 +445,17 @@ def create_app(db_connection_string=None, testing=None, register_extensions_flag
     logger.debug("Creating new faraday app instance")
 
     class CustomFlask(Flask):
-        SKIP_RULES = [  # These endpoints will be removed for v3
-            '/v3/ws/<workspace_name>/hosts/bulk_delete/',
-            '/v3/ws/<workspace_name>/vulns/bulk_delete/',
-            '/v3/ws/<workspace_id>/change_readonly/',
-            '/v3/ws/<workspace_id>/deactivate/',
-            '/v3/ws/<workspace_id>/activate/',
-        ]
+        try:
+            from faraday.bounded_contexts.registry import DEPRECATED_ROUTES
+            SKIP_RULES = DEPRECATED_ROUTES
+        except ImportError:
+            SKIP_RULES = [  # These endpoints will be removed for v3
+                '/v3/ws/<workspace_name>/hosts/bulk_delete/',
+                '/v3/ws/<workspace_name>/vulns/bulk_delete/',
+                '/v3/ws/<workspace_id>/change_readonly/',
+                '/v3/ws/<workspace_id>/deactivate/',
+                '/v3/ws/<workspace_id>/activate/',
+            ]
 
         def add_url_rule(self, rule, endpoint=None, view_func=None, **options):
             # Flask registers views when an application starts

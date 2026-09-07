@@ -1,8 +1,8 @@
-"""Domain other — 11 clases cajón deuda (reshard SearchFilter+Configuration->reporting).
+"""Domain other — 6 clases cajón deuda (reshard BaseNotification*->notification).
 
-YAGNI: reshard progresivo. Ver /tmp/domain_shards.json other.
+YAGNI: reshard progresivo.
 """
-# TODO ponytail: mover BaseNotification, UserNotification, etc. (11 restantes)
+# TODO ponytail: mover VulnerabilityStatusHistory, CustomAssociationSet, etc. (6 restantes)
 from faraday.server.models import Metadata  # noqa: F401
 
 __all__ = ["Metadata"]

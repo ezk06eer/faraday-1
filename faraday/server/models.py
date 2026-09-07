@@ -1431,9 +1431,13 @@ class CVE(db.Model):
             raise ValueError("Invalid cve format. Should be CVE-YEAR-NUMBERID.") from e
 
 
+DOMAIN_SERVICE_AVAILABLE = False
 try:
     from faraday.domain.host_service.models import Service  # ponytail YAGNI: Service -> domain/host_service
+    DOMAIN_SERVICE_AVAILABLE = True
 except ImportError:
+    DOMAIN_SERVICE_AVAILABLE = False
+
     class Service(Metadata):
         STATUSES = [
             'open',

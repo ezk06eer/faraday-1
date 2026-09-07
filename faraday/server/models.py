@@ -1402,35 +1402,6 @@ cve_vulnerability_association = db.Table(
 )
 
 
-class CVE(db.Model):
-    __tablename__ = 'cve'
-
-    CVE_PATTERN = r'CVE-\d{4}-\d{4,7}'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(24), unique=True)
-    year = Column(Integer, nullable=True)
-    identifier = Column(Integer, nullable=True)
-
-    # TODO: add customer inserted flag
-    # Other fields TBD
-
-    vulnerabilities = relationship("VulnerabilityGeneric", secondary=cve_vulnerability_association)
-
-    def __str__(self):
-        return f'{self.id}'
-
-    def __init__(self, name=None, **kwargs):
-        logger.debug(f'cve found {name}')
-        try:
-            name = name.upper()
-            _, year, identifier = name.split("-")
-            super().__init__(name=name, year=year, identifier=identifier, **kwargs)
-        except ValueError as e:
-            logger.error("Invalid cve format. Should be CVE-YEAR-ID.")
-            raise ValueError("Invalid cve format. Should be CVE-YEAR-NUMBERID.") from e
-
-
 DOMAIN_SERVICE_AVAILABLE = False
 try:
     from faraday.domain.host_service.models import Service  # ponytail YAGNI: Service -> domain/host_service
@@ -1541,11 +1512,54 @@ class VulnerabilityGroup(db.Model):
 
 
 DOMAIN_VULN_AVAILABLE = False
+DOMAIN_VULN_REFS_AVAILABLE = False
 try:
-    from faraday.domain.vulnerability.models import VulnerabilityGeneric  # A15 YAGNI: vuln real en domain
+    from faraday.domain.vulnerability.models import (  # A15 YAGNI: vuln real en domain; W5: vuln refs shard
+        CVE,
+        CWE,
+        OWASP,
+        REFERENCE_TYPES,  # noqa: F401  (misma lista ya definida arriba; shim la mantiene importable)
+        Reference,
+        ReferenceTemplate,
+        ReferenceTemplateVulnerabilityAssociation,
+        ReferenceVulnerabilityAssociation,
+        VulnerabilityGeneric,
+        VulnerabilityReference,
+    )
     DOMAIN_VULN_AVAILABLE = True
+    DOMAIN_VULN_REFS_AVAILABLE = True
 except ImportError:
     DOMAIN_VULN_AVAILABLE = False
+    DOMAIN_VULN_REFS_AVAILABLE = False
+
+    class CVE(db.Model):
+        __tablename__ = 'cve'
+
+        CVE_PATTERN = r'CVE-\d{4}-\d{4,7}'
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(24), unique=True)
+        year = Column(Integer, nullable=True)
+        identifier = Column(Integer, nullable=True)
+
+        # TODO: add customer inserted flag
+        # Other fields TBD
+
+        vulnerabilities = relationship("VulnerabilityGeneric", secondary=cve_vulnerability_association)
+
+        def __str__(self):
+            return f'{self.id}'
+
+        def __init__(self, name=None, **kwargs):
+            logger.debug(f'cve found {name}')
+            try:
+                name = name.upper()
+                _, year, identifier = name.split("-")
+                super().__init__(name=name, year=year, identifier=identifier, **kwargs)
+            except ValueError as e:
+                logger.error("Invalid cve format. Should be CVE-YEAR-ID.")
+                raise ValueError("Invalid cve format. Should be CVE-YEAR-NUMBERID.") from e
+
     class VulnerabilityGeneric(VulnerabilityABC):
         STATUS_OPEN = 'open'
         STATUS_RE_OPENED = 're-opened'
@@ -2181,95 +2195,96 @@ class VulnerabilityCode(VulnerabilityGeneric):
         return self.source_code
 
 
-class ReferenceTemplate(Metadata):
-    __tablename__ = 'reference_template'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
+if not DOMAIN_VULN_REFS_AVAILABLE:
+    class ReferenceTemplate(Metadata):
+        __tablename__ = 'reference_template'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
 
-    __table_args__ = (
-        UniqueConstraint('name', name='uix_reference_template_name'),
-    )
+        __table_args__ = (
+            UniqueConstraint('name', name='uix_reference_template_name'),
+        )
 
-    def __init__(self, name=None, **kwargs):
-        super().__init__(name=name, **kwargs)
-
-
-class Reference(Metadata):
-    __tablename__ = 'reference'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
-    type = Column(Enum(*REFERENCE_TYPES, name='reference_types'), default='other')
-
-    workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
-    workspace = relationship(
-        'Workspace',
-        foreign_keys=[workspace_id],
-        backref=backref("references", cascade="all, delete-orphan"),
-    )
-
-    __table_args__ = (
-        UniqueConstraint('name', 'type', 'workspace_id',
-                         name='uix_reference_name_type_vulnerability_workspace'),
-    )
-
-    def __init__(self, name=None, workspace_id=None, **kwargs):
-        super().__init__(name=name, workspace_id=workspace_id, **kwargs)
-
-    def __str__(self):
-        return f'{self.name}'
-
-    @property
-    def parent(self):
-        # TODO: fix this property
-        return
+        def __init__(self, name=None, **kwargs):
+            super().__init__(name=name, **kwargs)
 
 
-class VulnerabilityReference(Metadata):
-    __tablename__ = 'vulnerability_reference'
-    __table_args__ = (
-        UniqueConstraint(
-            'name', 'type', 'vulnerability_id',
-            name='uix_vulnerability_reference_table_vuln_id_name_type'),
-        Index('ix_vulnerability_reference_vulnerability_id', 'vulnerability_id'),
-    )
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text)
-    type = Column(Enum(*REFERENCE_TYPES, name='reference_types'), default='other')
+    class Reference(Metadata):
+        __tablename__ = 'reference'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
+        type = Column(Enum(*REFERENCE_TYPES, name='reference_types'), default='other')
 
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), nullable=False)
+        workspace_id = Column(Integer, ForeignKey('workspace.id', ondelete="CASCADE"), index=True, nullable=False)
+        workspace = relationship(
+            'Workspace',
+            foreign_keys=[workspace_id],
+            backref=backref("references", cascade="all, delete-orphan"),
+        )
 
-    def __str__(self):
-        return f'{self.name}'
+        __table_args__ = (
+            UniqueConstraint('name', 'type', 'workspace_id',
+                             name='uix_reference_name_type_vulnerability_workspace'),
+        )
 
-    @property
-    def parent(self):
-        # TODO: fix this property
-        return
+        def __init__(self, name=None, workspace_id=None, **kwargs):
+            super().__init__(name=name, workspace_id=workspace_id, **kwargs)
+
+        def __str__(self):
+            return f'{self.name}'
+
+        @property
+        def parent(self):
+            # TODO: fix this property
+            return
 
 
-class OWASP(Metadata):
-    __tablename__ = 'owasp'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text, unique=True)
+    class VulnerabilityReference(Metadata):
+        __tablename__ = 'vulnerability_reference'
+        __table_args__ = (
+            UniqueConstraint(
+                'name', 'type', 'vulnerability_id',
+                name='uix_vulnerability_reference_table_vuln_id_name_type'),
+            Index('ix_vulnerability_reference_vulnerability_id', 'vulnerability_id'),
+        )
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text)
+        type = Column(Enum(*REFERENCE_TYPES, name='reference_types'), default='other')
 
-    vulnerabilities = relationship('VulnerabilityWeb', secondary=owasp_vulnerability_association)
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), nullable=False)
+
+        def __str__(self):
+            return f'{self.name}'
+
+        @property
+        def parent(self):
+            # TODO: fix this property
+            return
 
 
-class ReferenceVulnerabilityAssociation(db.Model):
-    __tablename__ = 'reference_vulnerability_association'
-    __table_args__ = (
-        Index('ix_reference_vulnerability_association_vulnerability_id', 'vulnerability_id'),
-    )
+    class OWASP(Metadata):
+        __tablename__ = 'owasp'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text, unique=True)
 
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), primary_key=True)
-    reference_id = Column(Integer, ForeignKey('reference.id', ondelete="CASCADE"), primary_key=True)
+        vulnerabilities = relationship('VulnerabilityWeb', secondary=owasp_vulnerability_association)
 
-    reference = relationship("Reference",
-                             backref=backref("reference_associations", cascade="all, delete-orphan"),
-                             foreign_keys=[reference_id])
-    vulnerability = relationship("Vulnerability",
-                                 backref=backref("reference_vulnerability_associations", cascade="all, delete-orphan"),
-                                 foreign_keys=[vulnerability_id])
+
+    class ReferenceVulnerabilityAssociation(db.Model):
+        __tablename__ = 'reference_vulnerability_association'
+        __table_args__ = (
+            Index('ix_reference_vulnerability_association_vulnerability_id', 'vulnerability_id'),
+        )
+
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability.id', ondelete="CASCADE"), primary_key=True)
+        reference_id = Column(Integer, ForeignKey('reference.id', ondelete="CASCADE"), primary_key=True)
+
+        reference = relationship("Reference",
+                                 backref=backref("reference_associations", cascade="all, delete-orphan"),
+                                 foreign_keys=[reference_id])
+        vulnerability = relationship("Vulnerability",
+                                     backref=backref("reference_vulnerability_associations", cascade="all, delete-orphan"),
+                                     foreign_keys=[vulnerability_id])
 
 
 class PolicyViolationVulnerabilityAssociation(db.Model):
@@ -2287,22 +2302,23 @@ class PolicyViolationVulnerabilityAssociation(db.Model):
                                  foreign_keys=[vulnerability_id])
 
 
-class ReferenceTemplateVulnerabilityAssociation(db.Model):
-    __tablename__ = 'reference_template_vulnerability_association'
+if not DOMAIN_VULN_REFS_AVAILABLE:
+    class ReferenceTemplateVulnerabilityAssociation(db.Model):
+        __tablename__ = 'reference_template_vulnerability_association'
 
-    vulnerability_id = Column(Integer, ForeignKey('vulnerability_template.id', ondelete='CASCADE'), primary_key=True)
-    reference_id = Column(Integer, ForeignKey('reference_template.id'), primary_key=True)
+        vulnerability_id = Column(Integer, ForeignKey('vulnerability_template.id', ondelete='CASCADE'), primary_key=True)
+        reference_id = Column(Integer, ForeignKey('reference_template.id'), primary_key=True)
 
-    reference = relationship(
-        "ReferenceTemplate",
-        foreign_keys=[reference_id],
-        backref=backref('reference_template_associations', cascade="all, delete-orphan")
-    )
-    vulnerability = relationship(
-        "VulnerabilityTemplate",
-        foreign_keys=[vulnerability_id],
-        backref=backref('reference_template_vulnerability_associations', cascade="all, delete-orphan")
-    )
+        reference = relationship(
+            "ReferenceTemplate",
+            foreign_keys=[reference_id],
+            backref=backref('reference_template_associations', cascade="all, delete-orphan")
+        )
+        vulnerability = relationship(
+            "VulnerabilityTemplate",
+            foreign_keys=[vulnerability_id],
+            backref=backref('reference_template_vulnerability_associations', cascade="all, delete-orphan")
+        )
 
 
 class PolicyViolationTemplateVulnerabilityAssociation(db.Model):
@@ -3016,12 +3032,13 @@ class TagObject(db.Model):
     )
 
 
-class CWE(Metadata):
-    __tablename__ = 'cwe'
-    id = Column(Integer, primary_key=True)
-    name = NonBlankColumn(Text, unique=True)
+if not DOMAIN_VULN_REFS_AVAILABLE:
+    class CWE(Metadata):
+        __tablename__ = 'cwe'
+        id = Column(Integer, primary_key=True)
+        name = NonBlankColumn(Text, unique=True)
 
-    vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
+        vulnerabilities = relationship('Vulnerability', secondary=cwe_vulnerability_association)
 
 
 class Comment(Metadata):

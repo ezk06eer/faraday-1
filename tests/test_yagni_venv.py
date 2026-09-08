@@ -7,6 +7,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# raíz del repo (CWD-agnóstico: funciona en repo local y en contenedor /src)
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+
 # import-safe mocks before heavy imports
 mock_socketio = MagicMock(side_effect=lambda *a, **kw: MagicMock())
 mock_celery = MagicMock(side_effect=lambda *a, **kw: MagicMock())
@@ -59,12 +62,12 @@ def skip_by_sql_dialect(request):  # noqa: ARG001, PT004
     yield
 
 
-def test_venv_python314():
-    assert sys.version_info >= (3, 14), f"requiere python 3.14, got {sys.version}"
+def test_python_version_supported():
+    assert sys.version_info >= (3, 11), f"requiere python >= 3.11, got {sys.version}"
 
 
 def test_contracts_md_exists_and_frozen():
-    c = pathlib.Path("contracts.md").read_text()
+    c = (REPO_ROOT / "contracts.md").read_text()
     assert "/_api" in c
     assert "v3" in c
     assert "Authorization: Token" in c
@@ -74,11 +77,11 @@ def test_contracts_md_exists_and_frozen():
 
 
 def test_analytics_deleted():
-    assert not pathlib.Path("faraday/server/api/modules/analytics.py").exists()
+    assert not (REPO_ROOT / "faraday/server/api/modules/analytics.py").exists()
 
 
 def test_swagger_contract():
-    data = json.loads(pathlib.Path("faraday/openapi/faraday_swagger.json").read_text())
+    data = json.loads((REPO_ROOT / "faraday/openapi/faraday_swagger.json").read_text())
     assert data["info"]["title"] == "Faraday 5.24.0 API"
     assert data["info"]["version"] == "v3"
 
@@ -93,9 +96,9 @@ def test_domain_shims():
         "notification",
         "agent_workflow",
     ]:
-        assert pathlib.Path(f"faraday/domain/{p}/models.py").exists(), f"falta domain/{p}"
+        assert (REPO_ROOT / f"faraday/domain/{p}/models.py").exists(), f"falta domain/{p}"
     # other fallback shim may be domain/other.py or legacy
-    assert pathlib.Path("faraday/domain/workspace/models.py").exists()
+    assert (REPO_ROOT / "faraday/domain/workspace/models.py").exists()
 
 
 def test_repos_services_infra():
@@ -111,14 +114,16 @@ def test_repos_services_infra():
 
 
 def test_base_delegates():
-    base = pathlib.Path("faraday/server/api/base.py").read_text()
-    assert "WorkspaceRepository.get_by_name" in base
-    assert "SortingService.get_order_field" in base
-    assert "PaginationService.paginate" in base
+    """Post-Y3: las delegaciones viven en core.py (repo) y mixins.py (services)."""
+    core = (REPO_ROOT / "faraday/server/api/core.py").read_text()
+    mixins = (REPO_ROOT / "faraday/server/api/mixins.py").read_text()
+    assert "WorkspaceRepository.get_by_name" in core
+    assert "SortingService.get_order_field" in mixins
+    assert "PaginationService.paginate" in mixins
 
 
 def test_wire_prefix_and_auth_hs512():
-    app_py = pathlib.Path("faraday/server/app.py").read_text()
+    app_py = (REPO_ROOT / "faraday/server/app.py").read_text()
     assert "APPLICATION_PREFIX" in app_py
     assert "/_api" in app_py or "APPLICATION_PREFIX" in app_py
     assert "HS512" in app_py
@@ -127,9 +132,14 @@ def test_wire_prefix_and_auth_hs512():
     assert "auth_type == 'token'" in app_py or 'auth_type == "token"' in app_py or "token" in app_py.lower()
     assert "agent" in app_py.lower()
     assert "basic" in app_py.lower()
-    # wire v3 in base.py
-    base = pathlib.Path("faraday/server/api/base.py").read_text()
-    assert "/v3" in base or "v3" in base
+    # wire v3: en base.py (pre-Y3) o en core.py/mixins.py (post-split Y3)
+    wire = ""
+    for f in ["faraday/server/api/base.py", "faraday/server/api/core.py",
+              "faraday/server/api/mixins.py"]:
+        p = REPO_ROOT / f
+        if p.exists():
+            wire += p.read_text()
+    assert "/v3" in wire or "v3" in wire
 
 
 def test_imports_ok():

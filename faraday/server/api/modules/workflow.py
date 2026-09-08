@@ -17,16 +17,15 @@ from faraday.server.api.base import (
     ReadWriteView,
 )
 from faraday.server.config import faraday_server as server_config
-from faraday.server.models import (
-    db,
-    Workflow,
-    Action,
-    Condition,
-    WorkflowExecution,
-    Workspace,
-    Pipeline,
-    CustomFieldsSchema,
-)
+try:
+    from faraday.domain.agent_workflow.models import Action, Condition, Pipeline, Workflow, WorkflowExecution
+except ImportError:
+    from faraday.server.models import Action, Condition, Pipeline, Workflow, WorkflowExecution
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
+from faraday.server.models import CustomFieldsSchema, db
 from faraday.server.schemas import SelfNestedField, MetadataSchema
 
 workflow_api = Blueprint('workflow_api', __name__)

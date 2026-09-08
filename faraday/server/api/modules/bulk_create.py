@@ -51,27 +51,27 @@ from faraday.server.api.modules.credentials import CredentialSchema
 from faraday.server.api.modules.websocket_auth import require_agent_token
 from faraday.server.config import CONST_FARADAY_HOME_PATH, faraday_server
 from faraday.server.debouncer import update_workspace_vulns_count
-from faraday.server.models import (
-    AgentExecution,
-    Command,
-    CommandObject,
-    Credential,
-    CVE,
-    Host,
-    Hostname,
-    Metadata,
-    PolicyViolationVulnerabilityAssociation,
-    Service,
-    SeveritiesHistogram,
-    Vulnerability,
-    VulnerabilityReference,
-    Workspace,
-    association_table_vulnerabilities_credentials,
-    cve_vulnerability_association,
-    cwe_vulnerability_association,
-    db,
-    owasp_vulnerability_association,
-)
+try:
+    from faraday.domain.agent_workflow.models import AgentExecution
+except ImportError:
+    from faraday.server.models import AgentExecution
+try:
+    from faraday.domain.command.models import Command, CommandObject
+except ImportError:
+    from faraday.server.models import Command, CommandObject
+try:
+    from faraday.domain.host_service.models import Credential, Host, Hostname, Service
+except ImportError:
+    from faraday.server.models import Credential, Host, Hostname, Service
+try:
+    from faraday.domain.vulnerability.models import CVE, PolicyViolationVulnerabilityAssociation, SeveritiesHistogram, Vulnerability, VulnerabilityReference
+except ImportError:
+    from faraday.server.models import CVE, PolicyViolationVulnerabilityAssociation, SeveritiesHistogram, Vulnerability, VulnerabilityReference
+try:
+    from faraday.domain.workspace.models import Workspace
+except ImportError:
+    from faraday.server.models import Workspace
+from faraday.server.models import Metadata, association_table_vulnerabilities_credentials, cve_vulnerability_association, cwe_vulnerability_association, db, owasp_vulnerability_association
 from faraday.server.tasks import process_report_task
 from faraday.server.utils.cvss import (
     get_base_score,

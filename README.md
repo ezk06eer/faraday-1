@@ -30,20 +30,9 @@ The easiest way to get faraday up and running is using our docker-compose
 
 ```shell
 $ wget https://raw.githubusercontent.com/infobyte/faraday/master/docker-compose.yaml
-$ docker compose up
+$ docker-compose up
 ```
 If you want to customize, you can find an example config over here [Link](https://docs.faradaysec.com/Install-guide-Docker/)
-
-### Docker (local development)
-
-To run the stack (PostgreSQL, Redis, Celery worker/beat and server) from this repo's source instead of the official image:
-
-```shell
-$ docker compose build faraday-server
-$ docker compose up
-```
-
-The server listens on `http://localhost:5985`; a random admin password is printed to the server log on first boot (`docker logs faraday_server | grep "Admin user created"`). Override it with `-e FARADAY_PASSWORD=...` on first boot.
 
 
 ### Docker
@@ -92,8 +81,6 @@ $ pip3 install .
 $ faraday-manage initdb
 $ faraday-server
 ```
-
-Requires Python >= 3.11 and a running PostgreSQL instance (see the [Installation Wiki](https://github.com/infobyte/faraday/wiki/Install-Guide)).
 
 Check out our documentation for detailed information on how to install Faraday in all of our supported platforms
 
@@ -198,36 +185,6 @@ Creating custom plugins is super easy, [Read more about Plugins](http://github.c
 You can access directly to our API,
 check out the documentation [here](https://api.faradaysec.com/).
 
-## Architecture
-
----
-
-The server is organized as a **modulith**: a single deployable Flask app composed of well-separated internal layers. All public behavior is frozen in [contracts.md](./contracts.md) (HTTP wire `/_api/v3`, auth JWT HS512, REST semantics, Swagger) and the runtime overview lives in [architecture.md](./architecture.md).
-
-```
-faraday/
-├── domain/            # Domain models & pure services, one shard per bounded concept
-│   ├── host_service/  #   Host, Hostname, Service, Credential, SourceCode
-│   ├── vulnerability/ #   VulnerabilityGeneric (+web/code), CVE/CWE/OWASP, File
-│   ├── workspace/     #   Workspace, Scope, WorkspacePermission
-│   ├── user_auth/     #   User, Role, UserToken, Permissions*
-│   ├── agent_workflow/#   Agent, Executor, AgentsSchedule, Pipeline, Workflow
-│   ├── command/       #   Command, CommandObject
-│   ├── notification/  #   Notification*, Comment
-│   ├── reporting/     #   ExecutiveReport, Methodology, Planner, License
-│   └── tagging/       #   Tag, TagObject
-├── services/          # Application services (sorting, pagination, filtering, search)
-├── repo/              # Repository layer (workspace, host, vuln, command)
-├── infra/             # Infrastructure gateways (broker, events, websocket, redis)
-├── bounded_contexts/  # Standalone minimal apps per context (workspace, host, vuln)
-└── server/            # Flask app, API views (blueprints), config, extensions
-```
-
-Key rules for contributors:
-
-- `faraday/server/models.py` keeps **import-compatibility shims**: every entity lives in its `faraday/domain/<shard>/models.py` shard and is re-exported via `try/except ImportError` with a local fallback, so both import orders (server-first and domain-first) resolve to the same class.
-- API views (`faraday/server/api/modules/`) consume domain models directly and must keep the frozen wire contract.
-- New N+1-sensitive list endpoints should implement `get_joinedloads` / `_get_eagerloaded_query` instead of disabling the nplusone guard in tests.
 
 ## Links
 

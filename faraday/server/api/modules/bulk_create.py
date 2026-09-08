@@ -1260,7 +1260,9 @@ class BulkCreateView(GenericWorkspacedView):
                         False,
                         None,
                         None,
-                        None
+                        None,
+                        None,   # min_severity (fix: processor espera 12 valores)
+                        None,   # max_severity
                     )
                 )
                 logger.info(f"Faraday objects enqueued in bulk for workspace {workspace}")

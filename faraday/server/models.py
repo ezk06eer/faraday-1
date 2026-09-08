@@ -3229,18 +3229,24 @@ except ImportError:
 
 
 
-class ObjectType(db.Model):
-    __tablename__ = 'object_type'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(64), unique=True, nullable=False)
+DOMAIN_NOTIFICATION_CATALOG_AVAILABLE = False
+try:
+    from faraday.domain.notification.models import ObjectType, EventType  # noqa: F401
+    DOMAIN_NOTIFICATION_CATALOG_AVAILABLE = True
+except ImportError:
+    DOMAIN_NOTIFICATION_CATALOG_AVAILABLE = False
 
+    class ObjectType(db.Model):
+        __tablename__ = 'object_type'
+        id = Column(Integer, primary_key=True)
+        name = Column(String(64), unique=True, nullable=False)
 
-class EventType(db.Model):
-    __tablename__ = 'event_type'
-    id = Column(Integer, primary_key=True)
-    name = Column(String(64), unique=True, nullable=False)
-    async_event = Column(Boolean, default=False)
-    enabled = Column(Boolean, default=True)
+    class EventType(db.Model):
+        __tablename__ = 'event_type'
+        id = Column(Integer, primary_key=True)
+        name = Column(String(64), unique=True, nullable=False)
+        async_event = Column(Boolean, default=False)
+        enabled = Column(Boolean, default=True)
 
 
 DOMAIN_NOTIFICATION_AVAILABLE = False

@@ -46,7 +46,6 @@ try:
         db,  # type: ignore
         NOTIFICATION_METHODS,
         OBJECT_TYPES,
-        EventType,
         BlankColumn,
         COMMENT_TYPES,
     )
@@ -59,7 +58,6 @@ except ImportError:  # fallback para py_compile / uso aislado sin app
         'comment', 'executive_report', 'workspace', 'task', 'report_logo',
         'report_template', 'template_logo', 'ws_sum_report',
     ]
-    EventType = None  # type: ignore
     BlankColumn = Text
     COMMENT_TYPES = ['user']
 
@@ -78,6 +76,25 @@ try:
     from faraday.server.fields import JSONType
 except ImportError:
     from sqlalchemy import JSON as JSONType  # type: ignore
+
+
+
+# P4a: catálogos ObjectType/EventType reales (antes en server/models.py).
+# Guard de tabla: en domain-first server.models ya los definió via fallback.
+if 'event_type' in db.metadata.tables:
+    from faraday.server.models import ObjectType, EventType  # noqa: F401
+else:
+    class ObjectType(db.Model):
+        __tablename__ = 'object_type'
+        id = Column(Integer, primary_key=True)
+        name = Column(String(64), unique=True, nullable=False)
+
+    class EventType(db.Model):
+        __tablename__ = 'event_type'
+        id = Column(Integer, primary_key=True)
+        name = Column(String(64), unique=True, nullable=False)
+        async_event = Column(Boolean, default=False)
+        enabled = Column(Boolean, default=True)
 
 
 if 'notification_subscription' in db.metadata.tables:
@@ -512,4 +529,4 @@ else:
             return
 
 
-__all__ = ['Comment', 'ExecutiveReport', 'EventType', 'NotificationSubscription', 'NotificationSubscriptionConfigBase', 'NotificationSubscriptionMailConfig', 'NotificationSubscriptionWebHookConfig', 'NotificationSubscriptionWebSocketConfig', 'NotificationEvent', 'NotificationBase', 'MailNotification', 'WebHookNotification', 'WebsocketNotification', 'Notification', 'BaseNotification', 'UserNotification', 'UserNotificationSettings', 'EmailNotification', 'SlackNotification']
+__all__ = ['ObjectType', 'EventType', 'Comment', 'ExecutiveReport', 'EventType', 'NotificationSubscription', 'NotificationSubscriptionConfigBase', 'NotificationSubscriptionMailConfig', 'NotificationSubscriptionWebHookConfig', 'NotificationSubscriptionWebSocketConfig', 'NotificationEvent', 'NotificationBase', 'MailNotification', 'WebHookNotification', 'WebsocketNotification', 'Notification', 'BaseNotification', 'UserNotification', 'UserNotificationSettings', 'EmailNotification', 'SlackNotification']
